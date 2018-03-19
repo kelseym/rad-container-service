@@ -6,11 +6,12 @@ Not yet released.
 
 ### Features
 
-
+* [CS-29][] Enable output handlers to have type "`Assessor`". If a command output points to an assessor XML, the output handler can now upload that XML and create the assessor object in XNAT.
 
 ### Bugfixes
 
 
+[CS-29]: https://issues.xnat.org/browse/CS-29
 
 ## 1.6.1
 
