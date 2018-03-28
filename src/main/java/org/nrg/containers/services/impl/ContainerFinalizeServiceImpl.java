@@ -294,7 +294,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
             final String label = StringUtils.isNotBlank(output.label()) ? output.label() : output.name();
 
-            String parentUri = getWrapperInputValue(output.handledBy());
+            String parentUri = getUriByInputOrOutputHandlerName(output.handledBy());
             if (parentUri == null) {
                 throw new ContainerException(String.format(prefix + "Cannot upload output \"%s\". Could not instantiate object from input \"%s\".", output.name(), output.handledBy()));
             }
@@ -410,17 +410,21 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             throw new ContainerException(String.format(prefix + "Mount \"%s\" does not exist.", mountName));
         }
 
-        private String getWrapperInputValue(final String inputName) {
+        private String getUriByInputOrOutputHandlerName(final String name) {
             if (log.isDebugEnabled()) {
-                log.debug(String.format(prefix + "Getting URI for input \"%s\".", inputName));
+                log.debug(String.format(prefix + "Getting URI for input or output handler \"%s\".", name));
             }
 
-            if (wrapperInputAndOutputValues.containsKey(inputName)) {
-                return wrapperInputAndOutputValues.get(inputName);
+            if (wrapperInputAndOutputValues.containsKey(name)) {
+                final String uri = wrapperInputAndOutputValues.get(name);
+                if (log.isDebugEnabled()) {
+                    log.debug(prefix + String.format("Found uri value \"%s\".", uri));
+                }
+                return uri;
             }
 
             if (log.isDebugEnabled()) {
-                log.debug(String.format(prefix + "No input or output found with name \"%s\".", inputName));
+                log.debug(String.format(prefix + "No input or output handler found with name \"%s\".", name));
             }
             return null;
         }
