@@ -47,6 +47,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
@@ -58,6 +60,8 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
     private final CatalogService catalogService;
+
+    private final Pattern experimentUri = Pattern.compile("^(/archive)?/experiments/([^/]+)$");
 
     @Autowired
     public ContainerFinalizeServiceImpl(final ContainerControlApi containerControlApi,
@@ -370,7 +374,16 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     throw new ContainerException(message);
                 }
 
-                createdUri = UriParserUtils.getArchiveUri(item);
+                final String createdUriThatNeedsToBeChecked = UriParserUtils.getArchiveUri(item);
+
+                // The URI that is returned from UriParserUtils is technically correct, but doesn't work very well.
+                // It is of the form /experiments/{assessorId}. If we try to upload resources to it, that will fail.
+                // We have to manually turn it into a URI of the form /experiments/{sessionId}/assessors/{assessorId}.
+                final Matcher createdUriMatchesExperimentUri = experimentUri.matcher(createdUriThatNeedsToBeChecked);
+                createdUri = createdUriMatchesExperimentUri.matches() ?
+                        String.format("%s/assessors/%s", parentUri, createdUriMatchesExperimentUri.group(2)) :
+                        createdUriThatNeedsToBeChecked;
+
             }
 
             log.info(prefix + "Done uploading output \"{}\". URI of created output: {}", output.name(), createdUri);
