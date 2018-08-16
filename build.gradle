@@ -5,6 +5,9 @@ import io.swagger.models.Info
 import io.swagger.models.License
 
 buildscript {
+    ext {
+        vXnat = '1.7.5-SNAPSHOT'
+    }
     repositories {
         maven {
             url "https://plugins.gradle.org/m2/"
@@ -24,12 +27,12 @@ buildscript {
         classpath "gradle.plugin.com.github.zhurlik:gradle-swagger-plugin:0.2"
         classpath group: 'io.swagger', name: 'swagger-core', version: '1.5.+'
         classpath group: 'com.github.kongchen', name: 'swagger-maven-plugin', version: '3.1.+'
-        classpath "org.nrg.xdat:core:1.7.3"
+        classpath "org.nrg.xdat:core:${vXnat}"
     }
 }
 
 group 'org.nrg'
-version '1.6.1-SNAPSHOT'
+version '2.0.0-SNAPSHOT'
 
 apply plugin: 'java'
 apply plugin: 'idea'
@@ -42,8 +45,6 @@ apply plugin: "com.github.zhurlik.swagger"
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
-def vXnat = '1.7.3'
-def vXnatDev = '1.7.5-SNAPSHOT'
 def vMockito = '1.10.19'
 def vJavassist = '3.21.0-GA'
 def vAwaitility = '2.0.0'
@@ -160,8 +161,8 @@ dependencies {
 
     compile "org.slf4j:slf4j-api"
     compile "org.slf4j:slf4j-log4j12"
-    compile "org.projectlombok:lombok:1.18.0"
-    apt "org.projectlombok:lombok:1.18.0"
+    compile "org.projectlombok:lombok"
+    apt "org.projectlombok:lombok"
 
     compile "commons-lang:commons-lang"
 

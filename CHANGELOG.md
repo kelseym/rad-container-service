@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0
+
+Not yet released.
+
+### Features
+
+
+
+### Bugfixes
+
+
+
 ## 1.6.1
 
 Not yet released.
