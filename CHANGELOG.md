@@ -10,8 +10,10 @@ Not yet released.
 
 ### Bugfixes
 
+* [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
 
 [CS-29]: https://issues.xnat.org/browse/CS-29
+[XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
 
 ## 1.6.1
 
