@@ -188,7 +188,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             table: {
                 classes: 'highlight hidden',
                 on: [
-                    ['click', 'a.view-history', viewHistoryDialog]
+                    ['click', 'a.view-container-history', viewHistoryDialog]
                 ]
             },
             trs: function (tr, data) {
@@ -301,7 +301,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                 wrapper.name
                             : this['command-line'];
 
-                        return spawn('a.view-history', {
+                        return spawn('a.view-container-history', {
                             href: '#!',
                             title: 'From image: '+this['docker-image'],
                             data: {'id': this.id},
