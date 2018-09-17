@@ -744,6 +744,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         commandListManager,
         commandDefinition,
         wrapperList,
+        hiddenImages = [],
         imageHubs;
 
     XNAT.plugin.containerService.imageListManager = imageListManager =
@@ -776,6 +777,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             "enabled": true
         }
     ];
+    imageListManager.images = {}; // populate this object via rest
 
     function imageUrl(appended,force){
         appended = (appended) ? '/' + appended : '';
@@ -795,7 +797,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             url: imageUrl(),
             dataType: 'json',
             success: function(data){
-                imageListManager.images = data;
                 callback.apply(this, arguments);
             }
         });
@@ -1041,7 +1042,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
 
     // create table for listing commands
-    commandListManager.table = function(imageName,callback){
+    commandListManager.table = function(image){
+
+        var imageName = image.tags[0];
+        var imageId = image['imageSha'];
+        var $commandListContainer = $(document).find('#'+imageId+'-commandlist');
 
         // initialize the table - we'll add to it below
         var clmTable = XNAT.table({
@@ -1164,40 +1169,42 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 clmTable.tr({title: 'No command data found'})
                     .td({colSpan: '5', html: 'No Commands Found'});
             }
+
+            $commandListContainer.append(clmTable.table);
+
+            if (data.length === 0) {
+                $commandListContainer.parents('.imageContainer').addClass('no-commands hidden');
+                imageListManager.images[imageId].hideable = true; // Store a parameter that tracks whether we have hidden this image in the list for use in toggling.
+                hiddenImages.push(imageId);
+
+                imageFilterManager.refresh();
+            }
         });
-
-        commandListManager.$table = $(clmTable.table);
-
-        return clmTable.table;
     };
 
-    imageFilterManager.init = function(container){
+    imageFilterManager.init = imageFilterManager.refresh = function(){
 
-        var $manager = $$(container||'div#image-filter-bar');
         var $footer = $('#image-filter-bar').parents('.panel').find('.panel-footer');
 
-        imageFilterManager.container = $manager;
-
+        // add the 'add new' button to the panel footer
         var newImage = spawn('button.new-image.btn.btn-sm.submit', {
             html: 'Add New Image',
             onclick: function(){
                 addImage.dialog(null);
             }
         });
-
-        // add the 'add new' button to the panel footer
-        $footer.append(spawn('div.pull-right', [
+        $footer.empty().append(spawn('div.pull-right', [
             newImage
         ]));
-        $footer.append(spawn('div.clear.clearFix'));
 
-        return {
-            element: $manager[0],
-            spawned: $manager[0],
-            get: function(){
-                return $manager[0]
-            }
-        };
+        if (hiddenImages.length) {
+            $footer.append(spawn('div.pull-right.pad20h.pad5v.show-hidden-images',[
+                spawn('i.fa.fa-eye-slash'),
+                ' '+hiddenImages.length+' Images Hidden'
+            ]))
+        }
+
+        $footer.append(spawn('div.clear.clearFix'));
     };
 
     imageListManager.init = function(container){
@@ -1273,13 +1280,19 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
         imageListManager.getAll().done(function(data){
             if (data.length > 0) {
-                data = data.sort(function(a,b){ return (a['image-id'] > b['image-id']) ? 1 : -1; })
+                data = data.sort(function(a,b){ if (a.tags.length && b.tags.length) return (a.tags[0] > b.tags[0]) ? 1 : -1; });
 
                 data.forEach(function(imageInfo){
                     if (imageInfo.tags.length && imageInfo.tags[0] !== "<none>:<none>") {
+
+                        imageInfo['imageSha'] = imageInfo['image-id'].substring(7); // cut out leading 'sha256:' from image ID for use as a HTML ID.
+
+                        // add image to canonical list of images
+                        imageListManager.images[imageInfo['imageSha']] = imageInfo;
+
                         $manager.append(spawn('div.imageContainer',[
                             spawn('h3.imageTitle',[
-                                (imageInfo.tags[0])=="<none>:<none>"?imageInfo['image-id']:imageInfo.tags[0],
+                                imageInfo.tags[0],
                                 spawn( 'span.pull-right',[
                                     deleteImageButton(imageInfo)
                                 ]),
@@ -1287,13 +1300,13 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                     newCommandButton(imageInfo)
                                 ])
                             ]),
-                            spawn('div.imageCommandList',[
-                                commandListManager.table(imageInfo.tags[0])
-                            ])
+                            spawn('div.imageCommandList',{ id: imageInfo['imageSha']+'-commandlist' })
                         ]));
-                    }
-                    else {
-                        $manager.append(spawn('div.alert', '<b>Error:</b> Image ID ['+imageInfo['image-id']+'] does not have any tag info and cannot be displayed.'));
+
+                        // render the command list after the image summary div has been rendered, and deal with images with no commands at that point.
+                        commandListManager.table(imageInfo);
+                    } else {
+                        console.log('Image ['+imageInfo['image-id']+'] has no tag information and was ignored.');
                     }
                 })
 
