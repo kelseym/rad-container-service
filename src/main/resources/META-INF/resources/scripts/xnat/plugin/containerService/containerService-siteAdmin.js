@@ -744,7 +744,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         commandListManager,
         commandDefinition,
         wrapperList,
-        hiddenImages = [],
         imageHubs;
 
     XNAT.plugin.containerService.imageListManager = imageListManager =
@@ -1064,7 +1063,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             .th('<b>XNAT Actions</b>')
             .th('<b>Site-wide Config</b>')
             .th('<b>Version</b>')
-            .th({ width: 180, html: '<b>Actions</b>' });
+            .th('<b>Actions</b>');
 
         function viewLink(item, text){
             return spawn('a.link|href=#!', {
@@ -1085,7 +1084,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         commandDefinition.dialog(commandDef, false);
                     });
                 }
-            }, 'Edit Command');
+            }, '<i class="fa fa-pencil" title="Edit Command"></i>');
         }
 
         function enabledCheckbox(item){
@@ -1175,12 +1174,18 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             if (data.length === 0) {
                 $commandListContainer.parents('.imageContainer').addClass('no-commands hidden');
                 imageListManager.images[imageId].hideable = true; // Store a parameter that tracks whether we have hidden this image in the list for use in toggling.
-                hiddenImages.push(imageId);
 
                 imageFilterManager.refresh();
             }
         });
     };
+
+    function hiddenImagesMessage(num, hidden){
+        if (!hidden) return 'Hide Images With No Commands';
+        if (num === 0) return 'No Images Hidden';
+        if (num > 1) return 'One Image Hidden';
+        return parseInt(num) + ' Images Hidden';
+    }
 
     imageFilterManager.init = imageFilterManager.refresh = function(){
 
@@ -1196,11 +1201,13 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         $footer.empty().append(spawn('div.pull-right', [
             newImage
         ]));
-
-        if (hiddenImages.length) {
-            $footer.append(spawn('div.pull-right.pad20h.pad5v.show-hidden-images',[
-                spawn('i.fa.fa-eye-slash'),
-                ' '+hiddenImages.length+' Images Hidden'
+        var $hideableImages = $(document).find('.imageContainer.no-commands');
+        if ($hideableImages.length) {
+            $footer.append(spawn('div.pull-right.pad5v',[
+                spawn('a.show-hidden-images.pad20h', { href: '#!', data: { 'hidden': 'true' }},[
+                    spawn('i.fa.fa-eye-slash.pad5h'),
+                    spawn('span', hiddenImagesMessage($hideableImages.length, true))
+                ])
             ]))
         }
 
@@ -1317,11 +1324,32 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         });
     };
 
+    $(document).on('click','.show-hidden-images',function(e){
+        // toggle visibility of hideable images
+        e.preventDefault();
+        var hidden = $(this).data('hidden');
+        var $hideableImages = $('.imageContainer.no-commands');
+
+        if (hidden){
+            $(this).find('.fa').removeClass('fa-eye-slash').addClass('fa-eye');
+            $(this)
+                .data('hidden',false)
+                .find('span').html(hiddenImagesMessage(null,false));
+            $hideableImages.removeClass('hidden');
+        } else {
+            $(this).find('.fa').removeClass('fa-eye').addClass('fa-eye-slash');
+            $(this)
+                .data('hidden','true')
+                .find('span').html(hiddenImagesMessage($hideableImages.length, true));
+            $hideableImages.addClass('hidden');
+        }
+    });
 
     imageListManager.refresh = imageListManager.refreshTable = function(container){
         container = $$(container || 'div#image-list-container');
         container.html('');
         imageListManager.init();
+        imageFilterManager.refresh();
     };
 
     imageFilterManager.init();
