@@ -1183,7 +1183,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     function hiddenImagesMessage(num, hidden){
         if (!hidden) return 'Hide Images With No Commands';
         if (num === 0) return 'No Images Hidden';
-        if (num > 1) return 'One Image Hidden';
+        if (num === 1) return 'One Image Hidden';
         return parseInt(num) + ' Images Hidden';
     }
 

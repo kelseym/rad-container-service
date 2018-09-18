@@ -1,5 +1,8 @@
-.imageContainer + .imageContainer {
-    margin: 4em 0 0;
+.imageContainer {
+    margin: 0 0 4em;
+}
+.imageContainer:last-of-type {
+    margin: 0;
 }
 .imageContainer h3 {
     border: none;
