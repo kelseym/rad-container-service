@@ -1063,7 +1063,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             .th('<b>XNAT Actions</b>')
             .th('<b>Site-wide Config</b>')
             .th('<b>Version</b>')
-            .th('<b>Actions</b>');
+            .th({ width: '100', html: '<b>Actions</b>' });
 
         function viewLink(item, text){
             return spawn('a.link|href=#!', {
