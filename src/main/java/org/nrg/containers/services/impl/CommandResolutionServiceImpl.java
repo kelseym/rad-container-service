@@ -541,6 +541,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     if (xnatModelObject == null) {
                         log.debug("Could not instantiate XNAT object from value.");
+                        resolvedValue = null;
                     } else {
                         resolvedModelObject = xnatModelObject;
                         final String resolvedXnatObjectUri = xnatModelObject.getUri();
