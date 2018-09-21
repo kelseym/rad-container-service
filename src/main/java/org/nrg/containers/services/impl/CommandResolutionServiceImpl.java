@@ -1511,7 +1511,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 return resolvedOutputs;
             }
 
-            final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName = Maps.newHashMap();
+            final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName = new HashMap<>();
             final Map<String, CommandWrapperOutput> wrapperOutputsByName = new HashMap<>();
             if (commandWrapper.outputHandlers() != null) {
                 for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
@@ -1527,6 +1527,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
             }
 
+            final Map<String, ResolvedCommandOutput> resolvedCommandOutputsByOutputHandlerName = new HashMap<>();
             for (final CommandOutput commandOutput : command.outputs()) {
                 final List<ResolvedCommandOutput> resolvedOutputList = resolveCommandOutput(commandOutput, resolvedInputTrees, resolvedInputValuesByReplacementKey,
                         wrapperOutputsByHandledCommandOutputName, wrapperOutputsByName);
@@ -1535,9 +1536,21 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
 
                 for (final ResolvedCommandOutput resolvedCommandOutput : resolvedOutputList) {
-                    log.debug("Adding resolved output \"{}\" to resolved command.", resolvedCommandOutput.name());
-                    resolvedOutputs.add(resolvedCommandOutput);
+                    log.debug("Finished with resolved output \"{}\".", resolvedCommandOutput.name());
+                    resolvedCommandOutputsByOutputHandlerName.put(resolvedCommandOutput.fromOutputHandler(), resolvedCommandOutput);
                 }
+            }
+
+            // Add resolved outputs in the order of the output handlers
+            for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
+                final ResolvedCommandOutput resolvedCommandOutput = resolvedCommandOutputsByOutputHandlerName.get(commandWrapperOutput.name());
+                if (resolvedCommandOutput == null) {
+                    log.debug("Command wrapper output handler {} has no resolved output. Is... is this an error?", commandWrapperOutput.name());
+                    continue;
+                }
+
+                log.debug("Adding resolved output \"{}\" to resolved command.", resolvedCommandOutput.name());
+                resolvedOutputs.add(resolvedCommandOutput);
             }
 
             log.info("Done resolving command outputs.");
