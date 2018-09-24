@@ -195,12 +195,44 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 tr.id = data.id;
                 addDataAttrs(tr, {filter: '0'});
             },
-            sortable: 'command, user, DATE, ROOTELEMENT',
-            filter: 'command, user, DATE, ROOTELEMENT',
+            sortable: 'id, command, user, DATE, ROOTELEMENT, status',
+            filter: 'id, command, user, DATE, ROOTELEMENT, status',
             items: {
                 // by convention, name 'custom' columns with ALL CAPS
                 // 'custom' columns do not correspond directly with
                 // a data item
+                id: {
+                    label: 'ID',
+                    th: { style: { width: '100px' }},
+                    td: { style: { width: '100px' }},
+                    filter: function(table){
+                        return spawn('div.center', [ XNAT.ui.input({
+                            element: {
+                                placeholder: 'Filter',
+                                size: '9',
+                                on: { keyup: function(){
+                                    var FILTERCLASS = 'filter-id';
+                                    var selectedValue = parseInt(this.value);
+                                    $dataRows = $dataRows.length ? $dataRows : $$(table).find('tbody').find('tr');
+                                    if (!selectedValue && selectedValue.toString() !== '0') {
+                                        $dataRows.removeClass(FILTERCLASS);
+                                    }
+                                    else {
+                                        $dataRows.addClass(FILTERCLASS).filter(function(){
+                                            // remove zero-padding
+                                            var queryId = parseInt($(this).find('td.id .sorting').html()).toString();
+                                            return (queryId.indexOf(selectedValue) >= 0);
+                                        }).removeClass(FILTERCLASS)
+                                    }
+                                } }
+                            }
+
+                        }).element ])
+                    },
+                    apply: function(){
+                        return '<i class="hidden sorting">'+ zeroPad(this.id, 8) +'</i>'+ this.id.toString();
+                    }
+                },
                 DATE: {
                     label: 'Date',
                     th: {className: 'container-launch'},
@@ -283,16 +315,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     }
                 },
-                // image: {
-                //     label: 'Image',
-                //     filter: true, // add filter: true to individual items to add a filter,
-                //     apply: function () {
-                //         return this['docker-image'];
-                //     }
-                // },
                 command: {
                     label: 'Command',
                     filter: true,
+                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word' }},
                     apply: function () {
                         var wrapper = XNAT.plugin.containerService.wrapperList[this['wrapper-id']];
                         var label = (wrapper) ?
@@ -347,22 +373,14 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             return 'Unknown';
                         }
                     }
+                },
+                status: {
+                    label: 'Status',
+                    filter: true,
+                    apply: function(){
+                        return this['status'];
+                    }
                 }
-                // PROJECT: {
-                //     label: 'Project',
-                //     filter: true,
-                //     apply: function () {
-                //         var projectId = (this.project) ? this.project : getProjectIdFromMounts(this);
-                //         if (projectId) {
-                //             return spawn('a', {
-                //                 href: rootUrl('/data/projects/' + projectId + '?format=html'),
-                //                 html: projectId
-                //             });
-                //         } else {
-                //             return 'Unknown';
-                //         }
-                //     }
-                // }
             }
         }
     }
@@ -528,7 +546,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             if (data.length) {
                 // sort list of container launches by execution time, descending
                 data = data.sort(function (a, b) {
-                    return (a.history[0]['time-recorded'] < b.history[0]['time-recorded']) ? 1 : -1
+                    return (a.id < b.id) ? 1 : -1
+                    // return (a.history[0]['time-recorded'] < b.history[0]['time-recorded']) ? 1 : -1
                 });
 
                 _historyTable = XNAT.spawner.spawn({

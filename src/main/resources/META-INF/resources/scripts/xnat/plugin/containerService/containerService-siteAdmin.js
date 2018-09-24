@@ -1810,8 +1810,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
 
             commandAutomationAdmin.init();  // initialize automation table after command config table data loads
-            XNAT.plugin.containerService.historyTable.init();            // initialize the command history table after the command list is loaded
-
         });
 
         commandConfigManager.$table = $(ccmTable.table);
@@ -2267,3 +2265,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     // Automation panel gets initialized after command config table loads.
 
 }));
+
+$(document).ready(function(){
+    XNAT.plugin.containerService.historyTable.init();            // initialize the command history table after the command list is loaded and the page is rendered
+});
