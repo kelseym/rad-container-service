@@ -619,7 +619,8 @@ public abstract class Command {
                                    @JsonProperty("command-line-flag") final String commandLineFlag,
                                    @JsonProperty("command-line-separator") final String commandLineSeparator,
                                    @JsonProperty("true-value") final String trueValue,
-                                   @JsonProperty("false-value") final String falseValue) {
+                                   @JsonProperty("false-value") final String falseValue,
+                                   @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -632,6 +633,7 @@ public abstract class Command {
                     .commandLineSeparator(commandLineSeparator)
                     .trueValue(trueValue)
                     .falseValue(falseValue)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -652,6 +654,7 @@ public abstract class Command {
                     .commandLineSeparator(commandInputEntity.getCommandLineSeparator())
                     .trueValue(commandInputEntity.getTrueValue())
                     .falseValue(commandInputEntity.getFalseValue())
+                    .sensitive(commandInputEntity.getSensitive())
                     .build();
         }
 
@@ -675,6 +678,7 @@ public abstract class Command {
                     .commandLineSeparator(this.commandLineSeparator())
                     .trueValue(this.trueValue())
                     .falseValue(this.falseValue())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .build();
@@ -705,6 +709,7 @@ public abstract class Command {
             public abstract Builder commandLineSeparator(final String commandLineSeparator);
             public abstract Builder trueValue(final String trueValue);
             public abstract Builder falseValue(final String falseValue);
+            public abstract Builder sensitive(Boolean sensitive);
 
             public abstract CommandInput build();
         }
@@ -1040,7 +1045,8 @@ public abstract class Command {
                                                   @JsonProperty("user-settable") final Boolean userSettable,
                                                   @JsonProperty("replacement-key") final String rawReplacementKey,
                                                   @JsonProperty("required") final Boolean required,
-                                                  @JsonProperty("load-children") final Boolean loadChildren) {
+                                                  @JsonProperty("load-children") final Boolean loadChildren,
+                                                  @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -1054,6 +1060,7 @@ public abstract class Command {
                     .rawReplacementKey(rawReplacementKey)
                     .required(required == null || required)
                     .loadChildren(loadChildren == null || loadChildren)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -1076,6 +1083,7 @@ public abstract class Command {
                     .rawReplacementKey(wrapperInput.getRawReplacementKey())
                     .required(wrapperInput.isRequired() == null || wrapperInput.isRequired())
                     .loadChildren(wrapperInput.getLoadChildren())
+                    .sensitive(wrapperInput.getSensitive())
                     .build();
         }
 
@@ -1098,6 +1106,7 @@ public abstract class Command {
                     .viaSetupCommand(this.viaSetupCommand())
                     .required(this.required())
                     .loadChildren(this.loadChildren())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .userSettable(commandInputConfiguration.userSettable())
@@ -1111,6 +1120,7 @@ public abstract class Command {
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
+            public abstract Builder sensitive(Boolean sensitive);
             public abstract Builder providesValueForCommandInput(final String providesValueForCommandInput);
             public abstract Builder providesFilesForCommandMount(final String providesFilesForCommandMount);
             public abstract Builder viaSetupCommand(final String viaSetupCommand);
@@ -1145,7 +1155,8 @@ public abstract class Command {
                                                  @JsonProperty("user-settable") final Boolean userSettable,
                                                  @JsonProperty("replacement-key") final String rawReplacementKey,
                                                  @JsonProperty("required") final Boolean required,
-                                                 @JsonProperty("load-children") final Boolean loadChildren) {
+                                                 @JsonProperty("load-children") final Boolean loadChildren,
+                                                 @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -1161,6 +1172,7 @@ public abstract class Command {
                     .rawReplacementKey(rawReplacementKey)
                     .required(required == null || required)
                     .loadChildren(loadChildren == null || loadChildren)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -1185,6 +1197,7 @@ public abstract class Command {
                     .rawReplacementKey(wrapperInput.getRawReplacementKey())
                     .required(wrapperInput.isRequired() == null || wrapperInput.isRequired())
                     .loadChildren(wrapperInput.getLoadChildren())
+                    .sensitive(wrapperInput.getSensitive())
                     .build();
         }
 
@@ -1210,6 +1223,7 @@ public abstract class Command {
                     .rawReplacementKey(this.rawReplacementKey())
                     .required(this.required())
                     .loadChildren(this.loadChildren())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .userSettable(commandInputConfiguration.userSettable())
@@ -1235,6 +1249,7 @@ public abstract class Command {
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
+            public abstract Builder sensitive(Boolean sensitive);
             public abstract Builder providesValueForCommandInput(final String providesValueForCommandInput);
             public abstract Builder providesFilesForCommandMount(final String providesFilesForCommandMount);
             public abstract Builder viaSetupCommand(final String viaSetupCommand);
@@ -1604,13 +1619,14 @@ public abstract class Command {
 
     public static abstract class Input {
         @JsonIgnore public abstract long id();
-        @Nullable @JsonProperty("name") public abstract String name();
+        @JsonProperty("name") public abstract String name();
         @Nullable @JsonProperty("description") public abstract String description();
         @JsonProperty("type") public abstract String type();
         @Nullable @JsonProperty("matcher") public abstract String matcher();
         @Nullable @JsonProperty("default-value") public abstract String defaultValue();
         @JsonProperty("required") public abstract boolean required();
         @Nullable @JsonProperty("replacement-key") public abstract String rawReplacementKey();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         public String replacementKey() {
             return StringUtils.isNotBlank(rawReplacementKey()) ? rawReplacementKey() : "#" + name() + "#";

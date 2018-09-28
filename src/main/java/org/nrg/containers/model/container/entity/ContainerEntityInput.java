@@ -24,6 +24,7 @@ public class ContainerEntityInput {
     @Enumerated(EnumType.STRING) private ContainerInputType type;
     private String name;
     private String value;
+    private boolean sensitive;
 
     public ContainerEntityInput() {}
 
@@ -32,6 +33,7 @@ public class ContainerEntityInput {
         input.type = type;
         input.name = name;
         input.value = value;
+        input.sensitive = false;
         return input;
     }
 
@@ -46,6 +48,7 @@ public class ContainerEntityInput {
         this.setType(containerInputPojo.type());
         this.setName(containerInputPojo.name());
         this.setValue(containerInputPojo.value());
+        this.setSensitive(containerInputPojo.sensitive());
         return this;
     }
 
@@ -93,6 +96,14 @@ public class ContainerEntityInput {
         this.value = value;
     }
 
+    public boolean getSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(final boolean sensitive) {
+        this.sensitive = sensitive;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -100,13 +111,14 @@ public class ContainerEntityInput {
         final ContainerEntityInput that = (ContainerEntityInput) o;
         return Objects.equals(this.containerEntity, that.containerEntity) &&
                 type == that.type &&
+                sensitive == that.sensitive &&
                 Objects.equals(this.name, that.name) &&
                 Objects.equals(this.value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(containerEntity, type, name, value);
+        return Objects.hash(containerEntity, type, name, value, sensitive);
     }
 
     @Override
@@ -115,7 +127,8 @@ public class ContainerEntityInput {
                 .add("id", id)
                 .add("type", type)
                 .add("name", name)
-                .add("value", value)
+                .add("value", sensitive ? "*****" : value)
+                .add("sensitive", sensitive)
                 .toString();
     }
 

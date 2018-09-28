@@ -35,6 +35,7 @@ public class CommandInputEntity implements Serializable {
     private String commandLineSeparator = " ";
     private String trueValue;
     private String falseValue;
+    private Boolean sensitive;
 
     public static CommandInputEntity fromPojo(final Command.CommandInput commandInput) {
         return new CommandInputEntity().update(commandInput);
@@ -55,6 +56,7 @@ public class CommandInputEntity implements Serializable {
         this.setCommandLineSeparator(commandInput.commandLineSeparator());
         this.setTrueValue(commandInput.trueValue());
         this.setFalseValue(commandInput.falseValue());
+        this.setSensitive(commandInput.sensitive());
 
         switch (commandInput.type()) {
             case "string":
@@ -188,6 +190,14 @@ public class CommandInputEntity implements Serializable {
         this.falseValue = falseValue;
     }
 
+    public Boolean getSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(final Boolean sensitive) {
+        this.sensitive = sensitive;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -217,6 +227,7 @@ public class CommandInputEntity implements Serializable {
                 .add("commandLineSeparator", commandLineSeparator)
                 .add("trueValue", trueValue)
                 .add("falseValue", falseValue)
+                .add("sensitive", sensitive)
                 .toString();
     }
 

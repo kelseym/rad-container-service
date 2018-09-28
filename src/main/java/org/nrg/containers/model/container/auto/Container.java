@@ -1,6 +1,7 @@
 package org.nrg.containers.model.container.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
@@ -22,6 +23,7 @@ import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -256,9 +258,7 @@ public abstract class Container {
                 .subtype(resolvedCommand.type())
                 .mountsFromResolvedCommand(resolvedCommand.mounts())
                 .addRawInputs(resolvedCommand.rawInputValues())
-                .addCommandInputs(resolvedCommand.commandInputValues())
-                .addExternalWrapperInputs(resolvedCommand.externalWrapperInputValues())
-                .addDerivedWrapperInputs(resolvedCommand.derivedWrapperInputValues())
+                .addResolvedInputs(resolvedCommand.inputValues())
                 .addOutputsFromResolvedCommand(resolvedCommand.outputs())
                 .reserveMemory(resolvedCommand.reserveMemory())
                 .limitMemory(resolvedCommand.limitMemory())
@@ -400,29 +400,29 @@ public abstract class Container {
 
         public abstract Builder inputs(List<ContainerInput> inputs);
         abstract ImmutableList.Builder<ContainerInput> inputsBuilder();
-        public Builder addInput(final ContainerInput inputs) {
-            inputsBuilder().add(inputs);
+        public Builder addInput(final ContainerInput input) {
+            inputsBuilder().add(input);
             return this;
         }
-        public Builder addInputsOfType(final ContainerInputType type, final Map<String, String> inputMap) {
-            if (inputMap != null) {
-                for (final Map.Entry<String, String> input : inputMap.entrySet()) {
-                    addInput(ContainerInput.create(0L, type, input.getKey(), input.getValue()));
+
+        public Builder addResolvedInput(final ResolvedCommand.ResolvedCommandInput resolvedCommandInput) {
+            return addInput(ContainerInput.create(resolvedCommandInput));
+        }
+        public Builder addResolvedInputs(final Collection<ResolvedCommand.ResolvedCommandInput> resolvedCommandInputs) {
+            if (resolvedCommandInputs != null) {
+                for (final ResolvedCommand.ResolvedCommandInput resolvedCommandInput : resolvedCommandInputs) {
+                    addResolvedInput(resolvedCommandInput);
                 }
             }
             return this;
         }
         public Builder addRawInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.RAW, inputMap);
-        }
-        public Builder addExternalWrapperInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.WRAPPER_EXTERNAL, inputMap);
-        }
-        public Builder addDerivedWrapperInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.WRAPPER_DERIVED, inputMap);
-        }
-        public Builder addCommandInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.COMMAND, inputMap);
+            if (inputMap != null) {
+                for (final Map.Entry<String, String> input : inputMap.entrySet()) {
+                    addInput(ContainerInput.create(0L, ContainerInputType.RAW, input.getKey(), input.getValue(), false));
+                }
+            }
+            return this;
         }
 
         public abstract Builder outputs(List<ContainerOutput> outputs);
@@ -580,18 +580,41 @@ public abstract class Container {
         @JsonProperty("id") public abstract long databaseId();
         @JsonProperty("type") public abstract ContainerInputType type();
         @JsonProperty("name") public abstract String name();
-        @JsonProperty("value") public abstract String value();
+        @JsonIgnore public abstract String value();
+        @JsonProperty("sensitive") public abstract boolean sensitive();
 
         @JsonCreator
         public static ContainerInput create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("type") final ContainerInputType type,
                                             @JsonProperty("name") final String name,
-                                            @JsonProperty("value") final String value) {
-            return new AutoValue_Container_ContainerInput(databaseId, type, name, value);
+                                            @JsonProperty("value") final String value,
+                                            @JsonProperty("sensitive") final boolean sensitive) {
+            return new AutoValue_Container_ContainerInput(databaseId, type, name, value, sensitive);
         }
 
         public static ContainerInput create(final ContainerEntityInput containerEntityInput) {
-            return create(containerEntityInput.getId(), containerEntityInput.getType(), containerEntityInput.getName(), containerEntityInput.getValue());
+            return create(
+                    containerEntityInput.getId(),
+                    containerEntityInput.getType(),
+                    containerEntityInput.getName(),
+                    containerEntityInput.getValue(),
+                    containerEntityInput.getSensitive()
+            );
+        }
+
+        public static ContainerInput create(final ResolvedCommand.ResolvedCommandInput resolvedCommandInput) {
+            return create(
+                    0L,
+                    resolvedCommandInput.type(),
+                    resolvedCommandInput.name(),
+                    resolvedCommandInput.value(),
+                    resolvedCommandInput.sensitive()
+            );
+        }
+
+        @JsonGetter("value")
+        public String maskedValue() {
+            return sensitive() ? "*****" : value();
         }
     }
 

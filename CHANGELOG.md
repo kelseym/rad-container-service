@@ -34,6 +34,7 @@ Not yet released.
         * Command-line
 * Include a container's database ID in the `LaunchReport` returned after launch.
 * Add a new container status: "Finalizing". This is set when the container has finished and container service begins its finalization process (uploading outputs and logs). When finalization is finished, the status is set to "Complete" as before.
+* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.)
 
 ### Bugfixes
 
@@ -63,6 +64,7 @@ Not yet released.
 [CS-510]: https://issues.xnat.org/browse/CS-510
 [CS-513]: https://issues.xnat.org/browse/CS-513
 [CS-520]: https://issues.xnat.org/browse/CS-520
+[CS-535]: https://issues.xnat.org/browse/CS-535
 
 ## 1.5.1
 

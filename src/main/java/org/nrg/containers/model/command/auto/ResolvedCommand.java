@@ -1,12 +1,15 @@
 package org.nrg.containers.model.command.auto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.nrg.containers.model.command.entity.CommandEntity;
+import org.nrg.containers.model.container.ContainerInputType;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -14,9 +17,9 @@ import java.util.Map;
 
 @AutoValue
 public abstract class ResolvedCommand {
-    private ImmutableMap<String, String> externalWrapperInputValues;
-    private ImmutableMap<String, String> derivedWrapperInputValues;
-    private ImmutableMap<String, String> commandInputValues;
+    private ImmutableSet<ResolvedCommandInput> externalWrapperInputValues;
+    private ImmutableSet<ResolvedCommandInput> derivedWrapperInputValues;
+    private ImmutableSet<ResolvedCommandInput> commandInputValues;
 
     @JsonProperty("wrapper-id") public abstract Long wrapperId();
     @JsonProperty("wrapper-name") public abstract String wrapperName();
@@ -44,7 +47,7 @@ public abstract class ResolvedCommand {
     @JsonProperty("parent-source-object-name") @Nullable public abstract String parentSourceObjectName();
 
     @JsonProperty("external-wrapper-input-values")
-    public ImmutableMap<String, String> externalWrapperInputValues() {
+    public ImmutableSet<ResolvedCommandInput> externalWrapperInputValues() {
         if (externalWrapperInputValues == null) {
             setUpLegacyInputLists();
         }
@@ -52,7 +55,7 @@ public abstract class ResolvedCommand {
     }
 
     @JsonProperty("derived-input-values")
-    public ImmutableMap<String, String> derivedWrapperInputValues() {
+    public ImmutableSet<ResolvedCommandInput> derivedWrapperInputValues() {
         if (derivedWrapperInputValues == null) {
             setUpLegacyInputLists();
         }
@@ -60,7 +63,7 @@ public abstract class ResolvedCommand {
     }
 
     @JsonProperty("command-input-values")
-    public ImmutableMap<String, String> commandInputValues() {
+    public ImmutableSet<ResolvedCommandInput> commandInputValues() {
         if (commandInputValues == null) {
             setUpLegacyInputLists();
         }
@@ -68,30 +71,51 @@ public abstract class ResolvedCommand {
     }
 
     @JsonIgnore
-    public ImmutableMap<String, String> wrapperInputValues() {
-        final ImmutableMap.Builder<String, String> wrapperValuesBuilder = ImmutableMap.builder();
-        wrapperValuesBuilder.putAll(externalWrapperInputValues());
-        wrapperValuesBuilder.putAll(derivedWrapperInputValues());
+    public ImmutableSet<ResolvedCommandInput> wrapperInputValues() {
+        final ImmutableSet.Builder<ResolvedCommandInput> wrapperValuesBuilder = ImmutableSet.builder();
+        wrapperValuesBuilder.addAll(externalWrapperInputValues());
+        wrapperValuesBuilder.addAll(derivedWrapperInputValues());
         return wrapperValuesBuilder.build();
+    }
+
+    @JsonIgnore
+    public ImmutableSet<ResolvedCommandInput> inputValues() {
+        final ImmutableSet.Builder<ResolvedCommandInput> inputBuilder = ImmutableSet.builder();
+        inputBuilder.addAll(commandInputValues());
+        inputBuilder.addAll(externalWrapperInputValues());
+        inputBuilder.addAll(derivedWrapperInputValues());
+        return inputBuilder.build();
     }
 
     private void setUpLegacyInputLists() {
         // Read out all the input trees into Map<String, String>s
         final List<ResolvedInputTreeNode<? extends Command.Input>> flatTrees = flattenInputTrees();
-        final ImmutableMap.Builder<String, String> externalWrapperInputValuesBuilder = ImmutableMap.builder();
-        final ImmutableMap.Builder<String, String> derivedWrapperInputValuesBuilder = ImmutableMap.builder();
-        final ImmutableMap.Builder<String, String> commandInputValuesBuilder = ImmutableMap.builder();
+        final ImmutableSet.Builder<ResolvedCommandInput> externalWrapperInputValuesBuilder = ImmutableSet.builder();
+        final ImmutableSet.Builder<ResolvedCommandInput> derivedWrapperInputValuesBuilder = ImmutableSet.builder();
+        final ImmutableSet.Builder<ResolvedCommandInput> commandInputValuesBuilder = ImmutableSet.builder();
         for (final ResolvedInputTreeNode<? extends Command.Input> node : flatTrees) {
+            final Command.Input input = node.input();
+            final String inputName = input.name();
+            final Boolean sensitiveCouldBeNull = input.sensitive();
+            final boolean sensitive = sensitiveCouldBeNull != null && sensitiveCouldBeNull;
+
             final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> valuesAndChildren = node.valuesAndChildren();
             final String value = (valuesAndChildren != null && !valuesAndChildren.isEmpty()) ?
                     valuesAndChildren.get(0).resolvedValue().value() :
                     null;
+            final String nonNullValue = value == null ? "null" : value;
             if (node.input() instanceof Command.CommandWrapperExternalInput) {
-                externalWrapperInputValuesBuilder.put(node.input().name(), value == null ? "null" : value);
+                externalWrapperInputValuesBuilder.add(
+                        ResolvedCommandInput.wrapperExternal(inputName, nonNullValue, sensitive)
+                );
             } else if (node.input() instanceof Command.CommandWrapperDerivedInput) {
-                derivedWrapperInputValuesBuilder.put(node.input().name(), value == null ? "null" : value);
+                derivedWrapperInputValuesBuilder.add(
+                        ResolvedCommandInput.wrapperDerived(inputName, nonNullValue, sensitive)
+                );
             } else {
-                commandInputValuesBuilder.put(node.input().name(), value == null ? "null" : value);
+                commandInputValuesBuilder.add(
+                        ResolvedCommandInput.command(inputName, nonNullValue, sensitive)
+                );
             }
         }
         externalWrapperInputValues = externalWrapperInputValuesBuilder.build();
@@ -392,6 +416,46 @@ public abstract class ResolvedCommand {
             public abstract Builder viaWrapupCommand(String viaWrapupCommand);
 
             public abstract ResolvedCommandOutput build();
+        }
+    }
+
+    @AutoValue
+    public abstract static class ResolvedCommandInput {
+        @JsonProperty("name") public abstract String name();
+        @JsonProperty("value") public abstract String value();
+        @JsonProperty("type") public abstract ContainerInputType type();
+        @JsonProperty("sensitive") public abstract boolean sensitive();
+
+        @JsonCreator
+        public static ResolvedCommandInput create(@JsonProperty("name") final String name,
+                                                  @JsonProperty("value") final String value,
+                                                  @JsonProperty("type") final ContainerInputType type,
+                                                  @JsonProperty("sensitive") final boolean sensitive) {
+            return new AutoValue_ResolvedCommand_ResolvedCommandInput(name, value, type, sensitive);
+        }
+
+        public static ResolvedCommandInput command(final String name, final String value) {
+            return command(name, value, false);
+        }
+
+        public static ResolvedCommandInput command(final String name, final String value, final boolean sensitive) {
+            return create(name, value, ContainerInputType.COMMAND, sensitive);
+        }
+
+        public static ResolvedCommandInput wrapperExternal(final String name, final String value) {
+            return wrapperExternal(name, value, false);
+        }
+
+        public static ResolvedCommandInput wrapperExternal(final String name, final String value, final boolean sensitive) {
+            return create(name, value, ContainerInputType.WRAPPER_EXTERNAL, sensitive);
+        }
+
+        public static ResolvedCommandInput wrapperDerived(final String name, final String value) {
+            return wrapperDerived(name, value, false);
+        }
+
+        public static ResolvedCommandInput wrapperDerived(final String name, final String value, final boolean sensitive) {
+            return create(name, value, ContainerInputType.WRAPPER_DERIVED, sensitive);
         }
     }
 }

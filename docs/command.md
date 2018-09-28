@@ -55,7 +55,8 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "command-line-flag": "",
                 "command-line-separator": "",
                 "true-value": "",
-                "false-value": ""
+                "false-value": "",
+                "sensitive": false
             }
         ],
         "outputs": [
@@ -82,6 +83,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "matcher": "",
                         "default-value": "",
                         "user-settable": true,
+                        "sensitive": false,
                         "replacement-key": "",
                         "provides-value-for-command-input": "",
                         "provides-files-for-command-mount": "",
@@ -96,6 +98,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "matcher": "",
                         "default-value": "",
                         "user-settable": true,
+                        "sensitive": false,
                         "replacement-key": "",
                         "provides-value-for-command-input": "",
                         "provides-files-for-command-mount": "",
@@ -153,7 +156,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **command-line-separator** - The character separating the command-line-flag from the value in the command-line. Default: " ".
     - **true-value** - The string to use in the command line for a boolean input when its value is `true`. Some examples: "true", "T", "Y", "1", "--a-flag". Default: "true".
     - **false-value** - The string to use in the command line for a boolean input when its value is `false`. Some examples: "false", "F", "N", "0", "--some-other-flag". Default: "false".
-    - **mount** - (Only for inputs of type `"file"`) The name of a mount—which must be defined in this command—into which container service will .
+    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
 - **outputs** - A list of outputs that will be used to upload files produced by the container. See [Command Outputs](#command-outputs).
     - **name** - The name of the output.
     - **description** - A human-friendly description of the output.
@@ -172,6 +175,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
         - **default-value**
         - **user-settable** - true/false. Should this Input be exposed to users who are launching via a UI? See the section [User-settable or not?](#user-settable-or-not) for the use-cases where one might want to set this to "false".
+        - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
         - **replacement-key** - A shorthand way to refer to this input's value elsewhere in the command. Default: the input's name bracketed by "#"; e.g. for an input named "foo" the default replacement-key is "#foo#".
         - **provides-value-for-command-input** - The name of a Command Input, which will receive its value from this input.
         - **provides-files-for-command-mount** - The name of a Command Mount, which will receive files from this input.
@@ -183,6 +187,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
         - **default-value**
         - **user-settable** - true/false. Should this Input be exposed to users who are launching via a UI? See the section [User-settable or not?](#user-settable-or-not) for the use-cases where one might want to set this to "false".
+        - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
         - **replacement-key** - A shorthand way to refer to this input's value elsewhere in the command. Default: the input's name bracketed by "#"; e.g. for an input named "foo" the default replacement-key is "#foo#".
         - **provides-value-for-command-input** - The name of a Command Input, which will receive its value from this input.
         - **provides-files-for-command-mount** - The name of a Command Mount, which will receive files from this input.

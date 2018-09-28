@@ -56,9 +56,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -250,22 +253,22 @@ public class CommandResolutionTest {
         runtimeValues.put("session", sessionRuntimeJson);
 
         // xnat wrapper inputs
-        final Map<String, String> expectedWrapperInputValues = Maps.newHashMap();
-        expectedWrapperInputValues.put("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\"");
-        expectedWrapperInputValues.put("session", session.getUri());
-        expectedWrapperInputValues.put("scan", scan.getUri());
-        expectedWrapperInputValues.put("dicom", scan.getResources().get(0).getUri());
-        expectedWrapperInputValues.put("scan-id", scan.getId());
-        expectedWrapperInputValues.put("frames", String.valueOf(scan.getFrames()));
-        expectedWrapperInputValues.put("series-description", scan.getSeriesDescription());
-        expectedWrapperInputValues.put("modality", scan.getModality());
-        expectedWrapperInputValues.put("quality", scan.getQuality());
-        expectedWrapperInputValues.put("note", scan.getNote());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan", scan.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("dicom", scan.getResources().get(0).getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan-id", scan.getId()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("frames", String.valueOf(scan.getFrames())));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("series-description", scan.getSeriesDescription()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("modality", scan.getModality()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("quality", scan.getQuality()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("note", scan.getNote()));
 
         // command inputs
-        final Map<String, String> expectedCommandInputValues = Maps.newHashMap();
-        expectedCommandInputValues.put("whatever", session.getScans().get(0).getId());
-        expectedCommandInputValues.put("file-path", "null");
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever", session.getScans().get(0).getId()));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
@@ -292,17 +295,17 @@ public class CommandResolutionTest {
         runtimeValues.put("a scan", scanRuntimeJson);
 
         // xnat wrapper inputs
-        final Map<String, String> expectedWrapperInputValues = Maps.newHashMap();
-        expectedWrapperInputValues.put("a scan", scan.getUri());
-        expectedWrapperInputValues.put("a resource", resource.getUri());
-        expectedWrapperInputValues.put("a file", resource.getFiles().get(0).getUri());
-        expectedWrapperInputValues.put("a file path", resource.getFiles().get(0).getPath());
-        expectedWrapperInputValues.put("scan-id", scan.getId());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("a scan", scan.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a resource", resource.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a file", resource.getFiles().get(0).getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a file path", resource.getFiles().get(0).getPath()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan-id", scan.getId()));
 
         // command inputs
-        final Map<String, String> expectedCommandInputValues = Maps.newHashMap();
-        expectedCommandInputValues.put("file-path", resource.getFiles().get(0).getPath());
-        expectedCommandInputValues.put("whatever", scan.getId());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", resource.getFiles().get(0).getPath()));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever", scan.getId()));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
@@ -325,14 +328,14 @@ public class CommandResolutionTest {
         runtimeValues.put("project", projectRuntimeJson);
 
         // xnat wrapper inputs
-        final Map<String, String> expectedWrapperInputValues = Maps.newHashMap();
-        expectedWrapperInputValues.put("project", project.getUri());
-        expectedWrapperInputValues.put("project-label", project.getLabel());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("project-label", project.getLabel()));
 
         // command inputs
-        final Map<String, String> expectedCommandInputValues = Maps.newHashMap();
-        expectedCommandInputValues.put("whatever", project.getLabel());
-        expectedCommandInputValues.put("file-path", "null");
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever", project.getLabel()));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
@@ -355,15 +358,15 @@ public class CommandResolutionTest {
         runtimeValues.put("project", projectRuntimeJson);
 
         // xnat wrapper inputs
-        final Map<String, String> expectedWrapperInputValues = Maps.newHashMap();
-        expectedWrapperInputValues.put("project", project.getUri());
-        expectedWrapperInputValues.put("subject", project.getSubjects().get(0).getUri());
-        expectedWrapperInputValues.put("project-label", project.getLabel());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("subject", project.getSubjects().get(0).getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("project-label", project.getLabel()));
 
         // command inputs
-        final Map<String, String> expectedCommandInputValues = Maps.newHashMap();
-        expectedCommandInputValues.put("whatever", project.getLabel());
-        expectedCommandInputValues.put("file-path", "null");
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever", project.getLabel()));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
@@ -385,14 +388,14 @@ public class CommandResolutionTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("session", sessionRuntimeJson);
 
-        final Map<String, String> expectedWrapperInputValues = Maps.newHashMap();
-        expectedWrapperInputValues.put("session", session.getUri());
-        expectedWrapperInputValues.put("assessor", session.getAssessors().get(0).getUri());
-        expectedWrapperInputValues.put("assessor-label", session.getAssessors().get(0).getLabel());
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("assessor", session.getAssessors().get(0).getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("assessor-label", session.getAssessors().get(0).getLabel()));
 
-        final Map<String, String> expectedCommandInputValues = Maps.newHashMap();
-        expectedCommandInputValues.put("whatever", session.getAssessors().get(0).getLabel());
-        expectedCommandInputValues.put("file-path", "null");
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever", session.getAssessors().get(0).getLabel()));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
@@ -489,8 +492,8 @@ public class CommandResolutionTest {
                                                  final Command dummyCommand,
                                                  final CommandWrapper commandWrapper,
                                                  final Map<String, String> expectedRawInputValues,
-                                                 final Map<String, String> expectedWrapperInputValues,
-                                                 final Map<String, String> expectedCommandInputValues) {
+                                                 final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues,
+                                                 final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues) {
         assertThat(resolvedCommand.commandId(), is(dummyCommand.id()));
         assertThat(resolvedCommand.wrapperId(), is(commandWrapper.id()));
         assertThat(resolvedCommand.image(), is(dummyCommand.image()));
@@ -526,9 +529,13 @@ public class CommandResolutionTest {
         filledRuntimeValues.put("REQUIRED_NO_FLAG", "bar");
 
         final ResolvedCommand resolvedCommand = commandResolutionService.resolve(blankWrapper.id(), filledRuntimeValues, mockUser);
-        assertThat(resolvedCommand.commandInputValues(), hasEntry("REQUIRED_WITH_FLAG", "foo"));
-        assertThat(resolvedCommand.commandInputValues(), hasEntry("REQUIRED_NO_FLAG", "bar"));
-        assertThat(resolvedCommand.commandInputValues(), hasEntry("NOT_REQUIRED", "null"));
+        assertThat(resolvedCommand.commandInputValues(),
+                containsInAnyOrder(
+                        ResolvedCommand.ResolvedCommandInput.command("REQUIRED_WITH_FLAG", "foo"),
+                        ResolvedCommand.ResolvedCommandInput.command("REQUIRED_NO_FLAG", "bar"),
+                        ResolvedCommand.ResolvedCommandInput.command("NOT_REQUIRED", "null")
+                )
+        );
         assertThat(resolvedCommand.commandLine(), is("echo bar --flag foo "));
 
 
