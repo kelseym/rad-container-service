@@ -28,15 +28,6 @@ public class ContainerEntityInput {
 
     public ContainerEntityInput() {}
 
-    public static ContainerEntityInput create(final String name, final String value, final ContainerInputType type) {
-        final ContainerEntityInput input = new ContainerEntityInput();
-        input.type = type;
-        input.name = name;
-        input.value = value;
-        input.sensitive = false;
-        return input;
-    }
-
     public static ContainerEntityInput fromPojo(final Container.ContainerInput containerInputPojo) {
         final ContainerEntityInput containerEntityInput = new ContainerEntityInput();
         containerEntityInput.update(containerInputPojo);
