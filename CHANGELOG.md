@@ -34,7 +34,7 @@ Not yet released.
         * Command-line
 * Include a container's database ID in the `LaunchReport` returned after launch.
 * Add a new container status: "Finalizing". This is set when the container has finished and container service begins its finalization process (uploading outputs and logs). When finalization is finished, the status is set to "Complete" as before.
-* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.)
+* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.) In addition, if *any* inputs on a command / wrapper are marked as sensitive, the `raw` type inputs—i.e. those input values that were sent by the user and saved before any processing—will not be shown in the UI or API. The reason being that 1. if sensitive information exists, it may be leaked by raw inputs; 2. we have no way for the user to tell us anything about the raw inputs, including their potential sensitivity; thus 3. we can't guarantee any of their values are not sensitive.
 
 ### Bugfixes
 

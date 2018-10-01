@@ -56,7 +56,7 @@ public abstract class Container {
     @JsonProperty("env") public abstract ImmutableMap<String, String> environmentVariables();
     @JsonProperty("ports") public abstract ImmutableMap<String, String> ports();
     @JsonProperty("mounts") public abstract ImmutableList<ContainerMount> mounts();
-    @JsonProperty("inputs") public abstract ImmutableList<ContainerInput> inputs();
+    @JsonIgnore public abstract ImmutableList<ContainerInput> inputs();
     @JsonProperty("outputs") public abstract ImmutableList<ContainerOutput> outputs();
     @JsonProperty("history") public abstract ImmutableList<ContainerHistory> history();
     @JsonProperty("log-paths") public abstract ImmutableList<String> logPaths();
@@ -325,6 +325,44 @@ public abstract class Container {
         return getInputs(ContainerInputType.RAW);
     }
 
+    /**
+     * This will be returned in the container JSON as "inputs" rather than the stored list
+     * of inputs. If any of the inputs are marked as "sensitive", we mask them out. That
+     * already happens in {@link ContainerInput#maskedValue()}. But once one input has a
+     * sensitive value, any sensitive value, we can no longer trust the "raw" inputs,
+     * i.e. the input values we received directly from the user. If no inputs are sensitive, we
+     * trust the raw inputs are fine to show; if any inputs are sensitive, then all raw inputs
+     * have got to go.
+     * @return The list of container inputs with raw input values removed if any other inputs are sensitive.
+     */
+    @JsonGetter("inputs")
+    @SuppressWarnings("unused")
+    public ImmutableList<ContainerInput> maskedInputs() {
+        final ImmutableList<ContainerInput> inputs = inputs();
+        boolean anyAreSensitive = false;
+        for (final ContainerInput input : inputs) {
+            final Boolean inputIsSensitive = input.sensitive();
+            anyAreSensitive = (inputIsSensitive != null && inputIsSensitive);
+            if (anyAreSensitive) {
+                break;
+            }
+        }
+
+        // If none of the inputs were sensitive, we can trust the raw inputs
+        if (!anyAreSensitive) {
+            return inputs;
+        }
+
+        // If any inputs were sensitive, we can no longer trust the raw inputs. Do not return them.
+        final ImmutableList.Builder<ContainerInput> maskedInputsBuilder = ImmutableList.builder();
+        for (final ContainerInput input : inputs) {
+            if (input.type() != ContainerInputType.RAW) {
+                maskedInputsBuilder.add(input);
+            }
+        }
+        return maskedInputsBuilder.build();
+    }
+
     @JsonIgnore
     public String getLogPath(final String filename) {
         for (final String path : logPaths()) {
@@ -581,14 +619,14 @@ public abstract class Container {
         @JsonProperty("type") public abstract ContainerInputType type();
         @JsonProperty("name") public abstract String name();
         @JsonIgnore public abstract String value();
-        @JsonProperty("sensitive") public abstract boolean sensitive();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         @JsonCreator
         public static ContainerInput create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("type") final ContainerInputType type,
                                             @JsonProperty("name") final String name,
                                             @JsonProperty("value") final String value,
-                                            @JsonProperty("sensitive") final boolean sensitive) {
+                                            @JsonProperty("sensitive") final Boolean sensitive) {
             return new AutoValue_Container_ContainerInput(databaseId, type, name, value, sensitive);
         }
 
@@ -614,7 +652,8 @@ public abstract class Container {
 
         @JsonGetter("value")
         public String maskedValue() {
-            return sensitive() ? "*****" : value();
+            final Boolean sensitive = sensitive();
+            return sensitive != null && sensitive ? "*****" : value();
         }
     }
 
