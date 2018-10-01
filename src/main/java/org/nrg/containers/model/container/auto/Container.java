@@ -581,14 +581,14 @@ public abstract class Container {
         @JsonProperty("type") public abstract ContainerInputType type();
         @JsonProperty("name") public abstract String name();
         @JsonIgnore public abstract String value();
-        @JsonProperty("sensitive") public abstract boolean sensitive();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         @JsonCreator
         public static ContainerInput create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("type") final ContainerInputType type,
                                             @JsonProperty("name") final String name,
                                             @JsonProperty("value") final String value,
-                                            @JsonProperty("sensitive") final boolean sensitive) {
+                                            @JsonProperty("sensitive") final Boolean sensitive) {
             return new AutoValue_Container_ContainerInput(databaseId, type, name, value, sensitive);
         }
 
@@ -614,7 +614,8 @@ public abstract class Container {
 
         @JsonGetter("value")
         public String maskedValue() {
-            return sensitive() ? "*****" : value();
+            final Boolean sensitive = sensitive();
+            return sensitive != null && sensitive ? "*****" : value();
         }
     }
 
