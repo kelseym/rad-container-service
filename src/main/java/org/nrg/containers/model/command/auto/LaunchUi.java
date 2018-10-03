@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.model.command.auto.Command.Input;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
@@ -22,6 +23,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public abstract class LaunchUi {
     @JsonProperty("command-id") public abstract Long commandId();
     @JsonProperty("command-name") public abstract String commandName();
@@ -147,6 +149,7 @@ public abstract class LaunchUi {
             public Builder addInputsFromInputTrees(final PartiallyResolvedCommand partiallyResolvedCommand,
                                                    final CommandConfiguration commandConfiguration) {
                 // We have to go through the resolved input trees and get their values into the flat structure needed by the UI.
+                log.debug("Building launch UI from input trees.");
                 final Map<String, LaunchUiInput.Builder> inputBuilderMap = Maps.newHashMap();
                 for (final ResolvedInputTreeNode<? extends Input> rootNode : partiallyResolvedCommand.resolvedInputTrees()) {
                     addNodesToInputMap(rootNode, null, null, commandConfiguration.inputs(), inputBuilderMap);
@@ -203,32 +206,43 @@ public abstract class LaunchUi {
         final boolean userSettable = inputConfiguration.userSettable() == null || inputConfiguration.userSettable(); // default: true
         final boolean advanced = inputConfiguration.advanced() != null && inputConfiguration.advanced(); // default: false
 
+        final String uiTypeMsgTemplate = "%s because %s";
+        final String uiTypeMsg;
         if (!userSettable) {
             uiType = UiType.STATIC;
+            uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = false");
         } else {
             // The user should be able to set this input
             if (noValues) {
                 uiType = UiType.TEXT;
+                uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and noValues = true");
             } else if (multipleValues) {
                 uiType = UiType.SELECT;
+                uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and multipleValues = true");
             } else {
                 // We have a single value
                 // If it is a boolean, number, or string, apply those types.
                 if (inputType.equals(Type.BOOLEAN.getName())) {
                     uiType = UiType.BOOLEAN;
+                    uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and inputType = " + inputType);
                 } else if (inputType.equals(Type.NUMBER.getName())) {
                     uiType = UiType.NUMBER;
+                    uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and inputType = " + inputType);
                 } else if (inputType.equals(Type.STRING.getName())) {
                     uiType = UiType.TEXT;
+                    uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and inputType = " + inputType);
                 } else {
                     // If the input is not one of the simple types above,
                     // it is some XNAT type. But if we only have one value, that
                     // implies either it was given to us (therefore don't change it)
-                    // or it was derived (therefore don't change it). 
+                    // or it was derived (therefore don't change it).
                     uiType = UiType.STATIC;
+                    uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and inputType is not boolean, number, or string. This is the fallback");
                 }
             }
         }
+        log.debug("Input {} - parent {}={}, inputType {}, required {}, noValue {}, multipleValues {}, userSettable {}, advanced {}, uiType {}",
+                inputName, parentName, parentValue, inputType, inputIsRequired, noValues, multipleValues, userSettable, advanced, uiTypeMsg);
 
         // Get the input builder if it exists, or make a new one if it doesn't
         final LaunchUiInput.Builder uiInputBuilder;
