@@ -985,9 +985,8 @@ public class DockerControlApi implements ContainerControlApi {
 
     private List<Event> getDockerContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException {
         try(final DockerClient client = getClient()) {
-            if (log.isDebugEnabled()) {
-                log.debug("Reading all docker container events from " + since.getTime() + " to " + until.getTime() + ".");
-            }
+            log.trace("Reading all docker container events from {} to {}.", since.getTime(), until.getTime());
+            
             final List<Event> eventList;
             try (final EventStream eventStream =
                          client.events(since(since.getTime() / 1000),
