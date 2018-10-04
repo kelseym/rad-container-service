@@ -410,29 +410,31 @@ var XNAT = getObject(XNAT || {});
                     // standard inputs with children -- append the UI element and the child element(s) in a child element wrapper
                     // advanced inputs (that aren't children) -- append the UI element to the advanced input container
 
-                    for (var i in inputs){
+                    inputList.forEach(function(key){
+                        var thisInput = inputs[key];
 
-                        if (!inputs[i].parent || inputs[i].parent === undefined) {
+                        if (!thisInput.parent || thisInput.parent === undefined) {
                             // child inputs that specify a parent get special treatment
-                            inputs[i].type = (inputs[i]['user-settable'] || i === rootElement) ? inputs[i].ui.default.type : 'hidden';
-                            inputs[i].value = inputs[i].ui.default.values[0].value || inputs[i].value;
-                            inputs[i].valueLabel = inputs[i].ui.default.values[0].label || '';
+                            thisInput.type = (thisInput['user-settable'] || key === rootElement) ? thisInput.ui.default.type : 'hidden';
+                            thisInput.value = thisInput.ui.default.values[0].value || thisInput.value;
+                            thisInput.valueLabel = thisInput.ui.default.values[0].label || '';
 
-                            if (inputs[i].advanced === undefined || inputs[i].advanced !== true) {
-                                var inputElement = launcher.formInputs(inputs[i]);
+                            if (thisInput.advanced === undefined || thisInput.advanced !== true) {
+                                var inputElement = launcher.formInputs(thisInput);
                                 $standardInputContainer.append(inputElement);
 
-                                if (inputs[i].children) {
+                                if (thisInput.children) {
                                     // child inputs are listed as an array of input ids
 
-                                    var parentInput = inputs[i];
-                                    var children = inputs[i].children;
+                                    var parentInput = thisInput;
+                                    var children = thisInput.children;
 
-                                    children.forEach(function(child){
+                                    children.forEach(function(childKey){
 
                                         var useDefault = true;
+                                        var childInput = inputs[childKey];
 
-                                        for (var k in inputs[child].ui) {
+                                        for (var k in inputs[childKey].ui) {
                                             // loop through each possible UI instance for all preset values for this child input.
                                             // append each child input in a special wrapper
 
@@ -440,7 +442,6 @@ var XNAT = getObject(XNAT || {});
                                                 useDefault = false; // if value-specific definitions are found, don't use the default
 
                                                 if (parentInput.ui[k].values.length === 1) {
-                                                    var childInput = inputs[child];
                                                     var classes = ['child-input'];
                                                     childInput.type = childInput.ui[k].type;
                                                     childInput.value = childInput.ui[k].values[0].value;
@@ -462,7 +463,6 @@ var XNAT = getObject(XNAT || {});
                                                     var childInputs = [];
 
                                                     parentInput.ui[k].values.forEach(function(value){
-                                                        var childInput = inputs[child];
                                                         var classes = ['child-input'];
                                                         childInput.type = 'radio';
                                                         childInput.value = childInput.ui[k].values[0].value;
@@ -478,7 +478,7 @@ var XNAT = getObject(XNAT || {});
 
                                             if (useDefault) {
                                                 // if no value-specific settings are found, use the parent input's default values
-                                                var childInput = inputs[child];
+                                                var childInput = inputs[childKey];
                                                 var classes = ['child-input'];
                                                 childInput.type = childInput.ui[k].type;
                                                 if (childInput.ui[k].values.length) {
@@ -495,14 +495,14 @@ var XNAT = getObject(XNAT || {});
                                     });
                                 }
                             }
-                            if (inputs[i].advanced) {
-                                var advancedInput = launcher.formInputs(inputs[i]);
+                            if (thisInput.advanced) {
+                                var advancedInput = launcher.formInputs(thisInput);
                                 $advancedInputContainer.append(advancedInput);
                                 $advancedInputContainer.parents('.advanced-settings-container').removeClass('hidden');
                             }
                         }
 
-                    }
+                    })
 
                 },
                 buttons: [
