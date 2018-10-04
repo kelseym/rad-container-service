@@ -221,7 +221,7 @@ public abstract class LaunchUi {
                 uiType = UiType.TEXT;
                 uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and noValues = true");
             } else if (multipleValues) {
-                uiType = UiType.SELECT;
+                uiType = UiType.RADIO;
                 uiTypeMsg = String.format(uiTypeMsgTemplate, uiType.getName(), "userSettable = true and multipleValues = true");
             } else {
                 // We have a single value
@@ -368,7 +368,7 @@ public abstract class LaunchUi {
         TEXT("text"),
         NUMBER("number"),
         BOOLEAN("boolean"),
-        SELECT("select"),
+        RADIO("radio"),
         HIDDEN("hidden"),
         STATIC("static");
 
