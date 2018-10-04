@@ -20,8 +20,11 @@ import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputC
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 public abstract class LaunchUi {
@@ -172,14 +175,15 @@ public abstract class LaunchUi {
                                            final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
                                            final @Nonnull Map<String, LaunchUiInput.Builder> inputMap) {
         final Input commandInput = node.input();
+        final Class<? extends Input> inputClass = commandInput.getClass();
         final String inputName = commandInput.name();
         final CommandInputConfiguration inputConfiguration =
                 inputConfigurationMap.containsKey(inputName) && inputConfigurationMap.get(inputName) != null ?
                         inputConfigurationMap.get(inputName) :
                         CommandInputConfiguration.builder().build();
 
-        final List<LaunchUiInputValue> valueList = Lists.newArrayList();
-        final List<String> childNames = Lists.newArrayList();
+        final List<LaunchUiInputValue> valueList = new ArrayList<>();
+        final Set<String> childNames = new HashSet<>();
         for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
             final ResolvedInputValue resolvedValue = valueAndChildren.resolvedValue();
             final String value = resolvedValue.value();
@@ -244,6 +248,13 @@ public abstract class LaunchUi {
         log.debug("Input {} - parent {}={}, inputType {}, required {}, noValue {}, multipleValues {}, userSettable {}, advanced {}, uiType {}",
                 inputName, parentName, parentValue, inputType, inputIsRequired, noValues, multipleValues, userSettable, advanced, uiTypeMsg);
 
+        // Hang on a second... do we even need this input?
+        // If it is a command input and it is completely determined by its parent, then just skip it.
+        if (Command.CommandInput.class.isAssignableFrom(inputClass) && parentName != null && parentValue != null && !noValues && !multipleValues) {
+            log.debug("SKIPPING. This is a command input with a value derived from a parent. We don't need it.");
+            return;
+        }
+
         // Get the input builder if it exists, or make a new one if it doesn't
         final LaunchUiInput.Builder uiInputBuilder;
         if (inputMap.containsKey(commandInput.name())) {
@@ -288,6 +299,12 @@ public abstract class LaunchUi {
             public abstract Builder userSettable(Boolean userSettable);
             public abstract Builder parent(String parent);
             public abstract Builder children(List<String> children);
+            public Builder children(Set<String> children) {
+                for (final String child : children) {
+                    addChild(child);
+                }
+                return this;
+            }
             abstract ImmutableList.Builder<String> childrenBuilder();
             public Builder addChild(final String childName) {
                 childrenBuilder().add(childName);
