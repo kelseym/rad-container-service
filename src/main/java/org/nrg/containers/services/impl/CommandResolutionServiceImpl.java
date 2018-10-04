@@ -544,10 +544,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValue = null;
                     } else {
                         resolvedModelObject = xnatModelObject;
-                        final String resolvedXnatObjectUri = xnatModelObject.getUri();
-                        if (resolvedXnatObjectUri != null) {
-                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectUri);
-                            resolvedValue = resolvedXnatObjectUri;
+                        final String resolvedXnatObjectValue = xnatModelObject.getExternalWrapperInputValue();
+                        if (resolvedXnatObjectValue != null) {
+                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectValue);
+                            resolvedValue = resolvedXnatObjectValue;
                         }
                     }
                 } else if (type.equals(CONFIG.getName())) {
@@ -719,7 +719,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new Function<XnatFile, String>() {
                                     @Override
                                     public String apply(final XnatFile xnatFile) {
-                                        return xnatFile.getUri();
+                                        return xnatFile.getDerivedWrapperInputValue();
                                     }
                                 }));
                     }
@@ -750,7 +750,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         project = ((Assessor)parentXnatObject).getProject(userI);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
-                    resolvedValues = Collections.singletonList(project.getUri());
+                    resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
                 }
             } else if (type.equals(SUBJECT.getName())) {
                 if (parentXnatObject == null) {
@@ -763,13 +763,35 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(PROJECT.getName())) {
-                        final List<Subject> childList = matchChildFromParent(
+                        List<Subject> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "subjects",
                                 "id",
                                 resolvedMatcher,
                                 new TypeRef<List<Subject>>() {});
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {
+                                    });
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {
+                                    });
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -778,7 +800,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Subject, String>() {
                                 @Override
                                 public String apply(final Subject subject) {
-                                    return subject.getUri();
+                                    return subject.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
@@ -800,13 +822,35 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(SUBJECT.getName())) {
-                        final List<Session> childList = matchChildFromParent(
+                        List<Session> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "sessions",
                                 "id",
                                 resolvedMatcher,
                                 new TypeRef<List<Session>>() {});
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {
+                                    });
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {
+                                    });
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -815,7 +859,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Session, String>() {
                                 @Override
                                 public String apply(final Session session) {
-                                    return session.getUri();
+                                    return session.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
@@ -840,13 +884,24 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Scan> childList = matchChildFromParent(
+                    List<Scan> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "scans",
                             "id",
                             resolvedMatcher,
                             new TypeRef<List<Scan>>() {});
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "scans",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Scan>>() {
+                                });
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -855,7 +910,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Scan, String>() {
                             @Override
                             public String apply(final Scan scan) {
-                                return scan.getUri();
+                                return scan.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -870,13 +925,33 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Assessor> childList = matchChildFromParent(
+                    List<Assessor> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "assessors",
-                            "id",
+                            "label",
                             resolvedMatcher,
                             new TypeRef<List<Assessor>>() {});
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains an ID
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "id",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {});
+                    }
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {});
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -885,7 +960,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Assessor, String>() {
                             @Override
                             public String apply(final Assessor assessor) {
-                                return assessor.getUri();
+                                return assessor.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -902,13 +977,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    // Try matching the value they gave us against the resource URI.
+                    // Try matching the value they gave us against the resource label.
                     // That's what the UI will send.
                     List<Resource> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "resources",
-                            "uri",
+                            "label",
                             resolvedMatcher,
                             new TypeRef<List<Resource>>() {});
                     if (childList == null) {
@@ -923,6 +998,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 });
                     }
                     if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "resources",
+                                "URI",
+                                resolvedMatcher,
+                                new TypeRef<List<Resource>>() {
+                                });
+                    }
+                    if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
                     } else {
@@ -930,7 +1016,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Resource, String>() {
                             @Override
                             public String apply(final Resource resource) {
-                                return resource.getUri();
+                                return resource.getDerivedWrapperInputValue();
                             }
                         }));
                     }
