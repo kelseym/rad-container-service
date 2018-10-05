@@ -1710,6 +1710,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         .viaWrapupCommand(commandOutputHandler.viaWrapupCommand())
                         .path(resolveTemplate(commandOutput.path(), resolvedInputValuesByReplacementKey))
                         .label(resolveTemplate(commandOutputHandler.label(), resolvedInputValuesByReplacementKey))
+                        .format(resolveTemplate(commandOutputHandler.format(), resolvedInputValuesByReplacementKey))
                         .build());
                 outputHasAtLeastOneLegitHandler = true;
             }

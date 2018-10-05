@@ -29,6 +29,7 @@ public class ContainerEntityOutput implements Serializable {
     private String path;
     private String glob;
     private String label;
+    private String format;
     private String created;
     private String handledByXnatCommandInput;
     private String viaWrapupContainer;
@@ -52,6 +53,7 @@ public class ContainerEntityOutput implements Serializable {
         this.setPath(containerOutputPojo.path());
         this.setGlob(containerOutputPojo.glob());
         this.setLabel(containerOutputPojo.label());
+        this.setFormat(containerOutputPojo.format());
         this.setCreated(containerOutputPojo.created());
         this.setHandledByXnatCommandInput(containerOutputPojo.handledBy());
         this.setViaWrapupContainer(containerOutputPojo.viaWrapupContainer());
@@ -154,6 +156,14 @@ public class ContainerEntityOutput implements Serializable {
         this.label = label;
     }
 
+    public String getFormat() {
+        return format;
+    }
+
+    public void setFormat(final String format) {
+        this.format = format;
+    }
+
     public String getHandledByXnatCommandInput() {
         return handledByXnatCommandInput;
     }
@@ -194,6 +204,7 @@ public class ContainerEntityOutput implements Serializable {
                 Objects.equals(this.path, that.path) &&
                 Objects.equals(this.glob, that.glob) &&
                 Objects.equals(this.label, that.label) &&
+                Objects.equals(this.format, that.format) &&
                 Objects.equals(this.handledByXnatCommandInput, that.handledByXnatCommandInput) &&
                 Objects.equals(this.viaWrapupContainer, that.viaWrapupContainer) &&
                 Objects.equals(this.created, that.created);
@@ -201,7 +212,7 @@ public class ContainerEntityOutput implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, fromCommandOutput, fromOutputHandler, type, required, mount, path, glob, label, handledByXnatCommandInput, viaWrapupContainer, created);
+        return Objects.hash(id, name, fromCommandOutput, fromOutputHandler, type, required, mount, path, glob, label, format, handledByXnatCommandInput, viaWrapupContainer, created);
     }
 
     @Override
@@ -217,6 +228,7 @@ public class ContainerEntityOutput implements Serializable {
                 .add("path", path)
                 .add("glob", glob)
                 .add("label", label)
+                .add("format", format)
                 .add("handledByXnatInput", handledByXnatCommandInput)
                 .add("viaWrapupContainer", viaWrapupContainer)
                 .add("created", created)
