@@ -16,7 +16,7 @@ public abstract class ServiceTask {
 
     public abstract String serviceId();
     public abstract String taskId();
-    public abstract String nodeId();
+    @Nullable public abstract String nodeId();
     public abstract String status();
     @Nullable public abstract Date statusTime();
     @Nullable public abstract String containerId();
