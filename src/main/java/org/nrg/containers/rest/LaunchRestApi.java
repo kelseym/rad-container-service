@@ -13,9 +13,12 @@ import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.exceptions.UnauthorizedException;
+import org.nrg.containers.model.command.auto.Command;
+import org.nrg.containers.model.command.auto.Command.Input;
 import org.nrg.containers.model.command.auto.LaunchReport;
 import org.nrg.containers.model.command.auto.LaunchUi;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
+import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.configuration.CommandConfiguration;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.services.CommandResolutionService;
@@ -42,6 +45,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -144,7 +148,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
 
 
             log.debug("Creating launch UI.");
-            return LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, commandConfiguration);
+            return LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, commandConfiguration.inputs());
         } catch (Throwable t) {
             log.error("Error getting launch UI.", t);
             if (Exception.class.isAssignableFrom(t.getClass())) {
@@ -271,19 +275,28 @@ public class LaunchRestApi extends AbstractXapiRestController {
 
             final UserI userI = XDAT.getUserDetails();
 
-            LaunchUi.BulkLaunchUi.Builder bulkLaunchUiBuilder = null;
+            PartiallyResolvedCommand aPartiallyResolvedCommand = null;
+            final List<List<ResolvedInputTreeNode<? extends Input>>> listOfResolvedInputTrees = new ArrayList<>();
             for (final Map<String, String> paramsMap : paramsMapList) {
                 log.debug("Preparing to pre-resolve command {}, wrapperName {}, wrapperId {}, in project {} with inputs {}.", commandId, wrapperName, wrapperId, project, paramsMap);
                 final PartiallyResolvedCommand partiallyResolvedCommand = preResolve(project, commandId, wrapperName, wrapperId, paramsMap, userI);
+                if (aPartiallyResolvedCommand == null) {
+                    aPartiallyResolvedCommand = partiallyResolvedCommand; // We use this to populate Meta info, which  should be the same in all
+                }
+                listOfResolvedInputTrees.add(partiallyResolvedCommand.resolvedInputTrees());
                 log.debug("Done pre-resolving command {}, wrapperName {}, wrapperId {}, in project {}.", commandId, wrapperName, project);
+            }
 
-                bulkLaunchUiBuilder = bulkLaunchUiBuilder == null ?
-                        LaunchUi.BulkLaunchUi.builder(partiallyResolvedCommand, commandConfiguration) :
-                        bulkLaunchUiBuilder.addInputsFromInputTrees(partiallyResolvedCommand, commandConfiguration);
+            if (aPartiallyResolvedCommand == null) {
+                log.error("Could not populate Launch UI meta information. Something must have gone wrong.");
+                throw new CommandResolutionException("Unknown error. Inform your admin to consult container logs.");
             }
 
             log.debug("Creating launch UI.");
-            return bulkLaunchUiBuilder == null ? null : bulkLaunchUiBuilder.build();
+            return LaunchUi.BulkLaunchUi.builder()
+                    .meta(LaunchUi.LaunchUiMeta.create(aPartiallyResolvedCommand))
+                    .populateInputTreeAndInputValueTreeFromResolvedInputTrees(listOfResolvedInputTrees, commandConfiguration.inputs())
+                    .build();
         } catch (Throwable t) {
             log.error("Error getting launch UI.", t);
             if (Exception.class.isAssignableFrom(t.getClass())) {
