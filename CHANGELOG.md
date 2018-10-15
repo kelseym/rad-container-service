@@ -82,6 +82,7 @@ Not yet released.
 * Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
 * [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
 * [CS-531][] CommandWrapperEntity derivedInputs, externalInputs, and outputHandlers and CommandEntity inputs, outputs, wrappers, and mounts sorted by primary table id.
+* Fix `null` label on `XnatFile` objects. Now label is the same as name.
 
 ### Other
 
