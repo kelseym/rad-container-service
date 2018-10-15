@@ -279,10 +279,22 @@ public abstract class LaunchUi {
         for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
             final ResolvedInputValue resolvedValue = valueAndChildren.resolvedValue();
             final String value = resolvedValue.value();
-            final String label = resolvedValue.valueLabel();
+            String label = resolvedValue.valueLabel();
 
             if (log.isDebugEnabled()) {
                 log.debug(node.input().name() + " - value \"" + value + "\" label \"" + label + "\"");
+            }
+
+            if (value == null) {
+                log.debug("SKIPPING. value is null");
+                continue;
+            }
+
+            if (label == null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Setting null label equal to value \"" + value + "\"");
+                }
+                label = value;
             }
 
             final Map<String, Map<String, LaunchUiInputValueChildren>> children = new HashMap<>();
