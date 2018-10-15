@@ -197,10 +197,17 @@ public abstract class LaunchUi {
                 final Map<String, Map<String, LaunchUiInputValueChildren>> inputValueTrees = new HashMap<>();
                 for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
                     final String inputName = rootNode.input().name();
+                    if (log.isDebugEnabled()) {
+                        log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+                    }
                     inputTrees.put(
                             inputName,
                             LaunchUi.convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap)
                     );
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("ROOT " + inputName + " - Populating input value tree.");
+                    }
                     inputValueTrees.put(
                             inputName,
                             LaunchUi.convertResolvedInputTreeToLaunchUiInputValueTree(rootNode)
@@ -240,10 +247,17 @@ public abstract class LaunchUi {
                     final Map<String, Map<String, LaunchUiInputValueChildren>> inputValueTrees = new HashMap<>();
                     for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
                         final String inputName = rootNode.input().name();
+                        if (log.isDebugEnabled()) {
+                            log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+                        }
                         inputTrees.put(
                                 inputName,
                                 LaunchUi.convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap)
                         );
+
+                        if (log.isDebugEnabled()) {
+                            log.debug("ROOT " + inputName + " - Populating input value tree.");
+                        }
                         inputValueTrees.put(
                                 inputName,
                                 LaunchUi.convertResolvedInputTreeToLaunchUiInputValueTree(rootNode)
@@ -267,12 +281,20 @@ public abstract class LaunchUi {
             final String value = resolvedValue.value();
             final String label = resolvedValue.valueLabel();
 
+            if (log.isDebugEnabled()) {
+                log.debug(node.input().name() + " - value \"" + value + "\" label \"" + label + "\"");
+            }
+
             final Map<String, Map<String, LaunchUiInputValueChildren>> children = new HashMap<>();
             for (final ResolvedInputTreeNode<? extends Input> child : valueAndChildren.children()) {
                 if (Command.CommandInput.class.isAssignableFrom(child.input().getClass())) {
                     // This is a command input which can be derived from a wrapper input.
                     // We can safely skip it.
                     continue;
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Adding " + node.input().name() + " child " + child.input().name());
                 }
                 children.put(child.input().name(), convertResolvedInputTreeToLaunchUiInputValueTree(child));
             }
@@ -301,6 +323,10 @@ public abstract class LaunchUi {
                     // Since for each value we see the children again, we've likely already seen this child.
                     // So skip it.
                     continue;
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Adding " + node.input().name() + " child " + child.input().name());
                 }
                 children.put(child.input().name(), convertResolvedInputTreeToLaunchUiInputTree(child, inputConfigurationMap));
             }
