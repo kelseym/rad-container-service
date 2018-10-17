@@ -45,6 +45,7 @@ Not yet released.
 * [CS-520][] Can get containers by service ID. This applies to the internal `ContainerService.get(String id)` as well as REST `/xapi/containers/{id}`.
 * Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
 * [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
+* [CS-531][] CommandWrapperEntity derivedInputs, externalInputs, and outputHandlers and CommandEntity inputs, outputs, wrappers, and mounts sorted by primary table id.
 
 ### Other
 
@@ -67,6 +68,7 @@ Not yet released.
 [CS-510]: https://issues.xnat.org/browse/CS-510
 [CS-513]: https://issues.xnat.org/browse/CS-513
 [CS-520]: https://issues.xnat.org/browse/CS-520
+[CS-531]: https://issues.xnat.org/browse/CS-531
 [CS-535]: https://issues.xnat.org/browse/CS-535
 
 ## 1.5.1

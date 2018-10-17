@@ -8,15 +8,7 @@ import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
-import javax.persistence.CascadeType;
-import javax.persistence.Column;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
+import javax.persistence.*;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -173,6 +165,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperExternalInputEntity> getExternalInputs() {
         return externalInputs;
     }
@@ -201,6 +194,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperDerivedInputEntity> getDerivedInputs() {
         return derivedInputs;
     }
@@ -230,6 +224,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperOutputEntity> getOutputHandlers() {
         return outputHandlers;
     }
