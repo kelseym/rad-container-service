@@ -44,6 +44,7 @@ Not yet released.
 * History UI now fetches logs by container database id, not container docker id (or service id).
 * [CS-520][] Can get containers by service ID. This applies to the internal `ContainerService.get(String id)` as well as REST `/xapi/containers/{id}`.
 * Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
+* [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
 
 ### Other
 
@@ -53,6 +54,7 @@ Not yet released.
 
 [CS-80]: https://issues.xnat.org/browse/CS-80
 [CS-407]: https://issues.xnat.org/browse/CS-407
+[CS-409]: https://issues.xnat.org/browse/CS-409
 [CS-457]: https://issues.xnat.org/browse/CS-457
 [CS-458]: https://issues.xnat.org/browse/CS-458
 [CS-480]: https://issues.xnat.org/browse/CS-480
