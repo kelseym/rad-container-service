@@ -49,6 +49,7 @@ Not yet released.
 
 ### Other
 
+* [CS-537][] References to the dummy TransportService removed, as it was a placeholder for functionality implemented elsewhere.
 * [CS-480][] Deprecate `Container.ContainerMount.inputFiles`. Having a list of input files for a mount is nice during command resolution, but it doesn't make much sense to store that list. As of now no new containers will have anything in their mounts' `inputFiles`. Old containers will still report their values for `inputFiles` for now, but this may change in the future.
 * Remove the constant log entries for event polling. We get it. You're checking for events.
 
@@ -70,6 +71,7 @@ Not yet released.
 [CS-520]: https://issues.xnat.org/browse/CS-520
 [CS-531]: https://issues.xnat.org/browse/CS-531
 [CS-535]: https://issues.xnat.org/browse/CS-535
+[CS-537]: https://issues.xnat.org/browse/CS-537
 
 ## 1.5.1
 

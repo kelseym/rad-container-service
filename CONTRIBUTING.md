@@ -17,7 +17,7 @@ First, check the [XNAT Discussion Board](https://groups.google.com/forum/#!forum
 If you don't want to use the discussion board, you can also ask a question on the same channels as [reporting an issue](#report-an-issue). A GitHub issue will most likely be easier for you than opening an account on our JIRA.
 
 ## Run the Tests
-The various unit tests can be run with
+The various unit tests can be run with:
 ```
 [container-service]$ ./gradlew unitTest
 ```
@@ -26,7 +26,10 @@ If you have a docker server that you can use for testing, there are some additio
 ```
 [container-service]$ ./gradlew test
 ```
-
+In order to synchronize your Docker VM clock, you may need to initially run the command as:
+```
+[container-service]$ docker run --rm --privileged alpine:latest hwclock -s && ./gradlew  clean test
+```
 We do not have any tests that can integrate with a running XNAT. All of the tests in this library use bespoke databases and mocked interfaces any time the code intends to communicate with XNAT. We welcome your contributions!
 
 ## Make a Pull Request

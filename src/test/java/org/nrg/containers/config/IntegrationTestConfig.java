@@ -48,8 +48,6 @@ import org.nrg.containers.services.impl.HibernateContainerEntityService;
 import org.nrg.containers.services.impl.HibernateDockerServerEntityService;
 import org.nrg.framework.services.ContextService;
 import org.nrg.framework.services.NrgEventService;
-import org.nrg.transporter.TransportService;
-import org.nrg.transporter.TransportServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.services.AliasTokenService;
@@ -176,15 +174,10 @@ public class IntegrationTestConfig {
     @Bean
     public ContainerFinalizeService containerFinalizeService(final ContainerControlApi containerControlApi,
                                                              final SiteConfigPreferences siteConfigPreferences,
-                                                             final TransportService transportService,
                                                              final CatalogService catalogService) {
-        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, transportService, catalogService);
+        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService);
     }
 
-    @Bean
-    public TransportService transportService() {
-        return new TransportServiceImpl();
-    }
 
     @Bean
     public AliasTokenService aliasTokenService() {

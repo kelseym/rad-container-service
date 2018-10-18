@@ -14,7 +14,6 @@ import org.nrg.containers.services.ContainerEntityService;
 import org.nrg.containers.services.impl.HibernateContainerEntityService;
 import org.nrg.framework.services.NrgEventService;
 import org.nrg.prefs.services.NrgPreferenceService;
-import org.nrg.transporter.TransportService;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xnat.services.archive.CatalogService;
@@ -57,11 +56,6 @@ public class ContainerEntityTestConfig {
     @Bean
     public NrgPreferenceService nrgPreferenceService() {
         return Mockito.mock(NrgPreferenceService.class);
-    }
-
-    @Bean
-    public TransportService transportService() {
-        return Mockito.mock(TransportService.class);
     }
 
     @Bean

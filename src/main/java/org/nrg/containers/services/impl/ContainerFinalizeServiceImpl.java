@@ -20,7 +20,6 @@ import org.nrg.containers.model.container.auto.Container.ContainerOutput;
 import org.nrg.containers.services.ContainerFinalizeService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.utils.ContainerUtils;
-import org.nrg.transporter.TransportService;
 import org.nrg.xdat.om.XnatResourcecatalog;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
@@ -32,13 +31,10 @@ import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.restlet.util.XNATRestConstants;
 import org.nrg.xnat.services.archive.CatalogService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.method.P;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,17 +52,14 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
-    private final TransportService transportService;
     private final CatalogService catalogService;
 
     @Autowired
     public ContainerFinalizeServiceImpl(final ContainerControlApi containerControlApi,
                                         final SiteConfigPreferences siteConfigPreferences,
-                                        final TransportService transportService,
                                         final CatalogService catalogService) {
         this.containerControlApi = containerControlApi;
         this.siteConfigPreferences = siteConfigPreferences;
-        this.transportService = transportService;
         this.catalogService = catalogService;
     }
 
@@ -84,8 +77,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         // private String exitCode;
         private boolean isFailed;
 
-        private Map<String, ContainerMount> untransportedMounts;
-        private Map<String, ContainerMount> transportedMounts;
+        private Map<String, ContainerMount> outputMounts;
 
         private String prefix;
 
@@ -101,8 +93,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             this.userI = userI;
             this.isFailed = isFailed;
 
-            untransportedMounts = Maps.newHashMap();
-            transportedMounts = Maps.newHashMap();
+            outputMounts = Maps.newHashMap();
 
             prefix = "Container " + toFinalize.databaseId() + ": ";
 
@@ -127,7 +118,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             if (!isFailed) {
                 // Do not try to upload outputs if we know the container failed.
                 for (final ContainerMount mountOut : toFinalize.mounts()) {
-                    untransportedMounts.put(mountOut.name(), mountOut);
+                    outputMounts.put(mountOut.name(), mountOut);
                 }
 
                 final OutputsAndExceptions outputsAndExceptions = uploadOutputs();
@@ -404,32 +395,15 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         }
 
         private ContainerMount getMount(final String mountName) throws ContainerException {
-            // If mount has been transported, we're done
-            if (transportedMounts.containsKey(mountName)) {
-                return transportedMounts.get(mountName);
+
+            if(outputMounts == null || outputMounts.isEmpty()){
+                for (final ContainerMount mountOut : toFinalize.mounts()) {
+                    outputMounts.put(mountOut.name(), mountOut);
+                }
             }
-
-            // If mount exists but has not been transported, transport it
-            if (untransportedMounts.containsKey(mountName)) {
-                if (log.isDebugEnabled()) {
-                    log.debug(String.format(prefix + "Transporting mount \"%s\".", mountName));
-                }
-                ContainerMount mountToTransport = untransportedMounts.get(mountName);
-
-                if (StringUtils.isBlank(mountToTransport.xnatHostPath())) {
-                    final Path pathOnExecutionMachine = Paths.get(mountToTransport.containerHostPath());
-                    final Path pathOnXnatMachine = transportService.transport("", pathOnExecutionMachine); // TODO this currently does nothing
-                    mountToTransport = mountToTransport.toBuilder().xnatHostPath(pathOnXnatMachine.toAbsolutePath().toString()).build();
-                } else {
-                    // TODO add transporter method to transport from specified source path to specified destination path
-                    // transporter.transport(sourceMachineName, mountToTransport.getContainerHostPath(), mountToTransport.getXnatHostPath());
-                }
-
-                transportedMounts.put(mountName, mountToTransport);
-                untransportedMounts.remove(mountName);
-
-                log.debug(prefix + "Done transporting mount.");
-                return mountToTransport;
+            ContainerMount containerMount = outputMounts.get(mountName);
+            if(containerMount != null){
+                return containerMount;
             }
 
             // Mount does not exist

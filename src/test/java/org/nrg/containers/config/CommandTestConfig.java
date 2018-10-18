@@ -15,8 +15,6 @@ import org.nrg.containers.model.command.entity.DockerCommandEntity;
 import org.nrg.containers.model.command.entity.DockerSetupCommandEntity;
 import org.nrg.containers.model.command.entity.DockerWrapupCommandEntity;
 import org.nrg.containers.services.ContainerEntityService;
-import org.nrg.transporter.TransportService;
-import org.nrg.transporter.TransportServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.services.AliasTokenService;
@@ -48,11 +46,6 @@ public class CommandTestConfig {
     @Bean
     public SiteConfigPreferences siteConfigPreferences() {
         return Mockito.mock(SiteConfigPreferences.class);
-    }
-
-    @Bean
-    public TransportService transportService() {
-        return new TransportServiceImpl();
     }
 
     @Bean
