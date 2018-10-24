@@ -245,7 +245,11 @@ public class CommandRestApiTest {
         final String path = "/commands";
 
         final String commandJson =
-                "{\"name\": \"toCreate\", \"type\": \"docker\", \"image\":\"" + FAKE_DOCKER_IMAGE + "\"}";
+                "{\"name\": \"toCreate\", " +
+                        "\"type\": \"docker\", " +
+                        "\"image\":\"" + FAKE_DOCKER_IMAGE + "\", " +
+                        "\"override-entrypoint\": true" +
+                        "}";
 
         final MockHttpServletRequestBuilder request =
                 post(path).content(commandJson).contentType(JSON)
@@ -273,6 +277,7 @@ public class CommandRestApiTest {
         assertThat(idResponse, is(retrieved.id()));
         assertThat(retrieved.name(), is("toCreate"));
         assertThat(retrieved.image(), is(FAKE_DOCKER_IMAGE));
+        assertThat(retrieved.overrideEntrypoint(), is(true));
 
         // Errors
         // No 'Content-type' header
