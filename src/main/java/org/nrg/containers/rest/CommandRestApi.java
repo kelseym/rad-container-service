@@ -218,6 +218,19 @@ public class CommandRestApi extends AbstractXapiRestController {
                 Collections.<CommandSummaryForContext>emptyList();
     }
 
+    @XapiRequestMapping(value = {"/projects/{project}/commands/available"}, params = {"xsiType"}, method = GET, restrictTo = Read)
+    @ApiOperation(value = "Get Commands available in given project context and XSIType")
+    @ResponseBody
+    public List<CommandSummaryForContext> availableCommands2(final @PathVariable String project,
+                                                             final @RequestParam String xsiType)
+            throws ElementNotFoundException {
+        final UserI userI = XDAT.getUserDetails();
+
+        return Permissions.canEditProject(userI, project) ?
+                commandService.available(project, xsiType, userI) :
+                Collections.<CommandSummaryForContext>emptyList();
+    }
+
     @XapiRequestMapping(value = {"/commands/available/site"}, params = {"xsiType"}, method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get Commands sitewide with given XSIType")
     @ResponseBody
