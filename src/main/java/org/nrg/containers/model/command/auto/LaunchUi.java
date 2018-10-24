@@ -240,6 +240,11 @@ public abstract class LaunchUi {
             public Builder childrenFromResolvedInputTrees(@Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees) {
                 final List<LaunchUiValueTree> children = new ArrayList<>();
                 for (final ResolvedInputTreeNode<? extends Input> resolvedInputTree : resolvedInputTrees) {
+                    if (Command.CommandInput.class.isAssignableFrom(resolvedInputTree.input().getClass())) {
+                        // This is a command input which can be derived from a wrapper input.
+                        // We can safely skip it.
+                        continue;
+                    }
                     children.add(LaunchUiValueTree.create(resolvedInputTree));
                 }
                 return this.children(children);
