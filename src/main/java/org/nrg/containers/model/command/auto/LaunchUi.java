@@ -1,16 +1,20 @@
 package org.nrg.containers.model.command.auto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.auto.value.AutoValue;
 import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.model.command.auto.Command.Input;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +107,7 @@ public abstract class LaunchUi {
         @JsonProperty("advanced") public abstract boolean advanced();
         @JsonProperty("required") public abstract boolean required();
         @JsonProperty("user-settable") public abstract boolean userSettable();
-        @JsonProperty("input-type") public abstract String inputType();
+        @JsonProperty("input-type") public abstract UiInputType uiInputType();
         @JsonProperty("children") public abstract List<LaunchUiInputTree> children();
 
         public static LaunchUiInputTree create(final @Nonnull String name,
@@ -112,7 +116,7 @@ public abstract class LaunchUi {
                                                final boolean advanced,
                                                final boolean required,
                                                final boolean userSettable,
-                                               final @Nonnull String inputType,
+                                               final @Nonnull UiInputType uiInputType,
                                                final @Nonnull List<LaunchUiInputTree> children) {
             return builder()
                     .name(name)
@@ -121,7 +125,7 @@ public abstract class LaunchUi {
                     .advanced(advanced)
                     .required(required)
                     .userSettable(userSettable)
-                    .inputType(inputType)
+                    .uiInputType(uiInputType)
                     .children(children)
                     .build();
         }
@@ -138,7 +142,7 @@ public abstract class LaunchUi {
             public abstract Builder advanced(boolean advanced);
             public abstract Builder required(boolean required);
             public abstract Builder userSettable(boolean userSettable);
-            public abstract Builder inputType(@Nonnull String inputType);
+            public abstract Builder uiInputType(@Nonnull UiInputType uiInputType);
 
             public abstract Builder children(@Nonnull List<LaunchUiInputTree> children);
 
@@ -273,11 +277,15 @@ public abstract class LaunchUi {
                 final List<LaunchUiInputTree> inputTrees = new ArrayList<>();
                 final List<LaunchUiValueTree> valueTrees = new ArrayList<>();
                 for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
+                    final Map<String, Integer> maxInputValues = new HashMap<>();
+                    final Map<String, Integer> minInputValues = new HashMap<>();
+                    findMaxAndMinInputValuesForTree(rootNode, maxInputValues, minInputValues);
+
                     final String inputName = rootNode.input().name();
                     if (log.isDebugEnabled()) {
                         log.debug("ROOT " + inputName + " - Populating input relationship tree.");
                     }
-                    inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap));
+                    inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap, maxInputValues, minInputValues));
 
                     if (log.isDebugEnabled()) {
                         log.debug("ROOT " + inputName + " - Populating input value tree.");
@@ -316,12 +324,22 @@ public abstract class LaunchUi {
                 final List<List<LaunchUiValueTree>> listOfValueTrees = new ArrayList<>();
                 for (final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees : listOfResolvedInputTrees) {
                     final List<LaunchUiValueTree> valueTrees = new ArrayList<>();
+                    final Map<String, Integer> maxInputValues = new HashMap<>();
+                    final Map<String, Integer> minInputValues = new HashMap<>();
                     for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
                         final String inputName = rootNode.input().name();
-                        if (log.isDebugEnabled()) {
-                            log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+
+                        // We only need to populate the input relationship tree once.
+                        // A good way to know whether we've not done it before is if our input
+                        // min and max maps are empty.
+                        if (maxInputValues.isEmpty() && minInputValues.isEmpty()) {
+                            findMaxAndMinInputValuesForTree(rootNode, maxInputValues, minInputValues);
+
+                            if (log.isDebugEnabled()) {
+                                log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+                            }
+                            inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap, maxInputValues, minInputValues));
                         }
-                        inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap));
 
                         if (log.isDebugEnabled()) {
                             log.debug("ROOT " + inputName + " - Populating input value tree.");
@@ -339,7 +357,9 @@ public abstract class LaunchUi {
     }
 
     private static LaunchUiInputTree convertResolvedInputTreeToLaunchUiInputTree(final @Nonnull ResolvedInputTreeNode<? extends Input> node,
-                                                                                 final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
+                                                                                 final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
+                                                                                 final @Nonnull Map<String, Integer> maxInputValues,
+                                                                                 final @Nonnull Map<String, Integer> minInputValues) {
 
         final List<LaunchUiInputTree> children = new ArrayList<>();
         final Set<String> alreadyAddedChildNames = new HashSet<>();
@@ -362,7 +382,7 @@ public abstract class LaunchUi {
                     log.debug("Adding " + node.input().name() + " child " + child.input().name());
                 }
                 alreadyAddedChildNames.add(child.input().name());
-                children.add(convertResolvedInputTreeToLaunchUiInputTree(child, inputConfigurationMap));
+                children.add(convertResolvedInputTreeToLaunchUiInputTree(child, inputConfigurationMap, maxInputValues, minInputValues));
             }
 
         }
@@ -380,7 +400,45 @@ public abstract class LaunchUi {
         final Boolean advancedConfig = inputConfiguration.advanced();
         final boolean advanced = advancedConfig != null && advancedConfig; // default: false
 
-        final String inputType = "";    // TODO Look up old code to figure out input type
+        final UiInputType uiInputType;
+
+        if (!userSettable) {
+            // The user can't set this input.
+            uiInputType = UiInputType.STATIC;
+        } else if (input.type().equals(CommandInputEntity.Type.BOOLEAN.getName())) {
+            // This input is a simple boolean type. Make it a switch box.
+            uiInputType = UiInputType.BOOLEAN;
+        } else if (Command.CommandInput.class.isAssignableFrom(input.getClass())) {
+            // This input is a simple string or number. Make it editable.
+            uiInputType = UiInputType.TEXT;
+        } else {
+            // We know we have an external or derived wrapper input.
+
+            final Integer maxNumValuesObj = maxInputValues.get(input.name());
+            final int maxNumValues = maxNumValuesObj == null ? 0 : maxNumValuesObj;
+            final Integer minNumValuesObj = minInputValues.get(input.name());
+            final int minNumValues = minNumValuesObj == null ? 0 : minNumValuesObj;
+
+            if (minNumValues == 0) {
+                // This input has zero values somewhere in the tree.
+                // We need to make it a text box so the user can enter something.
+                // It is also possible we should throw an error here, because usually this means
+                //  something didn't get resolved properly. But right now we just continue on.
+                uiInputType = UiInputType.TEXT;
+            } else if (maxNumValues > 1) {
+                // This input has more than zero values everywhere in the tree, and
+                // more than one value at least somewhere in the tree.
+                // It should be a select menu.
+                uiInputType = UiInputType.SELECT;
+            } else {
+                // The minimum number of values is > 0, and the max is <= 1.
+                // That implies we have one and only one input value everywhere in the tree.
+                // Since we already know this is a derived or external wrapper input, having
+                // one value means either it was given to us (therefore don't change it)
+                // or it was derived from something that was given to us (therefore don't change it).
+                uiInputType = UiInputType.STATIC;
+            }
+        }
 
         return LaunchUiInputTree.builder()
                 .name(input.name())
@@ -389,8 +447,63 @@ public abstract class LaunchUi {
                 .required(inputIsRequired)
                 .userSettable(userSettable)
                 .advanced(advanced)
-                .inputType(inputType)
+                .uiInputType(uiInputType)
                 .children(children)
                 .build();
+    }
+
+    /**
+     * Search across the entire tree of resolved values for the max number of values per input.
+     * The reason we need to know this is to figure out how a particular input should be
+     * represented in the UI.
+     * @param node A resolved input tree node
+     * @param maxNumValues A map storing the max number of values each input can have in any subtree
+     * @param minNumValues A map storing the min number of values each input can have in any subtree
+     */
+    private static void findMaxAndMinInputValuesForTree(final @Nonnull ResolvedInputTreeNode<? extends Input> node,
+                                                        final @Nonnull Map<String, Integer> maxNumValues,
+                                                        final @Nonnull Map<String, Integer> minNumValues) {
+        // Recursively check children
+        // For each value that this input can take, how many possible values can each of its descendants take?
+        // For each descendant, keep the max and min number of values it takes on any subtree.
+        for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
+            for (final ResolvedInputTreeNode<? extends Input> child : valueAndChildren.children()) {
+                findMaxAndMinInputValuesForTree(child, maxNumValues, minNumValues);
+            }
+        }
+
+        // How many values does *this* input have?
+        final String inputName = node.input().name();
+        final int numValuesForThisInput = node.valuesAndChildren().size();
+
+        final Integer currentMaxNumValues = maxNumValues.get(inputName);
+        if (currentMaxNumValues == null || currentMaxNumValues < numValuesForThisInput) {
+            maxNumValues.put(inputName, numValuesForThisInput);
+        }
+
+        final Integer currentMinNumValues = minNumValues.get(inputName);
+        if (currentMaxNumValues == null || currentMinNumValues > numValuesForThisInput) {
+            minNumValues.put(inputName, numValuesForThisInput);
+        }
+    }
+
+
+    public enum UiInputType {
+        TEXT("text"),
+        BOOLEAN("boolean"),
+        SELECT("select-one"),
+        STATIC("static");
+
+        public final String name;
+
+        @JsonCreator
+        UiInputType(final String name) {
+            this.name = name;
+        }
+
+        @JsonValue
+        public String getName() {
+            return name;
+        }
     }
 }
