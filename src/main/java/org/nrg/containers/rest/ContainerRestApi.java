@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
@@ -19,8 +20,6 @@ import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -29,6 +28,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
@@ -47,10 +47,10 @@ import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
 
+@Slf4j
 @XapiRestController
-@RequestMapping(value = "/containers")
+@RequestMapping()
 public class ContainerRestApi extends AbstractXapiRestController {
-    private static final Logger log = LoggerFactory.getLogger(ContainerRestApi.class);
 
     private static final String JSON = MediaType.APPLICATION_JSON_UTF8_VALUE;
     private static final String TEXT = MediaType.TEXT_PLAIN_VALUE;
@@ -67,11 +67,11 @@ public class ContainerRestApi extends AbstractXapiRestController {
         this.containerService = containerService;
     }
 
-    @XapiRequestMapping(method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get all Containers")
     @ResponseBody
-    public List<Container> getAll() {
-        return Lists.transform(containerService.getAll(), new Function<Container, Container>() {
+    public List<Container> getAll(final @RequestParam(required = false) Boolean nonfinalized) {
+        return Lists.transform(containerService.getAll(nonfinalized), new Function<Container, Container>() {
             @Override
             public Container apply(final Container input) {
                 return scrubPasswordEnv(input);
@@ -79,28 +79,41 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/{id}", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Admin)
+    @ApiOperation(value = "Get all Containers by project")
+    @ResponseBody
+    public List<Container> getAll(final @PathVariable String project,
+                                  final @RequestParam(required = false) Boolean nonfinalized) {
+        return Lists.transform(containerService.getAll(nonfinalized, project), new Function<Container, Container>() {
+            @Override
+            public Container apply(final Container input) {
+                return scrubPasswordEnv(input);
+            }
+        });
+    }
+
+    @XapiRequestMapping(value = "/containers/{id}", method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get Containers by database ID")
     @ResponseBody
     public Container get(final @PathVariable String id) throws NotFoundException {
         return scrubPasswordEnv(containerService.get(id));
     }
 
-    @XapiRequestMapping(value = "/{id}", method = DELETE, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}", method = DELETE, restrictTo = Admin)
     @ApiOperation(value = "Get Container by container server ID")
-    public ResponseEntity<Void> delete(final @PathVariable String id) throws NotFoundException {
+    public ResponseEntity<Void> delete(final @PathVariable String id) {
         containerService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    @XapiRequestMapping(value = "/{id}/finalize", method = POST, produces = JSON, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}/finalize", method = POST, produces = JSON, restrictTo = Admin)
     @ApiOperation(value = "Finalize Container")
     public void finalize(final @PathVariable String id) throws NotFoundException, ContainerException, DockerServerException, NoDockerServerException {
         final UserI userI = XDAT.getUserDetails();
         containerService.finalize(id, userI);
     }
 
-    @XapiRequestMapping(value = "/{id}/kill", method = POST, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}/kill", method = POST, restrictTo = Admin)
     @ApiOperation(value = "Kill Container")
     @ResponseBody
     public String kill(final @PathVariable String id)
@@ -118,7 +131,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         return container.toBuilder().environmentVariables(scrubbedEnvironmentVariables).build();
     }
 
-    @XapiRequestMapping(value = "/{containerId}/logs", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{containerId}/logs", method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get Container logs",
             notes = "Return stdout and stderr logs as a zip")
     public void getLogs(final @PathVariable String containerId,
@@ -156,7 +169,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
     }
 
-    @XapiRequestMapping(value = "/{containerId}/logs/{file}", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{containerId}/logs/{file}", method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get Container logs", notes = "Return either stdout or stderr logs")
     @ResponseBody
     public ResponseEntity<String> getLog(final @PathVariable String containerId,

@@ -3,6 +3,7 @@ package org.nrg.containers.events.listeners;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ScanArchiveEventToLaunchCommands;
 import org.nrg.containers.events.model.SessionArchiveEvent;
@@ -22,8 +23,6 @@ import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.security.user.exceptions.UserInitException;
 import org.nrg.xdat.security.user.exceptions.UserNotFoundException;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.bus.Event;
@@ -35,10 +34,10 @@ import java.util.Map;
 
 import static reactor.bus.selector.Selectors.type;
 
+@Slf4j
 @Service
 @SuppressWarnings("unused")
 public class SessionArchiveListenerAndCommandLauncher implements Consumer<Event<SessionArchiveEvent>> {
-    private static final Logger log = LoggerFactory.getLogger(SessionArchiveListenerAndCommandLauncher.class);
     private static final String EVENT_ID = "SessionArchived";
 
     private ObjectMapper mapper;

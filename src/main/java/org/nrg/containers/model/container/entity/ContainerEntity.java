@@ -11,6 +11,7 @@ import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 
 import javax.persistence.CascadeType;
+import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.ManyToOne;
@@ -73,6 +74,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     private Long reserveMemory;
     private Long limitMemory;
     private Double limitCpu;
+    private String project;
 
     public ContainerEntity() {}
 
@@ -94,12 +96,14 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.setContainerId(containerPojo.containerId());
         this.setWorkflowId(containerPojo.workflowId());
         this.setUserId(containerPojo.userId());
+        this.setProject(containerPojo.project());
         this.setServiceId(containerPojo.serviceId());
         this.setTaskId(containerPojo.taskId());
         this.setNodeId(containerPojo.nodeId());
         this.setSwarm(containerPojo.swarm());
         this.setDockerImage(containerPojo.dockerImage());
         this.setCommandLine(containerPojo.commandLine());
+        this.setOverrideEntrypoint(containerPojo.overrideEntrypoint());
         this.setWorkingDirectory(containerPojo.workingDirectory());
         this.setSubtype(containerPojo.subtype());
         this.setParentContainerEntity(fromPojo(containerPojo.parent()));
@@ -198,6 +202,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.dockerImage = dockerImage;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getCommandLine() {
         return commandLine;
     }
@@ -387,88 +392,6 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.inputs.add(input);
     }
 
-    @Transient
-    public Map<String, String> getRawInputs() {
-        return getInputs(ContainerInputType.RAW);
-    }
-
-    public void addRawInputs(final Map<String, String> rawInputValues) {
-        addInputs(ContainerInputType.RAW, rawInputValues);
-    }
-
-    @Transient
-    @SuppressWarnings("deprecation")
-    public Map<String, String> getWrapperInputs() {
-        final Map<String, String> wrapperInputs = Maps.newHashMap();
-        wrapperInputs.putAll(getLegacyWrapperInputs());
-        wrapperInputs.putAll(getExternalWrapperInputs());
-        wrapperInputs.putAll(getDerivedWrapperInputs());
-        return wrapperInputs;
-    }
-
-    @Transient
-    public Map<String, String> getExternalWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_EXTERNAL);
-    }
-
-    public void addExternalWrapperInputs(final Map<String, String> xnatInputValues) {
-        addInputs(ContainerInputType.WRAPPER_EXTERNAL, xnatInputValues);
-    }
-
-    @Transient
-    public Map<String, String> getDerivedWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_DERIVED);
-    }
-
-    public void addDerivedWrapperInputs(final Map<String, String> xnatInputValues) {
-        addInputs(ContainerInputType.WRAPPER_DERIVED, xnatInputValues);
-    }
-
-    /**
-     * Get inputs of type "wrapper".
-     * We no longer save inputs of this type. Now the wrapper inputs are separately saved
-     * as type "wrapper_external" or "wrapper_derived". But we keep this here for legacy containers.
-     * @return A map of wrapper input names to values.
-     * @since 1.2
-     */
-    @Transient
-    @Deprecated
-    public Map<String, String> getLegacyWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_DEPRECATED);
-    }
-
-    @Transient
-    public Map<String, String> getCommandInputs() {
-        return getInputs(ContainerInputType.COMMAND);
-    }
-
-    public void addCommandInputs(final Map<String, String> commandInputValues) {
-        addInputs(ContainerInputType.COMMAND, commandInputValues);
-    }
-
-    private Map<String, String> getInputs(final ContainerInputType type) {
-        if (this.inputs == null) {
-            return null;
-        }
-        final Map<String, String> inputs = Maps.newHashMap();
-        for (final ContainerEntityInput input : this.inputs) {
-            if (input.getType() == type) {
-                inputs.put(input.getName(), input.getValue());
-            }
-        }
-        return inputs;
-    }
-
-    private void addInputs(final ContainerInputType type,
-                           final Map<String, String> inputs) {
-        if (inputs == null) {
-            return;
-        }
-        for (final Map.Entry<String, String> inputEntry : inputs.entrySet()) {
-            addInput(ContainerEntityInput.create(inputEntry.getKey(), inputEntry.getValue(), type));
-        }
-    }
-
     @OneToMany(mappedBy = "containerEntity", cascade = CascadeType.ALL, orphanRemoval = true)
     public List<ContainerEntityOutput> getOutputs() {
         return outputs;
@@ -511,7 +434,11 @@ public class ContainerEntity extends AbstractHibernateEntity {
 
     @Transient
     public boolean isItemInHistory(final ContainerEntityHistory historyItem) {
-        return this.history != null && this.history.contains(historyItem);
+        if (this.history == null) {
+            return false;
+        }
+        historyItem.setContainerEntity(this);
+        return this.history.contains(historyItem);
 
     }
 
@@ -524,17 +451,26 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.logPaths = logPaths;
     }
 
+    public String getProject() {
+        return project;
+    }
+
+    public void setProject(final String project) {
+        this.project = project;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ContainerEntity that = (ContainerEntity) o;
-        return Objects.equals(this.containerId, that.containerId);
+        return Objects.equals(this.containerId, that.containerId) &&
+                Objects.equals(this.serviceId, that.serviceId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(containerId);
+        return Objects.hash(containerId, serviceId);
     }
 
     @Override
@@ -547,6 +483,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
                 .add("nodeId", nodeId)
                 .add("userId", userId)
                 .add("subtype", subtype)
+                .add("project", project)
                 .add("parentContainerEntityId", parentContainerEntity == null ? null : parentContainerEntity.getId())
                 .add("parentContainerEntityContainerId", parentContainerEntity == null ? null : parentContainerEntity.getContainerId())
                 .add("parentSourceObjectName", parentSourceObjectName)

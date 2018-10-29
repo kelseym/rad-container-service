@@ -2,8 +2,6 @@ package org.nrg.containers.model.server.docker;
 
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.persistence.Entity;
 import java.util.Date;
@@ -11,12 +9,14 @@ import java.util.Objects;
 
 @Entity
 public class DockerServerEntity extends AbstractHibernateEntity {
-    private static final Logger _log = LoggerFactory.getLogger(DockerServerEntity.class);
     private String name;
     private String host;
     private String certPath;
     private Date lastEventCheckTime;
     private boolean swarmMode;
+    private String pathTranslationXnatPrefix;
+    private String pathTranslationDockerPrefix;
+    private Boolean pullImagesOnXnatInit;
 
     public static DockerServerEntity create(final DockerServer dockerServer) {
         return new DockerServerEntity().update(dockerServer);
@@ -28,11 +28,10 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.certPath = dockerServer.certPath();
         this.swarmMode = dockerServer.swarmMode();
         this.lastEventCheckTime = dockerServer.lastEventCheckTime();
+        this.pathTranslationXnatPrefix = dockerServer.pathTranslationXnatPrefix();
+        this.pathTranslationDockerPrefix = dockerServer.pathTranslationDockerPrefix();
+        this.pullImagesOnXnatInit = dockerServer.pullImagesOnXnatInit();
         return this;
-    }
-
-    public DockerServer toPojo() {
-        return DockerServer.create(this);
     }
 
     public String getName() {
@@ -75,6 +74,30 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.swarmMode = swarmMode;
     }
 
+    public String getPathTranslationXnatPrefix() {
+        return pathTranslationXnatPrefix;
+    }
+
+    public void setPathTranslationXnatPrefix(final String pathTranslationXnatPrefix) {
+        this.pathTranslationXnatPrefix = pathTranslationXnatPrefix;
+    }
+
+    public String getPathTranslationDockerPrefix() {
+        return pathTranslationDockerPrefix;
+    }
+
+    public void setPathTranslationDockerPrefix(final String pathTranslationDockerPrefix) {
+        this.pathTranslationDockerPrefix = pathTranslationDockerPrefix;
+    }
+
+    public Boolean getPullImagesOnXnatInit() {
+        return pullImagesOnXnatInit;
+    }
+
+    public void setPullImagesOnXnatInit(final Boolean pullImagesOnXnatInit) {
+        this.pullImagesOnXnatInit = pullImagesOnXnatInit;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -85,12 +108,16 @@ public class DockerServerEntity extends AbstractHibernateEntity {
                 Objects.equals(this.name, that.name) &&
                 Objects.equals(this.host, that.host) &&
                 Objects.equals(this.certPath, that.certPath) &&
-                Objects.equals(this.lastEventCheckTime, that.lastEventCheckTime);
+                Objects.equals(this.lastEventCheckTime, that.lastEventCheckTime) &&
+                Objects.equals(this.pathTranslationXnatPrefix, that.pathTranslationXnatPrefix) &&
+                Objects.equals(this.pathTranslationDockerPrefix, that.pathTranslationDockerPrefix) &&
+                Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, host, certPath, lastEventCheckTime, swarmMode);
+        return Objects.hash(super.hashCode(), name, host, certPath, lastEventCheckTime, swarmMode,
+                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit);
     }
 
 }

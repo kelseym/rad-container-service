@@ -1,15 +1,13 @@
-package org.nrg.containers.services;
+package org.nrg.containers.utils;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.utils.WorkflowUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+@Slf4j
 public class ContainerUtils {
-    private static final Logger log = LoggerFactory.getLogger(ContainerUtils.class);
-
     public static void updateWorkflowStatus(final String workflowId, final String status, final UserI userI) {
         if (StringUtils.isNotBlank(workflowId)) {
             log.debug("Updating status of workflow {}.", workflowId);

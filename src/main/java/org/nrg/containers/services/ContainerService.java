@@ -26,8 +26,13 @@ public interface ContainerService {
     Container retrieve(final String containerId);
     Container get(final long id) throws NotFoundException;
     Container get(final String containerId) throws NotFoundException;
-    void delete(final long id) throws NotFoundException;
-    void delete(final String containerId) throws NotFoundException;
+    void delete(final long id);
+    void delete(final String containerId);
+    void update(Container container);
+
+    List<Container> getAll(final Boolean nonfinalized, String project);
+    List<Container> getAll(String project);
+    List<Container> getAll(Boolean nonfinalized);
 
     List<Container> retrieveServices();
     List<Container> retrieveNonfinalizedServices();

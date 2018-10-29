@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.Map;
 
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class CommandConfigurationInternal {
     @Nullable @JsonProperty("enabled") public abstract Boolean enabled();
     @JsonProperty("inputs") abstract ImmutableMap<String, CommandInputConfiguration> inputs();

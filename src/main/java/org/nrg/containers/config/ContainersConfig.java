@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import org.nrg.containers.events.DockerStatusUpdater;
 import org.nrg.framework.annotations.XnatPlugin;
-import org.nrg.transporter.config.TransporterConfig;
 import org.nrg.xnat.initialization.RootConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 )
 @ComponentScan(value = "org.nrg.containers",
         excludeFilters = @Filter(type = FilterType.REGEX, pattern = ".*TestConfig.*", value = {}))
-@Import({RootConfig.class, TransporterConfig.class})
+@Import({RootConfig.class})
 public class ContainersConfig {
     @Bean
     public Module guavaModule() {

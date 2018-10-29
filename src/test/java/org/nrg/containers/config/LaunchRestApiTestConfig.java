@@ -11,8 +11,6 @@ import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.services.ContextService;
-import org.nrg.transporter.TransportService;
-import org.nrg.transporter.TransportServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.RoleHolder;
@@ -88,11 +86,6 @@ public class LaunchRestApiTestConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public SiteConfigPreferences siteConfigPreferences() {
         return Mockito.mock(SiteConfigPreferences.class);
-    }
-
-    @Bean
-    public TransportService transportService() {
-        return new TransportServiceImpl();
     }
 
     @Bean

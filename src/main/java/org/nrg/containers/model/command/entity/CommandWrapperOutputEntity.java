@@ -30,6 +30,7 @@ public class CommandWrapperOutputEntity {
     private String viaWrapupCommand;
     private Type type;
     private String label;
+    private String format;
 
     public static CommandWrapperOutputEntity fromPojo(final Command.CommandWrapperOutput commandWrapperOutput) {
         return new CommandWrapperOutputEntity().update(commandWrapperOutput);
@@ -42,7 +43,7 @@ public class CommandWrapperOutputEntity {
         }
         this.setName(commandWrapperOutput.name());
         this.setCommandOutputName(commandWrapperOutput.commandOutputName());
-        this.setWrapperInputName(commandWrapperOutput.wrapperInputName());
+        this.setWrapperInputName(commandWrapperOutput.targetName());
         this.setViaWrapupCommand(commandWrapperOutput.viaWrapupCommand());
         this.setLabel(commandWrapperOutput.label());
 
@@ -127,6 +128,14 @@ public class CommandWrapperOutputEntity {
         this.label = label;
     }
 
+    public String getFormat() {
+        return format;
+    }
+
+    public void setFormat(final String format) {
+        this.format = format;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -151,6 +160,7 @@ public class CommandWrapperOutputEntity {
                 .add("viaWrapupCommand", viaWrapupCommand)
                 .add("type", type)
                 .add("label", label)
+                .add("format", format)
                 .toString();
     }
 

@@ -3,13 +3,11 @@ package org.nrg.containers.services.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.model.command.auto.Command;
-import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.image.docker.DockerImage;
 import org.nrg.containers.services.CommandLabelService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,9 +17,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class CommandLabelServiceImpl implements CommandLabelService {
-    private static final Logger log = LoggerFactory.getLogger(CommandLabelService.class);
 
     private final ObjectMapper objectMapper;
 
@@ -48,15 +46,16 @@ public class CommandLabelServiceImpl implements CommandLabelService {
         final String labelValue = labels.get(LABEL_KEY);
         if (StringUtils.isNotBlank(labelValue)) {
             try {
-                final List<Command> commandsFromLabels =
-                        objectMapper.readValue(labelValue, new TypeReference<List<Command>>() {});
+                final List<Command.CommandCreation> commandCreationsFromLabels =
+                        objectMapper.readValue(labelValue, new TypeReference<List<Command.CommandCreation>>() {});
 
-                if (commandsFromLabels != null && !commandsFromLabels.isEmpty()) {
-                    for (final Command command : commandsFromLabels) {
+                if (commandCreationsFromLabels != null && !commandCreationsFromLabels.isEmpty()) {
+                    for (final Command.CommandCreation commandCreation : commandCreationsFromLabels) {
                         // The command as read from the image may not contain all the values we want to store
                         // So we add them now.
                         commandsToReturn.add(
-                                command.toBuilder()
+                                Command.create(commandCreation)
+                                        .toBuilder()
                                         .image(imageName)
                                         .hash(dockerImage.imageId())
                                         .build()

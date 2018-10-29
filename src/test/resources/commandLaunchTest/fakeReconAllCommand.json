@@ -46,6 +46,7 @@
     "xnat": [
         {
             "name": "recon-all-session",
+            "label": "Recon-all",
             "description": "launch the fake recon-all command with a session input",
             "external-inputs": [
                 {
@@ -91,14 +92,14 @@
                 {
                     "name": "data-output",
                     "accepts-command-output": "data",
-                    "as-a-child-of-wrapper-input": "session",
+                    "as-a-child-of": "session",
                     "type": "Resource",
                     "label": "DATA"
                 },
                 {
                     "name": "text-file-output",
                     "accepts-command-output": "text-file",
-                    "as-a-child-of-wrapper-input": "session",
+                    "as-a-child-of": "session",
                     "type": "Resource",
                     "label": "TEXT"
                 }

@@ -3,6 +3,7 @@ package org.nrg.containers.services.impl;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.events.model.ContainerEvent;
@@ -40,8 +41,6 @@ import org.nrg.xft.event.EventUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.utils.WorkflowUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -67,9 +66,9 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SC
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SESSION;
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
 
+@Slf4j
 @Service
 public class ContainerServiceImpl implements ContainerService {
-    private static final Logger log = LoggerFactory.getLogger(ContainerServiceImpl.class);
     private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
 
     private final ContainerControlApi containerControlApi;
@@ -126,13 +125,33 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
-    public void delete(final long id) throws NotFoundException {
+    public void delete(final long id) {
         containerEntityService.delete(id);
     }
 
     @Override
-    public void delete(final String containerId) throws NotFoundException {
+    public void delete(final String containerId) {
         containerEntityService.delete(containerId);
+    }
+
+    @Override
+    public void update(final Container container) {
+        containerEntityService.update(fromPojo(container));
+    }
+
+    @Override
+    public List<Container> getAll(final Boolean nonfinalized, final String project) {
+        return toPojo(containerEntityService.getAll(nonfinalized, project));
+    }
+
+    @Override
+    public List<Container> getAll(final String project) {
+        return getAll(null, project);
+    }
+
+    @Override
+    public List<Container> getAll(final Boolean nonfinalized) {
+        return toPojo(containerEntityService.getAll(nonfinalized));
     }
 
     @Override
@@ -329,12 +348,13 @@ public class ContainerServiceImpl implements ContainerService {
 
     private Map<String, String> getDefaultEnvironmentVariablesForLaunch(final UserI userI) {
         final AliasToken token = aliasTokenService.issueTokenForUser(userI);
-        final String processingUrl = (String)siteConfigPreferences.getProperty("processingUrl", siteConfigPreferences.getSiteUrl());
+        final String processingUrl = (String)siteConfigPreferences.getProperty("processingUrl");
+        final String xnatHostUrl = StringUtils.isBlank(processingUrl) ? siteConfigPreferences.getSiteUrl() : processingUrl;
 
         final Map<String, String> defaultEnvironmentVariables = new HashMap<>();
         defaultEnvironmentVariables.put("XNAT_USER", token.getAlias());
         defaultEnvironmentVariables.put("XNAT_PASS", token.getSecret());
-        defaultEnvironmentVariables.put("XNAT_HOST", processingUrl);
+        defaultEnvironmentVariables.put("XNAT_HOST", xnatHostUrl);
 
         return defaultEnvironmentVariables;
     }
@@ -402,7 +422,8 @@ public class ContainerServiceImpl implements ContainerService {
                     // We have already added this task and can safely skip it.
                     log.debug("Skipping task status we have already seen.");
                 } else {
-                    if (task.exitCode() != null || task.isExitStatus()) {
+                    if (task.isExitStatus()) {
+                        addContainerHistoryItem(service, ContainerHistory.fromSystem("Finalizing","Processing finished. Uploading files." ), userI);
                         log.debug("Service has exited. Finalizing.");
                         final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
                         final Container serviceWithAddedEvent = retrieve(service.databaseId());
@@ -687,9 +708,9 @@ public class ContainerServiceImpl implements ContainerService {
         if (StringUtils.isBlank(logPath)) {
             // If log path is blank, that means we have not yet saved the logs from docker. Go fetch them now.
             if (ContainerService.STDOUT_LOG_NAME.contains(logFileName)) {
-                return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId()).getBytes());
+                return new ByteArrayInputStream(containerControlApi.getStdoutLog(container).getBytes());
             } else if (ContainerService.STDERR_LOG_NAME.contains(logFileName)) {
-                return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId()).getBytes());
+                return new ByteArrayInputStream(containerControlApi.getStderrLog(container).getBytes());
             } else {
                 return null;
             }

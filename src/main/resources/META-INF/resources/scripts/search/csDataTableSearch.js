@@ -870,8 +870,12 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
                         try {
                             data.forEach(function(availableCommand){
                                 if (availableCommand.enabled) {
+                                    var label = availableCommand['wrapper-name'];
+                                    if (availableCommand['wrapper-description']) if (availableCommand['wrapper-description'].length) label=availableCommand['wrapper-description'];
+                                    if (availableCommand['wrapper-label']) if (availableCommand['wrapper-label'].length) label=availableCommand['wrapper-label'];
+
                                     submenuitems.push({
-                                        text: availableCommand['wrapper-description'],
+                                        text: label,
                                         classname: 'projectContainerLauncher',
                                         onclick: {
                                             fn: XNAT.plugin.containerService.projectSearchLauncher.open,

@@ -24,9 +24,12 @@ projectCommandConfigsPanel:
                     id: proj-config-viewer
                     header: false
                     footer: false
+        projCommandHistoryScript:
+#           tag: script|src="/scripts/xnat/plugin/containerService/containerService-history.js"
+            tag: script|src="~/scripts/xnat/plugin/containerService/containerService-history.js"
         projCommandConfigScript:
-#           tag: script|src="/scripts/xnat/plugin/containerService/containerServices-projectSettings.js"
-            tag: script|src="~/scripts/xnat/plugin/containerService/containerServices-projectSettings.js"
+#           tag: script|src="/scripts/xnat/plugin/containerService/containerService-projectSettings.js"
+            tag: script|src="~/scripts/xnat/plugin/containerService/containerService-projectSettings.js"
         projCommandStylesheet:
         #   tag: link|rel="stylesheet"|type="text/css"|href="/scripts/xnat/plugin/containerService/containerConfig.css"
             tag: link|rel="stylesheet"|type="text/css"|href="~/scripts/xnat/plugin/containerService/containerConfig.css"
@@ -47,6 +50,14 @@ projectCommandAutomationPanel:
             tag: div#command-automation-list
             contents: Table will go here
 
+projectCommandHistoryPanel:
+    kind: panel
+    label: Command History
+    contents:
+        projectCommandHistoryTableContainer:
+            tag: div#command-history-container
+            contents: Loading history entries...
+
 
 projectSettings:
     kind: tabs
@@ -57,19 +68,24 @@ projectSettings:
             containerServiceProjectTabGroup: Container Service
     contains: tabs
     tabs:
-        commandConfigurationTab:
+        projectCommandConfigurationTab:
             kind: tab
-            name: commandProjectConfig
             label: Configure Commands
             group: containerServiceProjectTabGroup
             active: true
             contents:
                 ${projectCommandConfigsPanel}
-        commandAutomationTab:
+        projectCommandAutomationTab:
             kind: tab
-            name: commandAutomationTab
             label: Command Automation
             group: containerServiceProjectTabGroup
             active: false
             contents:
                 ${projectCommandAutomationPanel}
+        projectCommandHistoryTab:
+            kind: tab
+            label: Command History
+            group: containerServiceProjectTabGroup
+            active: false
+            contents:
+                ${projectCommandHistoryPanel}

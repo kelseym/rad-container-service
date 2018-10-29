@@ -1,12 +1,86 @@
 # Changelog
 
+## 1.6.0
+
+[Released 2018-10-29](https://github.com/NrgXnat/container-service/releases/tag/1.6.0).
+
+### Features
+
+* Change name of Command Wrapper Output property `as-a-child-of-wraper-input` to `as-a-child-of`. This is to support [CS-80][] and allow uploading outputs to other outputs. (Note that the title of the database column has not changed, and is still `wrapperInputName`.)
+* [CS-80][] Allow command wrapper output handlers to create new objects as children of objects created by previous output handlers. The previous behavior allowed outputs to be handled only by wrapper inputs.
+* [CS-457][] Add `label` field to command wrapper. This will be used to represent the command wrapper in the "Run Container" menu going forward.
+* [CS-458][] `GET /commands/available` includes command and wrapper labels
+* Manually refresh resource catalog when uploading resources. (We used to rely on the Catalog Service to do this, but it doesn't anymore.)
+* [CS-407][] Add docker host setting to translate mount paths. If xnat sees a path at /data/xnat/x/y/z but your docker host sees the same path at /my/path/x/y/z, you can include these path prefixes in your docker server settings. If you're using REST, set the properties "path-translation-xnat-prefix" and "path-translation-docker-prefix" respectively. If you're using the Plugin Settings UI, the fields will be there.
+* [CS-494][] Add docker host setting for whether to check on server startup if all the images referenced by commands are present, and pull them if not.
+* [CS-502][] When a container is launched with the project-specific launch APIs (`/xapi/projects/{project}/.../launch`), that project is now saved as a property on the container.
+* [CS-503][] Add APIs to get containers by project.
+* [CS-513][] Increase length of several fields:
+    * Command
+        * Description
+        * Command-line
+    * Command Input
+        * Description
+        * Default value
+    * Command Wrapper
+        * Description
+    * Command Wrapper Derived Input
+        * Description
+        * Default value
+    * Command Wrapper External Input
+        * Description
+        * Default value
+    * Container
+        * Command-line
+* Include a container's database ID in the `LaunchReport` returned after launch.
+* Add a new container status: "Finalizing". This is set when the container has finished and container service begins its finalization process (uploading outputs and logs). When finalization is finished, the status is set to "Complete" as before.
+* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.) In addition, if *any* inputs on a command / wrapper are marked as sensitive, the `raw` type inputs—i.e. those input values that were sent by the user and saved before any processing—will not be shown in the UI or API. The reason being that 1. if sensitive information exists, it may be leaked by raw inputs; 2. we have no way for the user to tell us anything about the raw inputs, including their potential sensitivity; thus 3. we can't guarantee any of their values are not sensitive.
+* Add another rest endpoint for `/commands/available` that takes project in path instead of query: `/projects/{project}/commands/available?xsiType={whatever}` instead of `/commands/available?project={project}&xsiType={whatever}`.
+
+### Bugfixes
+
+* [CS-488][] Allow wrappers to derive `Session` inputs from `Assessor` inputs, in the same way you can derive `Session`s from `Scan`s.
+* [CS-492][] Save `override-entrypoint` property on `Container` entity. (It was being used properly to make the docker container, but not saved in database.)
+* [CS-510][] Enable fetching logs from a running service.
+* History UI now fetches logs by container database id, not container docker id (or service id).
+* [CS-520][] Can get containers by service ID. This applies to the internal `ContainerService.get(String id)` as well as REST `/xapi/containers/{id}`.
+* Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
+* [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
+* [CS-531][] CommandWrapperEntity derivedInputs, externalInputs, and outputHandlers and CommandEntity inputs, outputs, wrappers, and mounts sorted by primary table id.
+
+### Other
+
+* [CS-537][] References to the dummy TransportService removed, as it was a placeholder for functionality implemented elsewhere.
+* [CS-480][] Deprecate `Container.ContainerMount.inputFiles`. Having a list of input files for a mount is nice during command resolution, but it doesn't make much sense to store that list. As of now no new containers will have anything in their mounts' `inputFiles`. Old containers will still report their values for `inputFiles` for now, but this may change in the future.
+* Remove the constant log entries for event polling. We get it. You're checking for events.
+
+
+[CS-80]: https://issues.xnat.org/browse/CS-80
+[CS-407]: https://issues.xnat.org/browse/CS-407
+[CS-409]: https://issues.xnat.org/browse/CS-409
+[CS-457]: https://issues.xnat.org/browse/CS-457
+[CS-458]: https://issues.xnat.org/browse/CS-458
+[CS-480]: https://issues.xnat.org/browse/CS-480
+[CS-488]: https://issues.xnat.org/browse/CS-488
+[CS-492]: https://issues.xnat.org/browse/CS-492
+[CS-494]: https://issues.xnat.org/browse/CS-494
+[CS-500]: https://issues.xnat.org/browse/CS-500
+[CS-502]: https://issues.xnat.org/browse/CS-502
+[CS-503]: https://issues.xnat.org/browse/CS-503
+[CS-510]: https://issues.xnat.org/browse/CS-510
+[CS-513]: https://issues.xnat.org/browse/CS-513
+[CS-520]: https://issues.xnat.org/browse/CS-520
+[CS-531]: https://issues.xnat.org/browse/CS-531
+[CS-535]: https://issues.xnat.org/browse/CS-535
+[CS-537]: https://issues.xnat.org/browse/CS-537
+
 ## 1.5.1
 
 [Released 2018-03-15](https://github.com/NrgXnat/container-service/releases/tag/1.5.1).
 
 ### Bugfixes
 
-* Restores wildcard expansion for container command-line strings.
+* [CS-479][] Restores wildcard expansion for container command-line strings.
     To do this, modified behavior introduced in previous version. When `override-entrypoint` is `null` or `false`, the container is created with...
     ```
     Image.Cmd = COMMAND (split into tokens like a shell would)

@@ -5,6 +5,7 @@ import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -31,6 +32,7 @@ public class CommandWrapperExternalInputEntity {
     private String rawReplacementKey;
     private boolean required = false;
     private boolean loadChildren = true;
+    private Boolean sensitive;
 
     @Nonnull
     public static CommandWrapperExternalInputEntity fromPojo(final @Nonnull Command.CommandWrapperInput commandWrapperInput) {
@@ -53,6 +55,7 @@ public class CommandWrapperExternalInputEntity {
         this.setRawReplacementKey(commandWrapperInput.rawReplacementKey());
         this.setRequired(commandWrapperInput.required());
         this.setLoadChildren(commandWrapperInput.loadChildren());
+        this.setSensitive(commandWrapperInput.sensitive());
         switch (commandWrapperInput.type()) {
             case "string":
                 this.setType(CommandWrapperInputType.STRING);
@@ -126,6 +129,7 @@ public class CommandWrapperExternalInputEntity {
         this.name = name;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getDescription() {
         return description;
     }
@@ -174,6 +178,7 @@ public class CommandWrapperExternalInputEntity {
         this.viaSetupCommand = viaSetupCommand;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getDefaultValue() {
         return defaultValue;
     }
@@ -218,6 +223,14 @@ public class CommandWrapperExternalInputEntity {
         this.loadChildren = loadChildren;
     }
 
+    public Boolean getSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(final Boolean sensitive) {
+        this.sensitive = sensitive;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -248,6 +261,7 @@ public class CommandWrapperExternalInputEntity {
                 .add("rawReplacementKey", rawReplacementKey)
                 .add("required", required)
                 .add("loadChildren", loadChildren)
+                .add("sensitive", sensitive)
                 .toString();
     }
 }

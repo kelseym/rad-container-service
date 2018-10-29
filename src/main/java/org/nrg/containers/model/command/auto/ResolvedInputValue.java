@@ -2,7 +2,6 @@ package org.nrg.containers.model.command.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import org.nrg.containers.model.command.entity.CommandInputEntity;
@@ -11,7 +10,6 @@ import org.nrg.containers.model.xnat.XnatModelObject;
 import javax.annotation.Nullable;
 
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class ResolvedInputValue {
     @JsonProperty("type") public abstract String type();
     @Nullable @JsonProperty("value") public abstract String value();

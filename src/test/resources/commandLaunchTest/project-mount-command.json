@@ -45,7 +45,7 @@
                 {
                     "name": "file-and-dir-lists",
                     "accepts-command-output": "outputs",
-                    "as-a-child-of-wrapper-input": "project",
+                    "as-a-child-of": "project",
                     "type": "Resource",
                     "label": "FILES_AND_DIRS"
                 }

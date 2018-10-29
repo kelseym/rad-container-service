@@ -3,7 +3,6 @@ package org.nrg.containers.services;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
-import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.orm.hibernate.BaseHibernateService;
 import org.nrg.xft.security.UserI;
@@ -16,7 +15,10 @@ public interface ContainerEntityService extends BaseHibernateService<ContainerEn
 
     ContainerEntity retrieve(final String containerId);
     ContainerEntity get(final String containerId) throws NotFoundException;
-    void delete(final String containerId) throws NotFoundException;
+    void delete(final String containerId);
+
+    List<ContainerEntity> getAll(Boolean nonfinalized, String project);
+    List<ContainerEntity> getAll(Boolean nonfinalized);
 
     List<ContainerEntity> retrieveServices();
     List<ContainerEntity> retrieveNonfinalizedServices();

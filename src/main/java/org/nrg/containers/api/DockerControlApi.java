@@ -15,6 +15,7 @@ import com.spotify.docker.client.exceptions.ContainerNotFoundException;
 import com.spotify.docker.client.exceptions.DockerCertificateException;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.exceptions.ImageNotFoundException;
+import com.spotify.docker.client.exceptions.ServiceNotFoundException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.ContainerInfo;
@@ -37,6 +38,7 @@ import com.spotify.docker.client.messages.swarm.Task;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
@@ -58,8 +60,6 @@ import org.nrg.containers.utils.ShellSplitter;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.services.NrgEventService;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -78,9 +78,9 @@ import static com.spotify.docker.client.DockerClient.EventsParam.type;
 import static com.spotify.docker.client.DockerClient.EventsParam.until;
 import static org.nrg.containers.services.CommandLabelService.LABEL_KEY;
 
+@Slf4j
 @Service
 public class DockerControlApi implements ContainerControlApi {
-    private static final Logger log = LoggerFactory.getLogger(DockerControlApi.class);
 
     private final DockerServerService dockerServerService;
     private final CommandLabelService commandLabelService;
@@ -888,17 +888,17 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public String getContainerStdoutLog(final String containerId) throws NoDockerServerException, DockerServerException {
-        return getContainerLog(containerId, LogsParam.stdout());
+    public String getStdoutLog(final Container container) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(container, LogsParam.stdout());
     }
 
     @Override
-    public String getContainerStderrLog(final String containerId) throws NoDockerServerException, DockerServerException {
-        return getContainerLog(containerId, LogsParam.stderr());
+    public String getStderrLog(final Container container) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(container, LogsParam.stderr());
     }
 
-    private String getContainerLog(final String containerId, final LogsParam logType) throws NoDockerServerException, DockerServerException {
-        try (final LogStream logStream = getClient().logs(containerId, logType)) {
+    private String getContainerLog(final Container container, final LogsParam logType) throws NoDockerServerException, DockerServerException {
+        try (final LogStream logStream = logStream(container, logType)) {
             return logStream.readFully();
         } catch (NoDockerServerException e) {
             throw e;
@@ -908,25 +908,11 @@ public class DockerControlApi implements ContainerControlApi {
         }
     }
 
-    @Override
-    public String getServiceStdoutLog(final String serviceId) throws NoDockerServerException, DockerServerException {
-        return getServiceLog(serviceId, LogsParam.stdout());
-    }
-
-    @Override
-    public String getServiceStderrLog(final String serviceId) throws NoDockerServerException, DockerServerException {
-        return getServiceLog(serviceId, LogsParam.stderr());
-    }
-
-    private String getServiceLog(final String serviceId, final LogsParam logType) throws DockerServerException, NoDockerServerException {
-        try (final LogStream logStream = getClient().serviceLogs(serviceId, logType)) {
-            return logStream.readFully();
-        } catch (NoDockerServerException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error(e.getMessage());
-            throw new DockerServerException(e);
-        }
+    private LogStream logStream(final Container container, final LogsParam logType) throws DockerServerException, NoDockerServerException, DockerException, InterruptedException {
+        final DockerServer server = getServer();
+        return server.swarmMode() && container.isSwarmService() ?
+                getClient(server).serviceLogs(container.serviceId(), logType) :
+                getClient(server).logs(container.containerId(), logType);
     }
 
     @VisibleForTesting
@@ -999,9 +985,8 @@ public class DockerControlApi implements ContainerControlApi {
 
     private List<Event> getDockerContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException {
         try(final DockerClient client = getClient()) {
-            if (log.isDebugEnabled()) {
-                log.debug("Reading all docker container events from " + since.getTime() + " to " + until.getTime() + ".");
-            }
+            log.trace("Reading all docker container events from {} to {}.", since.getTime(), until.getTime());
+            
             final List<Event> eventList;
             try (final EventStream eventStream =
                          client.events(since(since.getTime() / 1000),
@@ -1044,14 +1029,14 @@ public class DockerControlApi implements ContainerControlApi {
 
     @Override
     @Nullable
-    public ServiceTask getTaskForService(final Container service) throws NoDockerServerException, DockerServerException {
+    public ServiceTask getTaskForService(final Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException {
         return getTaskForService(getServer(), service);
     }
 
     @Override
     @Nullable
     public ServiceTask getTaskForService(final DockerServer dockerServer, final Container service)
-            throws DockerServerException {
+            throws DockerServerException, ServiceNotFoundException {
         try (final DockerClient client = getClient(dockerServer)) {
             Task task = null;
 
@@ -1096,6 +1081,9 @@ public class DockerControlApi implements ContainerControlApi {
 
                 return serviceTask;
             }
+        } catch (ServiceNotFoundException e) {
+            log.error(e.getMessage());
+            throw e;
         } catch (DockerException | InterruptedException e) {
             log.error(e.getMessage(), e);
             throw new DockerServerException(e);
@@ -1107,12 +1095,12 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public void throwTaskEventForService(final Container service) throws NoDockerServerException, DockerServerException {
+    public void throwTaskEventForService(final Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException {
         throwTaskEventForService(getServer(), service);
     }
 
     @Override
-    public void throwTaskEventForService(final DockerServer dockerServer, final Container service) throws DockerServerException {
+    public void throwTaskEventForService(final DockerServer dockerServer, final Container service) throws DockerServerException, ServiceNotFoundException {
         final ServiceTask task = getTaskForService(dockerServer, service);
         if (task != null) {
             final ServiceTaskEvent serviceTaskEvent = ServiceTaskEvent.create(task, service);

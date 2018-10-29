@@ -3,10 +3,8 @@ package org.nrg.containers.model.command.auto;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
-import com.google.common.collect.ImmutableList;
 
 import javax.annotation.Nullable;
-import java.util.List;
 
 @AutoValue
 public abstract class ResolvedCommandMount {

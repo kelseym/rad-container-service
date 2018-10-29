@@ -1,13 +1,12 @@
 package org.nrg.containers.daos;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
 import org.hibernate.criterion.Restrictions;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.model.container.entity.ContainerEntityMount;
 import org.nrg.framework.orm.hibernate.AbstractHibernateDAO;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Nonnull;
@@ -15,11 +14,12 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Repository
 public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEntity> {
-    private static final Logger log = LoggerFactory.getLogger(ContainerEntityRepository.class);
 
     @Override
+    @SuppressWarnings("deprecation")
     public void initialize(final ContainerEntity entity) {
         if (entity == null) {
             return;
@@ -43,8 +43,15 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
     }
 
     @Nullable
-    public ContainerEntity retrieveByContainerId(final @Nonnull String containerId) {
-        return findByUniqueProperty("containerId", containerId);
+    public ContainerEntity retrieveByContainerOrServiceId(final @Nonnull String containerId) {
+        final ContainerEntity containerEntity = (ContainerEntity) getSession()
+                .createCriteria(ContainerEntity.class)
+                .add(Restrictions.disjunction()
+                        .add(Restrictions.eq("containerId", containerId))
+                        .add(Restrictions.eq("serviceId", containerId)))
+                .uniqueResult();
+        initialize(containerEntity);
+        return containerEntity;
     }
 
     public void addHistoryItem(final @Nonnull ContainerEntity containerEntity,
@@ -105,6 +112,44 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .list();
 
         return initializeAndReturnList(setupContainersResult);
+    }
+
+    @Nonnull
+    public List<ContainerEntity> getAll(final String project) {
+        return initializeAndReturnList(findByProperty("project", project));
+    }
+
+    @Nonnull
+    public List<ContainerEntity> getAllNonfinalized() {
+        final List list = getSession()
+                .createCriteria(ContainerEntity.class)
+                .add(Restrictions.conjunction()
+                        .add(Restrictions.not(Restrictions.disjunction()
+                                .add(Restrictions.like("status", "Complete"))
+                                .add(Restrictions.like("status", "Done"))
+                                .add(Restrictions.like("status", "Failed"))
+                                .add(Restrictions.like("status", "Killed"))
+                        ))
+                )
+                .list();
+        return initializeAndReturnList(list);
+    }
+
+    @Nonnull
+    public List<ContainerEntity> getAllNonfinalized(final String project) {
+        final List list = getSession()
+                .createCriteria(ContainerEntity.class)
+                .add(Restrictions.conjunction()
+                        .add(Restrictions.eq("project", project))
+                        .add(Restrictions.not(Restrictions.disjunction()
+                                .add(Restrictions.like("status", "Complete"))
+                                .add(Restrictions.like("status", "Done"))
+                                .add(Restrictions.like("status", "Failed"))
+                                .add(Restrictions.like("status", "Killed"))
+                        ))
+                )
+                .list();
+        return initializeAndReturnList(list);
     }
 
     @SuppressWarnings("unchecked")

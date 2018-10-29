@@ -55,7 +55,8 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "command-line-flag": "",
                 "command-line-separator": "",
                 "true-value": "",
-                "false-value": ""
+                "false-value": "",
+                "sensitive": false
             }
         ],
         "outputs": [
@@ -64,12 +65,14 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "description": "",
                 "required": true,
                 "mount": "",
+                "path": "",
                 "glob": ""
             }
         ],
         "xnat": [
             {
                 "name": "",
+                "label": "",
                 "description": "",
                 "contexts": [""],
                 "external-inputs": [
@@ -80,6 +83,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "matcher": "",
                         "default-value": "",
                         "user-settable": true,
+                        "sensitive": false,
                         "replacement-key": "",
                         "provides-value-for-command-input": "",
                         "provides-files-for-command-mount": "",
@@ -94,6 +98,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "matcher": "",
                         "default-value": "",
                         "user-settable": true,
+                        "sensitive": false,
                         "replacement-key": "",
                         "provides-value-for-command-input": "",
                         "provides-files-for-command-mount": "",
@@ -108,8 +113,9 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "type": "",
                         "accepts-command-output": "",
                         "via-wrapup-command": "",
-                        "as-a-child-of-wrapper-input": "",
-                        "label": ""
+                        "as-a-child-of": "",
+                        "label": "",
+                        "format": ""
                     }
                 ]
             }
@@ -127,7 +133,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
 - **index** - (Docker images only) The index, or hub, where this image can be found. For instance, if the image is on the public Docker Hub, the index value should be "https://index.docker.io/v1/".
 - **hash** - (Docker images only) A sha hash value for the image.
 - **working-directory** - The working directory in which the command line should be executed.
-- **command-line** - This string is a templatized version of the command-line string that will be executed inside the container. The templatized portions will be resolved at launch time with the values of the command's inputs. See the section on [template strings](#template-strings) below for more detail.
+- **command-line** - This string is a templatized version of the command-line string that will be executed inside the container. The templatized portions will be resolved at launch time with the values of the command's inputs. See the section on [template strings](#template-strings) below for more detail. The length of the string that can be stored in this field is 2048.
 - **reserve-memory** Integer value in MB to ensure containers have at least this much memory available
 - **limit-memory** Integer value in MB to ensure containers don't use more memory than this
 - **limit-cpu** Float value to ensure containers don't use more cycle shares than this. For example, a value of 1.5 would mean the container can't use more cycles than 1.5 CPUs are capable of.
@@ -140,6 +146,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
 - **ports** - (Docker images only) String key/value pairs of ports to expose. The key is the port inside the container, the value is the port to expose out on the host. In other words, entries in this map should be of the form `"container_port": "host_port"`. Keys and values can be templates.
 - **inputs** - A list of inputs that will be used to resolve the command and launch the container. See [Command Inputs](#command-inputs).
     - **name** - The name of the input. You can use this to refer to the input elsewhere in the command.
+    - **label** - A short, human-friendly name of the command wrapper. This field will be displayed in the XNAT "Run Container" menu, so choose something that will help users understand what your command + wrapper are and do. (If no label is provided, the description will be used. If neither are provided, then the name will be used.)
     - **description** - A human-friendly description of the input.
     - **type** - One of string, boolean, number, or file. See the section on [input types](#input-types) below for more. Default: string.
     - **required** - A boolean value (true/false) whether this input is required. If a required input does not have a value at runtime, an error is thrown. Default: false.
@@ -150,7 +157,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **command-line-separator** - The character separating the command-line-flag from the value in the command-line. Default: " ".
     - **true-value** - The string to use in the command line for a boolean input when its value is `true`. Some examples: "true", "T", "Y", "1", "--a-flag". Default: "true".
     - **false-value** - The string to use in the command line for a boolean input when its value is `false`. Some examples: "false", "F", "N", "0", "--some-other-flag". Default: "false".
-    - **mount** - (Only for inputs of type `"file"`) The name of a mount—which must be defined in this command—into which container service will .
+    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
 - **outputs** - A list of outputs that will be used to upload files produced by the container. See [Command Outputs](#command-outputs).
     - **name** - The name of the output.
     - **description** - A human-friendly description of the output.
@@ -169,6 +176,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
         - **default-value**
         - **user-settable** - true/false. Should this Input be exposed to users who are launching via a UI? See the section [User-settable or not?](#user-settable-or-not) for the use-cases where one might want to set this to "false".
+        - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
         - **replacement-key** - A shorthand way to refer to this input's value elsewhere in the command. Default: the input's name bracketed by "#"; e.g. for an input named "foo" the default replacement-key is "#foo#".
         - **provides-value-for-command-input** - The name of a Command Input, which will receive its value from this input.
         - **provides-files-for-command-mount** - The name of a Command Mount, which will receive files from this input.
@@ -180,6 +188,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
         - **default-value**
         - **user-settable** - true/false. Should this Input be exposed to users who are launching via a UI? See the section [User-settable or not?](#user-settable-or-not) for the use-cases where one might want to set this to "false".
+        - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
         - **replacement-key** - A shorthand way to refer to this input's value elsewhere in the command. Default: the input's name bracketed by "#"; e.g. for an input named "foo" the default replacement-key is "#foo#".
         - **provides-value-for-command-input** - The name of a Command Input, which will receive its value from this input.
         - **provides-files-for-command-mount** - The name of a Command Mount, which will receive files from this input.
@@ -191,8 +200,9 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **type** - The type of object that will be created in XNAT. Currently only `"Resource"` is accepted.
         - **accepts-command-output** - The name of a [command output](#command-outputs) whose files will be handled.
         - **via-wrapup-command** - A reference to a wrapup command image (format: `repo/image:version[:commandname]` where the `commandname` is optional). See the page on [Wrapup Commands](https://wiki.xnat.org/display/CS/Wrapup+Commands) for more.
-        - **as-a-child-of-wrapper-input** - The name of a [wrapper input](#wrapper-inputs)—either external or derived—that refers to an XNAT object. The output files will be uploaded as a new child of that object.
+        - **as-a-child-of** - The name of a [wrapper input](#wrapper-inputs)—either external or derived—that refers to an XNAT object, or the name of a [wrapper output](#output-handling) that creates an XNAT object. The output files will be uploaded as a new child of that object.
         - **label** - The label of the new Resource that will be created from these files.
+        - **format** - The format of the files that will be uploaded to the new Resource.
 
 
 ## Mounts

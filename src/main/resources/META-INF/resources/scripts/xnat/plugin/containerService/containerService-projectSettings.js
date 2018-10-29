@@ -14,6 +14,8 @@
 console.log('containerServices-projectSettings.js');
 
 var XNAT = getObject(XNAT || {});
+XNAT.plugin = getObject(XNAT.plugin || {});
+XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
 (function(factory){
     if (typeof define === 'function' && define.amd) {
@@ -31,15 +33,10 @@ var XNAT = getObject(XNAT || {});
         projConfigDefinition,
         undefined,
         rootUrl = XNAT.url.rootUrl,
+        restUrl = XNAT.url.restUrl,
         csrfUrl = XNAT.url.csrfUrl,
         commandList,
         wrapperList;
-    
-    XNAT.plugin =
-        getObject(XNAT.plugin || {});
-
-    XNAT.plugin.containerService = 
-        getObject(XNAT.plugin.containerService || {});
 
     XNAT.plugin.containerService.projCommandConfigManager = projCommandConfigManager =
         getObject(XNAT.plugin.containerService.projCommandConfigManager || {});
@@ -96,7 +93,7 @@ var XNAT = getObject(XNAT || {});
 
     function commandUrl(appended){
         appended = isDefined(appended) ? appended : '';
-        return rootUrl('/xapi/commands' + appended);
+        return restUrl('/xapi/commands' + appended);
     }
 
     function configUrl(commandId,wrapperName,appended){
@@ -545,6 +542,9 @@ var XNAT = getObject(XNAT || {});
 
             // once command list is known, initialize automation panel
             commandAutomation.init();
+            
+            // then initialize the history table
+            XNAT.plugin.containerService.historyTable.init(getProjectId());
         });
 
         projCommandConfigManager.$table = $(pccmTable.table);
@@ -615,7 +615,7 @@ var XNAT = getObject(XNAT || {});
 
     function getCommandAutomationUrl(appended){
         appended = (appended) ? '?'+appended : '';
-        return rootUrl('/xapi/commandeventmapping' + appended);
+        return restUrl('/xapi/commandeventmapping' + appended);
     }
     function postCommandAutomationUrl(flag){
         flag = (flag) ? '/'+flag : ''; // can be used to set 'enabled' or 'disabled' flag
@@ -966,7 +966,7 @@ var XNAT = getObject(XNAT || {});
         if (commandList.length && Object.keys(XNAT.plugin.containerService.wrapperList).length){
             // initialize automation table
             XNAT.xhr.getJSON({
-                url: rootUrl('/xapi/users/' + PAGE.username + '/roles'),
+                url: restUrl('/xapi/users/' + PAGE.username + '/roles'),
                 success: function (userRoles) {
                     isAdmin = (userRoles.indexOf('Administrator') >= 0);
 

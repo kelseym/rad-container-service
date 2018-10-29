@@ -1,6 +1,7 @@
 package org.nrg.containers.daos;
 
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.FlushMode;
 import org.hibernate.Hibernate;
@@ -10,8 +11,6 @@ import org.nrg.containers.model.command.entity.CommandWrapperEntity;
 import org.nrg.containers.model.command.entity.DockerCommandEntity;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.orm.hibernate.AbstractHibernateDAO;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Nonnull;
@@ -19,9 +18,9 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Repository
 public class CommandEntityRepository extends AbstractHibernateDAO<CommandEntity> {
-    private static final Logger log = LoggerFactory.getLogger(CommandEntityRepository.class);
 
     @Override
     public void initialize(final CommandEntity commandEntity) {

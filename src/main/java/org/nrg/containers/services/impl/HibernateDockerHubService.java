@@ -10,8 +10,6 @@ import org.nrg.containers.services.ContainerConfigService;
 import org.nrg.containers.services.DockerHubService;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntityService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +22,6 @@ import java.util.List;
 public class HibernateDockerHubService
         extends AbstractHibernateEntityService<DockerHubEntity, DockerHubDao>
         implements DockerHubService {
-    private static final Logger log = LoggerFactory.getLogger(HibernateDockerHubService.class);
 
     private final ContainerConfigService containerConfigService;
 

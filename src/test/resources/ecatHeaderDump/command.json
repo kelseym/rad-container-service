@@ -29,6 +29,7 @@
     "xnat": [
         {
             "name": "ecat-dump scan",
+            "label": "ecat-dump - scan",
             "description": "",
             "contexts": ["xnat:imageScanData"],
             "external-inputs": [
@@ -61,7 +62,7 @@
                 {
                     "name": "headerdump-resource",
                     "accepts-command-output": "dump-out",
-                    "as-a-child-of-wrapper-input": "scan",
+                    "as-a-child-of": "scan",
                     "type": "Resource",
                     "label": "HEADERDUMP"
                 }

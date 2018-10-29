@@ -1,7 +1,6 @@
 package org.nrg.containers.model.command.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -18,6 +17,7 @@ import java.util.Map;
 public abstract class LaunchReport {
     @JsonProperty("status") public abstract String status();
     @JsonProperty("params") public abstract ImmutableMap<String, String> launchParams();
+    @Nullable @JsonProperty("id") public abstract Long databaseId();
     @Nullable @JsonProperty("command-id") public abstract Long commandId();
     @Nullable @JsonProperty("wrapper-id") public abstract Long wrapperId();
 
@@ -32,7 +32,6 @@ public abstract class LaunchReport {
     }
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static abstract class ContainerSuccess extends Success {
         @JsonProperty("container-id") public abstract String containerId();
 
@@ -46,32 +45,35 @@ public abstract class LaunchReport {
         static ContainerSuccess create(@JsonProperty("container-id") final @Nonnull String containerId,
                                        @JsonProperty("status") final String ignoredStatus,
                                        @JsonProperty("params") final Map<String, String> launchParams,
+                                       @JsonProperty("id") final Long databaseId,
                                        @JsonProperty("command-id") final Long commandId,
                                        @JsonProperty("wrapper-id") final Long wrapperId) {
-            return create(containerId, launchParams, commandId, wrapperId);
+            return create(containerId, launchParams, databaseId, commandId, wrapperId);
         }
 
         public static ContainerSuccess create(final @Nonnull Container container) {
+            final Long databaseId = container.databaseId() == 0L ? null : container.databaseId();
             final Long commandId = container.commandId() == 0L ? null : container.commandId();
             final Long wrapperId = container.wrapperId() == 0L ? null : container.wrapperId();
-            final String containerId = container.containerId() != null ? container.containerId() : ""; // This should not be null for swarmMode=false
-            return create(containerId, container.getRawInputs(), commandId, wrapperId);
+            final String containerIdCouldBeNull = container.containerId();
+            final String containerId = containerIdCouldBeNull != null ? containerIdCouldBeNull : ""; // This should not be null for swarmMode=false
+            return create(containerId, container.getRawInputs(), databaseId, commandId, wrapperId);
         }
 
         public static ContainerSuccess create(final @Nonnull String containerId,
                                               final Map<String, String> launchParams,
-                                              final Long commandIdString,
-                                              final Long wrapperIdString) {
+                                              final Long databaseId,
+                                              final Long commandId,
+                                              final Long wrapperId) {
             final ImmutableMap<String, String> launchParamsCopy =
                     launchParams == null ?
                             ImmutableMap.<String, String>of() :
                             ImmutableMap.copyOf(launchParams);
-            return new AutoValue_LaunchReport_ContainerSuccess(STATUS, launchParamsCopy, commandIdString, wrapperIdString, containerId);
+            return new AutoValue_LaunchReport_ContainerSuccess(STATUS, launchParamsCopy, databaseId, commandId, wrapperId, containerId);
         }
     }
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static abstract class ServiceSuccess extends Success {
         @JsonProperty("service-id") public abstract String serviceId();
 
@@ -85,32 +87,35 @@ public abstract class LaunchReport {
         static ServiceSuccess create(@JsonProperty("service-id") final @Nonnull String serviceId,
                                      @JsonProperty("status") final String ignoredStatus,
                                      @JsonProperty("params") final Map<String, String> launchParams,
+                                     @JsonProperty("id") final Long databaseId,
                                      @JsonProperty("command-id") final Long commandId,
                                      @JsonProperty("wrapper-id") final Long wrapperId) {
-            return create(serviceId, launchParams, commandId, wrapperId);
+            return create(serviceId, launchParams, databaseId, commandId, wrapperId);
         }
 
         public static ServiceSuccess create(final @Nonnull Container container) {
+            final Long databaseId = container.databaseId() == 0L ? null : container.databaseId();
             final Long commandId = container.commandId() == 0L ? null : container.commandId();
             final Long wrapperId = container.wrapperId() == 0L ? null : container.wrapperId();
-            final String serviceId = container.serviceId() != null ? container.serviceId() : ""; // This should not be null for swarmMode=true
-            return create(serviceId, container.getRawInputs(), commandId, wrapperId);
+            final String serviceIdCouldBeNull = container.serviceId();
+            final String serviceId = serviceIdCouldBeNull != null ? serviceIdCouldBeNull : ""; // This should not be null for swarmMode=true
+            return create(serviceId, container.getRawInputs(), databaseId, commandId, wrapperId);
         }
 
         public static ServiceSuccess create(final @Nonnull String containerId,
                                             final Map<String, String> launchParams,
-                                            final Long commandIdString,
-                                            final Long wrapperIdString) {
+                                            final Long databaseId,
+                                            final Long commandId,
+                                            final Long wrapperId) {
             final ImmutableMap<String, String> launchParamsCopy =
                     launchParams == null ?
                             ImmutableMap.<String, String>of() :
                             ImmutableMap.copyOf(launchParams);
-            return new AutoValue_LaunchReport_ServiceSuccess(STATUS, launchParamsCopy, commandIdString, wrapperIdString, containerId);
+            return new AutoValue_LaunchReport_ServiceSuccess(STATUS, launchParamsCopy, databaseId, commandId, wrapperId, containerId);
         }
     }
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static abstract class Failure extends LaunchReport {
         private final static String STATUS = "failure";
         @JsonProperty("message") public abstract String message();
@@ -120,9 +125,10 @@ public abstract class LaunchReport {
         static Failure create(@JsonProperty("message") final @Nonnull String message,
                               @JsonProperty("status") final String ignoredStatus,
                               @JsonProperty("params") final Map<String, String> launchParams,
+                              @JsonProperty("id") final Long databaseId,
                               @JsonProperty("command-id") final Long commandId,
                               @JsonProperty("wrapper-id") final Long wrapperId) {
-            return create(message, launchParams, commandId, wrapperId);
+            return create(message, launchParams, databaseId, commandId, wrapperId);
         }
 
         public static Failure create(final @Nonnull String message,
@@ -131,23 +137,23 @@ public abstract class LaunchReport {
                                      final long wrapperId) {
             final Long commandIdCopy = commandId == 0L ? null : commandId;
             final Long wrapperIdCopy = wrapperId == 0L ? null : wrapperId;
-            return create(message, launchParams, commandIdCopy, wrapperIdCopy);
+            return create(message, launchParams, 0L, commandIdCopy, wrapperIdCopy);
         }
 
         public static Failure create(final @Nonnull String message,
                                      final Map<String, String> launchParams,
+                                     final Long databaseId,
                                      final Long commandId,
                                      final Long wrapperId) {
             final ImmutableMap<String, String> launchParamsCopy =
                     launchParams == null ?
                             ImmutableMap.<String, String>of() :
                             ImmutableMap.copyOf(launchParams);
-            return new AutoValue_LaunchReport_Failure(STATUS, launchParamsCopy, commandId, wrapperId, message);
+            return new AutoValue_LaunchReport_Failure(STATUS, launchParamsCopy, databaseId, commandId, wrapperId, message);
         }
     }
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     public abstract static class BulkLaunchReport {
         @JsonProperty("successes") public abstract ImmutableList<Success> successes();
         @JsonProperty("failures") public abstract ImmutableList<Failure> failures();

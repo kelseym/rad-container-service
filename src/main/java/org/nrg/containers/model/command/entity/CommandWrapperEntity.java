@@ -8,14 +8,7 @@ import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
-import javax.persistence.CascadeType;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
+import javax.persistence.*;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +22,7 @@ import java.util.Set;
 public class CommandWrapperEntity implements Serializable {
     private long id;
     private String name;
+    private String label;
     private String description;
     private CommandEntity commandEntity;
     private Set<String> contexts;
@@ -47,6 +41,7 @@ public class CommandWrapperEntity implements Serializable {
             this.setId(commandWrapper.id());
         }
         this.setName(commandWrapper.name());
+        this.setLabel(commandWrapper.label());
         this.setDescription(commandWrapper.description());
         this.setContexts(commandWrapper.contexts());
 
@@ -122,6 +117,15 @@ public class CommandWrapperEntity implements Serializable {
         this.name = name;
     }
 
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(final String label) {
+        this.label = label;
+    }
+
+    @Column(columnDefinition = "TEXT")
     public String getDescription() {
         return description;
     }
@@ -161,6 +165,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperExternalInputEntity> getExternalInputs() {
         return externalInputs;
     }
@@ -189,6 +194,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperDerivedInputEntity> getDerivedInputs() {
         return derivedInputs;
     }
@@ -218,6 +224,7 @@ public class CommandWrapperEntity implements Serializable {
     }
 
     @OneToMany(mappedBy = "commandWrapperEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandWrapperOutputEntity> getOutputHandlers() {
         return outputHandlers;
     }
@@ -265,6 +272,7 @@ public class CommandWrapperEntity implements Serializable {
         return MoreObjects.toStringHelper(this)
                 .add("id", id)
                 .add("name", name)
+                .add("label", label)
                 .add("description", description)
                 .add("contexts", contexts)
                 .add("externalInputs", externalInputs)

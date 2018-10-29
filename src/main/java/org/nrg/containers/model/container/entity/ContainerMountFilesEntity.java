@@ -13,8 +13,15 @@ import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import java.util.Objects;
 
+/**
+ * This represents a file that was mounted into a container. But we didn't use it anywhere in
+ * the code. Now I think it just takes up space in the database for nothing.
+ *
+ * @deprecated Since 2.0.0
+ */
 @Entity
 @Audited
+@Deprecated
 public class ContainerMountFilesEntity {
     private long id;
     @JsonIgnore private ContainerEntityMount containerEntityMount;

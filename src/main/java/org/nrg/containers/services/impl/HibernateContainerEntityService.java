@@ -1,5 +1,6 @@
 package org.nrg.containers.services.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.daos.ContainerEntityRepository;
 import org.nrg.containers.events.model.ContainerEvent;
@@ -7,12 +8,10 @@ import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.services.ContainerEntityService;
-import org.nrg.containers.services.ContainerUtils;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntityService;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,12 +19,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 public class HibernateContainerEntityService
         extends AbstractHibernateEntityService<ContainerEntity, ContainerEntityRepository>
         implements ContainerEntityService {
-    private static final Logger log = LoggerFactory.getLogger(HibernateContainerEntityService.class);
 
     @Override
     @Nonnull
@@ -47,7 +46,7 @@ public class HibernateContainerEntityService
             final Long containerDatabaseId = Long.parseLong(containerId);
             return retrieve(containerDatabaseId);
         } catch (NumberFormatException e) {
-            final ContainerEntity containerEntity = getDao().retrieveByContainerId(containerId);
+            final ContainerEntity containerEntity = getDao().retrieveByContainerOrServiceId(containerId);
             initialize(containerEntity);
             return containerEntity;
         }
@@ -64,9 +63,23 @@ public class HibernateContainerEntityService
     }
 
     @Override
-    public void delete(final String containerId) throws NotFoundException {
-        final ContainerEntity toDelete = get(containerId);
-        delete(toDelete.getId());
+    public void delete(final String containerId) {
+        try {
+            final ContainerEntity toDelete = get(containerId);
+            delete(toDelete.getId());
+        } catch (NotFoundException e) {
+            // pass
+        }
+    }
+
+    @Override
+    public List<ContainerEntity> getAll(final Boolean nonfinalized, final String project) {
+        return (nonfinalized == null || !nonfinalized) ? getDao().getAll(project) : getDao().getAllNonfinalized(project);
+    }
+
+    @Override
+    public List<ContainerEntity> getAll(final Boolean nonfinalized) {
+        return (nonfinalized == null || !nonfinalized) ? getAll() : getDao().getAllNonfinalized();
     }
 
     @Override

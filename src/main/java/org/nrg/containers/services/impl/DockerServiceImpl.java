@@ -2,6 +2,7 @@ package org.nrg.containers.services.impl;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.exceptions.DockerServerException;
@@ -21,8 +22,6 @@ import org.nrg.containers.services.DockerHubService.DockerHubDeleteDefaultExcept
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.services.DockerService;
 import org.nrg.framework.exceptions.NotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -31,9 +30,9 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class DockerServiceImpl implements DockerService {
-    private static final Logger log = LoggerFactory.getLogger(DockerService.class);
 
     private ContainerControlApi controlApi;
     private DockerHubService dockerHubService;

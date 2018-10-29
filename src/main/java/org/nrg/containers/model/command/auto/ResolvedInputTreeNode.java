@@ -1,7 +1,6 @@
 package org.nrg.containers.model.command.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Lists;
@@ -10,7 +9,6 @@ import org.nrg.containers.model.command.auto.Command.Input;
 import java.util.List;
 
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class ResolvedInputTreeNode<T extends Input> {
     @JsonProperty("input") public abstract T input();
     @JsonProperty("values-and-children") public abstract List<ResolvedInputTreeValueAndChildren> valuesAndChildren();

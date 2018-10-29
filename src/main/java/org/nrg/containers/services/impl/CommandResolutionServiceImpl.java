@@ -13,6 +13,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.TypeRef;
 import com.jayway.jsonpath.spi.mapper.MappingException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.config.services.ConfigService;
@@ -43,6 +44,8 @@ import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
 import org.nrg.containers.model.command.auto.ResolvedInputValue;
 import org.nrg.containers.model.command.entity.CommandType;
+import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
+import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.xnat.Assessor;
 import org.nrg.containers.model.xnat.Project;
 import org.nrg.containers.model.xnat.Resource;
@@ -63,8 +66,6 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -98,9 +99,9 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SE
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.STRING;
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
 
+@Slf4j
 @Service
 public class CommandResolutionServiceImpl implements CommandResolutionService {
-    private final Logger log = LoggerFactory.getLogger(CommandResolutionServiceImpl.class);
 
     private final CommandService commandService;
     private final ConfigService configService;
@@ -144,7 +145,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                                final Map<String, String> inputValues,
                                                final UserI userI)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return preResolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI);
+        return preResolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI)
+                .toBuilder()
+                .project(project)
+                .build();
     }
 
     @Override
@@ -154,7 +158,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                                final Map<String, String> inputValues,
                                                final UserI userI)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return preResolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI);
+        return preResolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI)
+                .toBuilder()
+                .project(project)
+                .build();
     }
 
     @Override
@@ -189,7 +196,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                    final Map<String, String> inputValues,
                                    final UserI userI)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI);
+        return resolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI)
+                .toBuilder()
+                .project(project)
+                .build();
     }
 
     @Override
@@ -199,7 +209,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                    final Map<String, String> inputValues,
                                    final UserI userI)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI);
+        return resolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI)
+                .toBuilder()
+                .project(project)
+                .build();
     }
 
     // @Override
@@ -248,6 +261,9 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         private final DocumentContext commandWrapperJsonpathSearchContext;
         private String containerHost;
 
+        private String pathTranslationXnatPrefix = null;
+        private String pathTranslationContainerHostPrefix = null;
+
         private List<ResolvedCommand> resolvedSetupCommands;
 
         // Caches
@@ -258,6 +274,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                         final UserI userI) throws CommandResolutionException {
             this.commandWrapper = configuredCommand.wrapper();
             this.command = configuredCommand;
+
+            try {
+                log.debug("Getting docker server to read path prefixes.");
+                final DockerServerBase.DockerServerWithPing dockerServer = dockerService.getServer();
+                pathTranslationXnatPrefix = dockerServer.pathTranslationXnatPrefix();
+                pathTranslationContainerHostPrefix = dockerServer.pathTranslationDockerPrefix();
+            } catch (NotFoundException e) {
+                log.debug("Could not get docker server. I'll keep going, but this is likely to cause other problems down the line.");
+            }
 
             // Set up JSONPath search contexts
             final Configuration c = Configuration.defaultConfiguration().addOptions(Option.ALWAYS_RETURN_LIST);
@@ -516,12 +541,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     if (xnatModelObject == null) {
                         log.debug("Could not instantiate XNAT object from value.");
+                        resolvedValue = null;
                     } else {
                         resolvedModelObject = xnatModelObject;
-                        final String resolvedXnatObjectUri = xnatModelObject.getUri();
-                        if (resolvedXnatObjectUri != null) {
-                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectUri);
-                            resolvedValue = resolvedXnatObjectUri;
+                        final String resolvedXnatObjectValue = xnatModelObject.getExternalWrapperInputValue();
+                        if (resolvedXnatObjectValue != null) {
+                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectValue);
+                            resolvedValue = resolvedXnatObjectValue;
                         }
                     }
                 } else if (type.equals(CONFIG.getName())) {
@@ -693,7 +719,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new Function<XnatFile, String>() {
                                     @Override
                                     public String apply(final XnatFile xnatFile) {
-                                        return xnatFile.getUri();
+                                        return xnatFile.getDerivedWrapperInputValue();
                                     }
                                 }));
                     }
@@ -724,7 +750,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         project = ((Assessor)parentXnatObject).getProject(userI);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
-                    resolvedValues = Collections.singletonList(project.getUri());
+                    resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
                 }
             } else if (type.equals(SUBJECT.getName())) {
                 if (parentXnatObject == null) {
@@ -737,13 +763,35 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(PROJECT.getName())) {
-                        final List<Subject> childList = matchChildFromParent(
+                        List<Subject> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "subjects",
                                 "id",
                                 resolvedMatcher,
                                 new TypeRef<List<Subject>>() {});
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {
+                                    });
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {
+                                    });
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -752,7 +800,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Subject, String>() {
                                 @Override
                                 public String apply(final Subject subject) {
-                                    return subject.getUri();
+                                    return subject.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
@@ -768,19 +816,41 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     log.error("Cannot derive input \"{}\". Parent input's XNAT object is null.", input.name());
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
-                } else if (!(parentType.equals(SUBJECT.getName()) || parentType.equals(SCAN.getName()))) {
+                } else if (!(parentType.equals(SUBJECT.getName()) || parentType.equals(SCAN.getName()) || parentType.equals(ASSESSOR.getName()))) {
                     logIncompatibleTypes(input.type(), parentType);
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(SUBJECT.getName())) {
-                        final List<Session> childList = matchChildFromParent(
+                        List<Session> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "sessions",
                                 "id",
                                 resolvedMatcher,
                                 new TypeRef<List<Session>>() {});
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {
+                                    });
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {
+                                    });
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -789,10 +859,14 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Session, String>() {
                                 @Override
                                 public String apply(final Session session) {
-                                    return session.getUri();
+                                    return session.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
+                    } else if (parentType.equals(ASSESSOR.getName())) {
+                        final Session session = ((Assessor)parentXnatObject).getSession(userI);
+                        resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
+                        resolvedValues = Collections.singletonList(session.getUri());
                     } else {
                         // Parent is scan
                         final Session session = ((Scan)parentXnatObject).getSession(userI);
@@ -810,13 +884,24 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Scan> childList = matchChildFromParent(
+                    List<Scan> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "scans",
                             "id",
                             resolvedMatcher,
                             new TypeRef<List<Scan>>() {});
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "scans",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Scan>>() {
+                                });
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -825,7 +910,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Scan, String>() {
                             @Override
                             public String apply(final Scan scan) {
-                                return scan.getUri();
+                                return scan.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -840,13 +925,33 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Assessor> childList = matchChildFromParent(
+                    List<Assessor> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "assessors",
-                            "id",
+                            "label",
                             resolvedMatcher,
                             new TypeRef<List<Assessor>>() {});
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains an ID
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "id",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {});
+                    }
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {});
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -855,7 +960,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Assessor, String>() {
                             @Override
                             public String apply(final Assessor assessor) {
-                                return assessor.getUri();
+                                return assessor.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -872,13 +977,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    // Try matching the value they gave us against the resource URI.
+                    // Try matching the value they gave us against the resource label.
                     // That's what the UI will send.
                     List<Resource> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "resources",
-                            "uri",
+                            "label",
                             resolvedMatcher,
                             new TypeRef<List<Resource>>() {});
                     if (childList == null) {
@@ -893,6 +998,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 });
                     }
                     if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "resources",
+                                "URI",
+                                resolvedMatcher,
+                                new TypeRef<List<Resource>>() {
+                                });
+                    }
+                    if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
                     } else {
@@ -900,7 +1016,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Resource, String>() {
                             @Override
                             public String apply(final Resource resource) {
-                                return resource.getUri();
+                                return resource.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -1481,23 +1597,46 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 return resolvedOutputs;
             }
 
-            final Map<String, CommandWrapperOutput> xnatCommandOutputsByCommandOutputName = Maps.newHashMap();
+            final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName = new HashMap<>();
+            final Map<String, CommandWrapperOutput> wrapperOutputsByName = new HashMap<>();
             if (commandWrapper.outputHandlers() != null) {
                 for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
-                    xnatCommandOutputsByCommandOutputName.put(commandWrapperOutput.commandOutputName(), commandWrapperOutput);
+                    if (wrapperOutputsByHandledCommandOutputName.containsKey(commandWrapperOutput.commandOutputName())) {
+                        wrapperOutputsByHandledCommandOutputName.get(commandWrapperOutput.commandOutputName()).add(commandWrapperOutput);
+                    } else {
+                        final List<CommandWrapperOutput> outputs = new ArrayList<>();
+                        outputs.add(commandWrapperOutput);
+                        wrapperOutputsByHandledCommandOutputName.put(commandWrapperOutput.commandOutputName(), outputs);
+                    }
+
+                    wrapperOutputsByName.put(commandWrapperOutput.name(), commandWrapperOutput);
                 }
             }
 
+            final Map<String, ResolvedCommandOutput> resolvedCommandOutputsByOutputHandlerName = new HashMap<>();
             for (final CommandOutput commandOutput : command.outputs()) {
-
-                final ResolvedCommandOutput resolvedOutput = resolveCommandOutput(commandOutput, resolvedInputTrees, resolvedInputValuesByReplacementKey,
-                        xnatCommandOutputsByCommandOutputName);
-                if (resolvedOutput == null) {
+                final List<ResolvedCommandOutput> resolvedOutputList = resolveCommandOutput(commandOutput, resolvedInputTrees, resolvedInputValuesByReplacementKey,
+                        wrapperOutputsByHandledCommandOutputName, wrapperOutputsByName);
+                if (resolvedOutputList == null || resolvedOutputList.size() == 0) {
                     continue;
                 }
 
-                log.debug("Adding resolved output \"{}\" to resolved command.", resolvedOutput.name());
-                resolvedOutputs.add(resolvedOutput);
+                for (final ResolvedCommandOutput resolvedCommandOutput : resolvedOutputList) {
+                    log.debug("Finished with resolved output \"{}\".", resolvedCommandOutput.name());
+                    resolvedCommandOutputsByOutputHandlerName.put(resolvedCommandOutput.fromOutputHandler(), resolvedCommandOutput);
+                }
+            }
+
+            // Add resolved outputs in the order of the output handlers
+            for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
+                final ResolvedCommandOutput resolvedCommandOutput = resolvedCommandOutputsByOutputHandlerName.get(commandWrapperOutput.name());
+                if (resolvedCommandOutput == null) {
+                    log.debug("Command wrapper output handler {} has no resolved output. Is... is this an error?", commandWrapperOutput.name());
+                    continue;
+                }
+
+                log.debug("Adding resolved output \"{}\" to resolved command.", resolvedCommandOutput.name());
+                resolvedOutputs.add(resolvedCommandOutput);
             }
 
             log.info("Done resolving command outputs.");
@@ -1513,97 +1652,156 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         }
 
         @Nullable
-        private ResolvedCommandOutput resolveCommandOutput(final CommandOutput commandOutput,
-                                                           final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees,
-                                                           final Map<String, String> resolvedInputValuesByReplacementKey,
-                                                           final Map<String, CommandWrapperOutput> xnatCommandOutputsByCommandOutputName)
+        private List<ResolvedCommandOutput> resolveCommandOutput(final CommandOutput commandOutput,
+                                                                 final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees,
+                                                                 final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                                 final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName,
+                                                                 final Map<String, CommandWrapperOutput> wrapperOutputsByName)
                 throws CommandResolutionException {
             log.info("Resolving command output \"{}\".", commandOutput.name());
             log.debug("{}", commandOutput);
 
-            // TODO fix this in validation
-            final CommandWrapperOutput commandOutputHandler = xnatCommandOutputsByCommandOutputName.get(commandOutput.name());
-            if (commandOutputHandler == null) {
+            final List<ResolvedCommandOutput> resolvedCommandOutputs = new ArrayList<>();
+
+            final List<CommandWrapperOutput> commandOutputHandlers = wrapperOutputsByHandledCommandOutputName.get(commandOutput.name());
+            if (commandOutputHandlers == null || commandOutputHandlers.size() == 0) {
                 throw new CommandResolutionException(String.format("No wrapper output handler was configured to handle command output \"%s\".", commandOutput.name()));
             }
-            log.debug("Found Output Handler \"{}\" for Command output \"{}\".", commandOutputHandler.name(), commandOutput.name());
+            log.debug("Found {} Output Handlers for Command output \"{}\".", commandOutputHandlers.size(), commandOutput.name());
+            boolean outputHasAtLeastOneLegitHandler = false;
 
-            // Fail fast: if we will not be able to create the output, either throw or log that now and don't try later.
-            // First check that the handler input has a unique value
-            final ResolvedInputValue parentInputResolvedValue = getInputValueByName(commandOutputHandler.wrapperInputName(), resolvedInputTrees);
-            if (parentInputResolvedValue == null) {
-                final String message = String.format("Cannot resolve output \"%s\". " +
-                                "Input \"%s\" is supposed to handle the output, but it does not have a uniquely resolved value. " +
-                                "Either there is no value, or there are multiple values." +
-                                "(We can't loop over input values yet, so the latter is an error as much as the former.)",
-                        commandOutput.name(), commandOutputHandler.wrapperInputName());
-                if (Boolean.TRUE.equals(commandOutput.required())) {
-                    throw new CommandResolutionException(message);
+            for (final CommandWrapperOutput commandOutputHandler : commandOutputHandlers) {
+                log.debug("Found Output Handler \"{}\" for Command output \"{}\". Checking if its target \"{}\" is an input.",
+                        commandOutputHandler.name(), commandOutput.name(), commandOutputHandler.targetName());
+
+                // Here's how these outputs can be structured
+                // 1. They will upload back to some input object. This is like they have a session come in as
+                //      input, and they want to create a new resource back on that session.
+                // 2. They will upload to some object that is also created by an output. For instance, one
+                //      output is used to create an assessor, then other outputs are used to create resources
+                //      on that assessor.
+
+                // First check if
+                //   A. The output is supposed to upload back to an input object
+                //   B. That input object is upload-to-able
+                final ResolvedInputValue parentInputResolvedValue = getInputValueByName(commandOutputHandler.targetName(), resolvedInputTrees);
+                if (parentInputResolvedValue != null) {
+                    // If we are here, we know the target is an input and we have its value.
+                    log.debug("Handler \"{}\"'s target is input \"{}\". Checking if the input's value makes a legit target.", commandOutputHandler.name(), commandOutputHandler.targetName());
+
+                    // Next check that the handler target input's value is an XNAT object
+                    final String parentValueMayBeNull = parentInputResolvedValue.value();
+                    final String parentValue = parentValueMayBeNull != null ? parentValueMayBeNull : "";
+                    URIManager.DataURIA uri = null;
+                    try {
+                        uri = UriParserUtils.parseURI(parentValue.startsWith("/archive") ? parentValue : "/archive" + parentValue);
+                    } catch (MalformedURLException ignored) {
+                        // ignored
+                    }
+
+                    if (uri == null || !(uri instanceof ArchiveItemURI)) {
+                        final String message = String.format("Cannot resolve output \"%s\". " +
+                                        "Input \"%s\" is supposed to handle the output, but it does not have an XNAT object value.",
+                                commandOutput.name(), commandOutputHandler.targetName());
+                        if (Boolean.TRUE.equals(commandOutput.required()) && !outputHasAtLeastOneLegitHandler) {
+                            throw new CommandResolutionException(message);
+                        } else {
+                            log.error("Skipping handler \"{}\".", commandOutputHandler.name());
+                            log.error(message);
+                            continue;
+                        }
+                    }
+
+                    // Next check that the user has edit permissions on the handler target input's XNAT object
+                    final URIManager.ArchiveItemURI resourceURI = (URIManager.ArchiveItemURI) uri;
+                    final ArchivableItem item = resourceURI.getSecurityItem();
+                    boolean canEdit;
+                    try {
+                        canEdit = Permissions.canEdit(userI, item);
+                    } catch (Exception ignored) {
+                        canEdit = false;
+                    }
+                    if (!canEdit) {
+                        final String message = String.format("Cannot resolve output \"%s\". " +
+                                        "Input \"%s\" is supposed to handle the output, but user \"%s\" does not have permission " +
+                                        "to edit the XNAT object \"%s\".",
+                                commandOutput.name(), commandOutputHandler.targetName(),
+                                userI.getLogin(), parentValue);
+                        if (Boolean.TRUE.equals(commandOutput.required()) && !outputHasAtLeastOneLegitHandler) {
+                            throw new CommandResolutionException(message);
+                        } else {
+                            log.error("Skipping handler \"{}\".", commandOutputHandler.name());
+                            log.error(message);
+                            continue;
+                        }
+                    }
                 } else {
-                    log.error("Skipping output \"{}\".", commandOutput.name());
-                    log.error(message);
-                    return null;
+                    // If we are here, either the output handler is uploading to another output,
+                    // or its target is just wrong and we can't find anything
+
+                    log.debug("Handler \"{}\"'s target \"{}\" is not an input with a unique value. Is it another output handler?", commandOutputHandler.name(), commandOutputHandler.targetName());
+
+                    final CommandWrapperOutput otherOutputHandler = wrapperOutputsByName.get(commandOutputHandler.targetName());
+                    if (otherOutputHandler == null) {
+                        // Looks like we can't find an input or an output to which this handler intends to upload its output
+                        final String message = String.format("Cannot resolve output \"%s\". " +
+                                        "The handler says the output is supposed to be handled by \"%s\", " +
+                                        "but either that isn't an input, or an output, or maybe the input does not have a uniquely resolved value.",
+                                commandOutput.name(), commandOutputHandler.targetName());
+                        if (Boolean.TRUE.equals(commandOutput.required()) && !outputHasAtLeastOneLegitHandler) {
+                            throw new CommandResolutionException(message);
+                        } else {
+                            log.error("Skipping handler \"{}\".", commandOutputHandler.name());
+                            log.error(message);
+                            continue;
+                        }
+                    }
+
+                    log.debug("Handler \"{}\"'s target \"{}\" is another output handler. Checking if the two handlers' types are compatible.", commandOutputHandler.name(), commandOutputHandler.targetName());
+
+                    // Ok, we have found an output. Make sure it can handle another output.
+                    // Basically, *this* output handler needs to make a resource, and the
+                    // *target* output handler needs to make an assessor.
+                    final boolean thisHandlerIsAResource = commandOutputHandler.type().equals(CommandWrapperOutputEntity.Type.RESOURCE.getName());
+                    final boolean targetHandlerIsAnAssessor = otherOutputHandler.type().equals(CommandWrapperOutputEntity.Type.ASSESSOR.getName());
+                    if (!(thisHandlerIsAResource && targetHandlerIsAnAssessor)) {
+                        // This output is supposed to be uploaded to an object that is created by another output,
+                        // but that can only happen (as of now, 2018-03-23) when the first output is an assessor
+                        // and any subsequent outputs are resources
+                        final String message = String.format("Cannot resolve handler \"%1$s\". " +
+                                        "Handler \"%1$s\" has type \"%2$s\"; target handler \"%3$s\" has type \"%4$s\". " +
+                                        "Handler \"%1$s\" must be type Resource, target handler \"%3$s\" needs to be type Assessor.",
+                                commandOutputHandler.name(), commandOutputHandler.type(),
+                                commandOutputHandler.targetName(), otherOutputHandler.type());
+                        if (Boolean.TRUE.equals(commandOutput.required()) && !outputHasAtLeastOneLegitHandler) {
+                            throw new CommandResolutionException(message);
+                        } else {
+                            log.error("Skipping handler \"{}\".", commandOutputHandler.name());
+                            log.error(message);
+                            continue;
+                        }
+                    }
                 }
+
+                log.debug("Handler \"{}\" for command output \"{}\" looks legit.", commandOutputHandler.name(), commandOutput.name());
+                resolvedCommandOutputs.add(ResolvedCommandOutput.builder()
+                        .name(commandOutput.name()+":"+commandOutputHandler.name())
+                        .fromCommandOutput(commandOutput.name())
+                        .fromOutputHandler(commandOutputHandler.name())
+                        .required(commandOutput.required())
+                        .mount(commandOutput.mount())
+                        .glob(commandOutput.glob())
+                        .type(commandOutputHandler.type())
+                        .handledBy(commandOutputHandler.targetName())
+                        .viaWrapupCommand(commandOutputHandler.viaWrapupCommand())
+                        .path(resolveTemplate(commandOutput.path(), resolvedInputValuesByReplacementKey))
+                        .label(resolveTemplate(commandOutputHandler.label(), resolvedInputValuesByReplacementKey))
+                        .format(resolveTemplate(commandOutputHandler.format(), resolvedInputValuesByReplacementKey))
+                        .build());
+                outputHasAtLeastOneLegitHandler = true;
             }
 
-            // Next check that the handler input's value is an XNAT object
-            final String parentValueMayBeNull = parentInputResolvedValue.value();
-            final String parentValue = parentValueMayBeNull != null ? parentValueMayBeNull : "";
-            URIManager.DataURIA uri = null;
-            try {
-                uri = UriParserUtils.parseURI(parentValue.startsWith("/archive") ? parentValue : "/archive" + parentValue);
-            } catch (MalformedURLException ignored) {
-                // ignored
-            }
-
-            if (uri == null || !(uri instanceof ArchiveItemURI)) {
-                final String message = String.format("Cannot resolve output \"%s\". " +
-                                "Input \"%s\" is supposed to handle the output, but it does not have an XNAT object value.",
-                        commandOutput.name(), commandOutputHandler.wrapperInputName());
-                if (Boolean.TRUE.equals(commandOutput.required())) {
-                    throw new CommandResolutionException(message);
-                } else {
-                    log.error("Skipping output \"{}\".", commandOutput.name());
-                    log.error(message);
-                    return null;
-                }
-            }
-
-            // Next check that the user has edit permissions on the handler input's XNAT object
-            final URIManager.ArchiveItemURI resourceURI = (URIManager.ArchiveItemURI) uri;
-            final ArchivableItem item = resourceURI.getSecurityItem();
-            boolean canEdit;
-            try {
-                canEdit = Permissions.canEdit(userI, item);
-            } catch (Exception ignored) {
-                canEdit = false;
-            }
-            if (!canEdit) {
-                final String message = String.format("Cannot resolve output \"%s\". " +
-                                "Input \"%s\" is supposed to handle the output, but user \"%s\" does not have permission " +
-                                "to edit the XNAT object \"%s\".",
-                        commandOutput.name(), commandOutputHandler.wrapperInputName(),
-                        userI.getLogin(), parentValue);
-                if (Boolean.TRUE.equals(commandOutput.required())) {
-                    throw new CommandResolutionException(message);
-                } else {
-                    log.error("Skipping output \"{}\".", commandOutput.name());
-                    log.error(message);
-                    return null;
-                }
-            }
-
-            return ResolvedCommandOutput.builder()
-                    .name(commandOutput.name())
-                    .required(commandOutput.required())
-                    .mount(commandOutput.mount())
-                    .glob(commandOutput.glob())
-                    .type(commandOutputHandler.type())
-                    .handledByWrapperInput(commandOutputHandler.wrapperInputName())
-                    .viaWrapupCommand(commandOutputHandler.viaWrapupCommand())
-                    .path(resolveTemplate(commandOutput.path(), resolvedInputValuesByReplacementKey))
-                    .label(resolveTemplate(commandOutputHandler.label(), resolvedInputValuesByReplacementKey))
-                    .build();
+            return resolvedCommandOutputs;
         }
 
         @Nonnull
@@ -1970,11 +2168,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.debug("Setting mount \"{}\" xnat host path to \"{}\".", resolvedCommandMountName, pathToMount);
             resolvedCommandMountBuilder.xnatHostPath(pathToMount);
 
-            log.debug("Transporting mount \"{}\".", resolvedCommandMountName);
+            // log.debug("Transporting mount \"{}\".", resolvedCommandMountName);
             // final Path pathOnContainerHost = transportService.transport(containerHost, Paths.get(buildDirectory));
             // TODO transporting is currently a no-op, and the code is simpler if we don't pretend that we are doing something here.
-            log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, pathToMount);
-            resolvedCommandMountBuilder.containerHostPath(pathToMount);
+
+            // Translate paths from XNAT prefix to container host prefix
+            final String containerHostPath =
+                    (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
+                            pathToMount.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
+                            pathToMount;
+            log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, containerHostPath);
+            resolvedCommandMountBuilder.containerHostPath(containerHostPath);
 
             return resolvedCommandMountBuilder.build();
         }

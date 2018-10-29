@@ -8,6 +8,7 @@ import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.Info;
 import com.spotify.docker.client.messages.Version;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matcher;
@@ -16,20 +17,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.nrg.containers.config.DockerControlApiTestConfig;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.dockerhub.DockerHubBase;
 import org.nrg.containers.model.image.docker.DockerImage;
-import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.DockerServerService;
-import org.nrg.framework.scope.EntityId;
-import org.nrg.prefs.services.NrgPreferenceService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -47,14 +42,12 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeThat;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
+@Slf4j
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = DockerControlApiTestConfig.class)
 public class DockerControlApiTest {
-    private static final Logger log = LoggerFactory.getLogger(DockerControlApiTest.class);
-
     private static String CONTAINER_HOST;
     private static String CERT_PATH;
 
@@ -103,7 +96,7 @@ public class DockerControlApiTest {
             }
         }
 
-        final DockerServer mockDockerServer = DockerServer.create(0L, "Local test server", CONTAINER_HOST, CERT_PATH, false);
+        final DockerServer mockDockerServer = DockerServer.create(0L, "Test server", CONTAINER_HOST, CERT_PATH, false, null, null, null, false);
         when(mockDockerServerService.getServer()).thenReturn(mockDockerServer);
 
         CLIENT = controlApi.getClient();

@@ -1,8 +1,8 @@
 package org.nrg.containers.model.container.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
@@ -23,13 +23,13 @@ import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class Container {
     @JsonIgnore private String exitCode;
 
@@ -41,6 +41,7 @@ public abstract class Container {
     @Nullable @JsonProperty("container-id") public abstract String containerId();
     @Nullable @JsonProperty("workflow-id") public abstract String workflowId();
     @JsonProperty("user-id") public abstract String userId();
+    @JsonProperty("project") @Nullable public abstract String project();
     @Nullable @JsonProperty("swarm") public abstract Boolean swarm();
     @Nullable @JsonProperty("service-id") public abstract String serviceId();
     @Nullable @JsonProperty("task-id") public abstract String taskId();
@@ -55,7 +56,7 @@ public abstract class Container {
     @JsonProperty("env") public abstract ImmutableMap<String, String> environmentVariables();
     @JsonProperty("ports") public abstract ImmutableMap<String, String> ports();
     @JsonProperty("mounts") public abstract ImmutableList<ContainerMount> mounts();
-    @JsonProperty("inputs") public abstract ImmutableList<ContainerInput> inputs();
+    @JsonIgnore public abstract ImmutableList<ContainerInput> inputs();
     @JsonProperty("outputs") public abstract ImmutableList<ContainerOutput> outputs();
     @JsonProperty("history") public abstract ImmutableList<ContainerHistory> history();
     @JsonProperty("log-paths") public abstract ImmutableList<String> logPaths();
@@ -97,6 +98,7 @@ public abstract class Container {
                                    @JsonProperty("container-id") final String containerId,
                                    @JsonProperty("workflow-id") final String workflowId,
                                    @JsonProperty("user-id") final String userId,
+                                   @JsonProperty("project") final String project,
                                    @JsonProperty("swarm") final Boolean swarm,
                                    @JsonProperty("service-id") final String serviceId,
                                    @JsonProperty("task-id") final String taskId,
@@ -127,6 +129,7 @@ public abstract class Container {
                 .containerId(containerId)
                 .workflowId(workflowId)
                 .userId(userId)
+                .project(project)
                 .swarm(swarm)
                 .serviceId(serviceId)
                 .taskId(taskId)
@@ -163,6 +166,7 @@ public abstract class Container {
                 .containerId(containerEntity.getContainerId())
                 .workflowId(containerEntity.getWorkflowId())
                 .userId(containerEntity.getUserId())
+                .project(containerEntity.getProject())
                 .swarm(containerEntity.getSwarm())
                 .serviceId(containerEntity.getServiceId())
                 .taskId(containerEntity.getTaskId())
@@ -244,6 +248,7 @@ public abstract class Container {
                 .databaseId(0L)
                 .commandId(resolvedCommand.commandId())
                 .wrapperId(resolvedCommand.wrapperId())
+                .project(resolvedCommand.project())
                 .dockerImage(resolvedCommand.image())
                 .commandLine(resolvedCommand.commandLine())
                 .overrideEntrypoint(resolvedCommand.overrideEntrypoint())
@@ -253,9 +258,7 @@ public abstract class Container {
                 .subtype(resolvedCommand.type())
                 .mountsFromResolvedCommand(resolvedCommand.mounts())
                 .addRawInputs(resolvedCommand.rawInputValues())
-                .addCommandInputs(resolvedCommand.commandInputValues())
-                .addExternalWrapperInputs(resolvedCommand.externalWrapperInputValues())
-                .addDerivedWrapperInputs(resolvedCommand.derivedWrapperInputValues())
+                .addResolvedInputs(resolvedCommand.inputValues())
                 .addOutputsFromResolvedCommand(resolvedCommand.outputs())
                 .reserveMemory(resolvedCommand.reserveMemory())
                 .limitMemory(resolvedCommand.limitMemory())
@@ -322,6 +325,44 @@ public abstract class Container {
         return getInputs(ContainerInputType.RAW);
     }
 
+    /**
+     * This will be returned in the container JSON as "inputs" rather than the stored list
+     * of inputs. If any of the inputs are marked as "sensitive", we mask them out. That
+     * already happens in {@link ContainerInput#maskedValue()}. But once one input has a
+     * sensitive value, any sensitive value, we can no longer trust the "raw" inputs,
+     * i.e. the input values we received directly from the user. If no inputs are sensitive, we
+     * trust the raw inputs are fine to show; if any inputs are sensitive, then all raw inputs
+     * have got to go.
+     * @return The list of container inputs with raw input values removed if any other inputs are sensitive.
+     */
+    @JsonGetter("inputs")
+    @SuppressWarnings("unused")
+    public ImmutableList<ContainerInput> maskedInputs() {
+        final ImmutableList<ContainerInput> inputs = inputs();
+        boolean anyAreSensitive = false;
+        for (final ContainerInput input : inputs) {
+            final Boolean inputIsSensitive = input.sensitive();
+            anyAreSensitive = (inputIsSensitive != null && inputIsSensitive);
+            if (anyAreSensitive) {
+                break;
+            }
+        }
+
+        // If none of the inputs were sensitive, we can trust the raw inputs
+        if (!anyAreSensitive) {
+            return inputs;
+        }
+
+        // If any inputs were sensitive, we can no longer trust the raw inputs. Do not return them.
+        final ImmutableList.Builder<ContainerInput> maskedInputsBuilder = ImmutableList.builder();
+        for (final ContainerInput input : inputs) {
+            if (input.type() != ContainerInputType.RAW) {
+                maskedInputsBuilder.add(input);
+            }
+        }
+        return maskedInputsBuilder.build();
+    }
+
     @JsonIgnore
     public String getLogPath(final String filename) {
         for (final String path : logPaths()) {
@@ -340,6 +381,7 @@ public abstract class Container {
         public abstract Builder containerId(String containerId);
         public abstract Builder workflowId(String workflowId);
         public abstract Builder userId(String userId);
+        public abstract Builder project(String project);
         public abstract Builder dockerImage(String dockerImage);
         public abstract Builder commandLine(String commandLine);
         public abstract Builder overrideEntrypoint(Boolean overrideEntrypoint);
@@ -396,29 +438,29 @@ public abstract class Container {
 
         public abstract Builder inputs(List<ContainerInput> inputs);
         abstract ImmutableList.Builder<ContainerInput> inputsBuilder();
-        public Builder addInput(final ContainerInput inputs) {
-            inputsBuilder().add(inputs);
+        public Builder addInput(final ContainerInput input) {
+            inputsBuilder().add(input);
             return this;
         }
-        public Builder addInputsOfType(final ContainerInputType type, final Map<String, String> inputMap) {
-            if (inputMap != null) {
-                for (final Map.Entry<String, String> input : inputMap.entrySet()) {
-                    addInput(ContainerInput.create(0L, type, input.getKey(), input.getValue()));
+
+        public Builder addResolvedInput(final ResolvedCommand.ResolvedCommandInput resolvedCommandInput) {
+            return addInput(ContainerInput.create(resolvedCommandInput));
+        }
+        public Builder addResolvedInputs(final Collection<ResolvedCommand.ResolvedCommandInput> resolvedCommandInputs) {
+            if (resolvedCommandInputs != null) {
+                for (final ResolvedCommand.ResolvedCommandInput resolvedCommandInput : resolvedCommandInputs) {
+                    addResolvedInput(resolvedCommandInput);
                 }
             }
             return this;
         }
         public Builder addRawInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.RAW, inputMap);
-        }
-        public Builder addExternalWrapperInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.WRAPPER_EXTERNAL, inputMap);
-        }
-        public Builder addDerivedWrapperInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.WRAPPER_DERIVED, inputMap);
-        }
-        public Builder addCommandInputs(Map<String, String> inputMap) {
-            return addInputsOfType(ContainerInputType.COMMAND, inputMap);
+            if (inputMap != null) {
+                for (final Map.Entry<String, String> input : inputMap.entrySet()) {
+                    addInput(ContainerInput.create(0L, ContainerInputType.RAW, input.getKey(), input.getValue(), false));
+                }
+            }
+            return this;
         }
 
         public abstract Builder outputs(List<ContainerOutput> outputs);
@@ -461,9 +503,18 @@ public abstract class Container {
         @JsonProperty("xnat-host-path") public abstract String xnatHostPath();
         @JsonProperty("container-host-path") public abstract String containerHostPath();
         @JsonProperty("container-path") public abstract String containerPath();
-        @JsonProperty("input-files") public abstract ImmutableList<ContainerMountFiles> inputFiles();
+
+        /**
+         * This used to return a list of the files that were found in an input mount. But we didn't use it anywhere in
+         * the code. Now I think it just takes up space in the database for nothing.
+         *
+         * @return An empty list
+         * @deprecated Since 2.0.0
+         */
+        @Deprecated @JsonProperty("input-files") public abstract ImmutableList<ContainerMountFiles> inputFiles();
 
         @JsonCreator
+        @SuppressWarnings("deprecation")
         public static ContainerMount create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("name") final String name,
                                             @JsonProperty("writable") final boolean writable,
@@ -482,6 +533,7 @@ public abstract class Container {
                     .build();
         }
 
+        @SuppressWarnings("deprecation")
         public static ContainerMount create(final ContainerEntityMount containerEntityMount) {
             final List<ContainerMountFiles> containerMountFiles = containerEntityMount.getInputFiles() == null ? null :
                     Lists.transform(containerEntityMount.getInputFiles(), new Function<ContainerMountFilesEntity, ContainerMountFiles>() {
@@ -502,11 +554,7 @@ public abstract class Container {
                     resolvedCommandMount.xnatHostPath(),
                     resolvedCommandMount.containerHostPath(),
                     resolvedCommandMount.containerPath(),
-                    Collections.singletonList(ContainerMountFiles.create(0L,
-                            resolvedCommandMount.fromWrapperInput(),
-                            resolvedCommandMount.fromUri(),
-                            resolvedCommandMount.fromRootDirectory(),
-                            null)));
+                    null);
         }
 
         @JsonIgnore
@@ -529,18 +577,20 @@ public abstract class Container {
             public abstract Builder containerHostPath(String containerHostPath);
             public abstract Builder containerPath(String containerPath);
 
-            public abstract Builder inputFiles(List<ContainerMountFiles> inputFiles);
-            abstract ImmutableList.Builder<ContainerMountFiles> inputFilesBuilder();
-            public Builder addInputFiles(final ContainerMountFiles inputFiles) {
-                inputFilesBuilder().add(inputFiles);
-                return this;
-            }
+            @Deprecated public abstract Builder inputFiles(List<ContainerMountFiles> inputFiles);
+            @Deprecated abstract ImmutableList.Builder<ContainerMountFiles> inputFilesBuilder();
 
             public abstract ContainerMount build();
         }
     }
 
+    /**
+     * A file mounted when a container was launched. No longer used.
+     *
+     * @deprecated Since 2.0.0
+     */
     @AutoValue
+    @Deprecated
     public static abstract class ContainerMountFiles {
         @JsonProperty("id") public abstract long databaseId();
         @Nullable @JsonProperty("from-xnat-input") public abstract String fromXnatInput();
@@ -568,18 +618,42 @@ public abstract class Container {
         @JsonProperty("id") public abstract long databaseId();
         @JsonProperty("type") public abstract ContainerInputType type();
         @JsonProperty("name") public abstract String name();
-        @JsonProperty("value") public abstract String value();
+        @JsonIgnore public abstract String value();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         @JsonCreator
         public static ContainerInput create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("type") final ContainerInputType type,
                                             @JsonProperty("name") final String name,
-                                            @JsonProperty("value") final String value) {
-            return new AutoValue_Container_ContainerInput(databaseId, type, name, value);
+                                            @JsonProperty("value") final String value,
+                                            @JsonProperty("sensitive") final Boolean sensitive) {
+            return new AutoValue_Container_ContainerInput(databaseId, type, name, value, sensitive);
         }
 
         public static ContainerInput create(final ContainerEntityInput containerEntityInput) {
-            return create(containerEntityInput.getId(), containerEntityInput.getType(), containerEntityInput.getName(), containerEntityInput.getValue());
+            return create(
+                    containerEntityInput.getId(),
+                    containerEntityInput.getType(),
+                    containerEntityInput.getName(),
+                    containerEntityInput.getValue(),
+                    containerEntityInput.getSensitive()
+            );
+        }
+
+        public static ContainerInput create(final ResolvedCommand.ResolvedCommandInput resolvedCommandInput) {
+            return create(
+                    0L,
+                    resolvedCommandInput.type(),
+                    resolvedCommandInput.name(),
+                    resolvedCommandInput.value(),
+                    resolvedCommandInput.sensitive()
+            );
+        }
+
+        @JsonGetter("value")
+        public String maskedValue() {
+            final Boolean sensitive = sensitive();
+            return sensitive != null && sensitive ? "*****" : value();
         }
     }
 
@@ -587,39 +661,48 @@ public abstract class Container {
     public static abstract class ContainerOutput {
         @JsonProperty("id") public abstract long databaseId();
         @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("from-command-output") public abstract String fromCommandOutput();
+        @Nullable @JsonProperty("from-output-handler") public abstract String fromOutputHandler();
         @JsonProperty("type") public abstract String type();
         @JsonProperty("required") public abstract Boolean required();
         @JsonProperty("mount") public abstract String mount();
         @Nullable @JsonProperty("path") public abstract String path();
         @Nullable @JsonProperty("glob") public abstract String glob();
-        @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("format") public abstract String format();
         @Nullable @JsonProperty("created") public abstract String created();
-        @JsonProperty("handled-by-wrapper-input") public abstract String handledByWrapperInput();
+        @JsonProperty("handled-by") public abstract String handledBy();
         @Nullable @JsonProperty("via-wrapup-container") public abstract String viaWrapupContainer();
 
         @JsonCreator
         public static ContainerOutput create(@JsonProperty("id") final long databaseId,
                                              @JsonProperty("name") final String name,
+                                             @JsonProperty("from-command-output") final String fromCommandOutput,
+                                             @JsonProperty("from-output-handler") final String fromOutputHandler,
                                              @JsonProperty("type") final String type,
                                              @JsonProperty("required") final Boolean required,
                                              @JsonProperty("mount") final String mount,
                                              @JsonProperty("path") final String path,
                                              @JsonProperty("glob") final String glob,
                                              @JsonProperty("label") final String label,
+                                             @JsonProperty("format") final String format,
                                              @JsonProperty("created") final String created,
-                                             @JsonProperty("handled-by-wrapper-input") final String handledByWrapperInput,
-                                             @JsonProperty("viaWrapupContainer") final String viaWrapupContainer) {
+                                             @JsonProperty("handled-by") final String handledByWrapperInput,
+                                             @JsonProperty("via-wrapup-container") final String viaWrapupContainer) {
             return builder()
                     .databaseId(databaseId)
                     .name(name)
+                    .fromCommandOutput(fromCommandOutput)
+                    .fromOutputHandler(fromOutputHandler)
                     .type(type)
                     .required(required)
                     .mount(mount)
                     .path(path)
                     .glob(glob)
                     .label(label)
+                    .format(format)
                     .created(created)
-                    .handledByWrapperInput(handledByWrapperInput)
+                    .handledBy(handledByWrapperInput)
                     .viaWrapupContainer(viaWrapupContainer)
                     .build();
         }
@@ -627,12 +710,15 @@ public abstract class Container {
         public static ContainerOutput create(final ContainerEntityOutput containerEntityOutput) {
             return create(containerEntityOutput.getId(),
                     containerEntityOutput.getName(),
+                    containerEntityOutput.getFromCommandOutput(),
+                    containerEntityOutput.getFromOutputHandler(),
                     containerEntityOutput.getType(),
                     containerEntityOutput.isRequired(),
                     containerEntityOutput.getMount(),
                     containerEntityOutput.getPath(),
                     containerEntityOutput.getGlob(),
                     containerEntityOutput.getLabel(),
+                    containerEntityOutput.getFormat(),
                     containerEntityOutput.getCreated(),
                     containerEntityOutput.getHandledByXnatCommandInput(),
                     containerEntityOutput.getViaWrapupContainer());
@@ -641,14 +727,17 @@ public abstract class Container {
         public static ContainerOutput create(final ResolvedCommand.ResolvedCommandOutput resolvedCommandOutput) {
             return create(0L,
                     resolvedCommandOutput.name(),
+                    resolvedCommandOutput.fromCommandOutput(),
+                    resolvedCommandOutput.fromOutputHandler(),
                     resolvedCommandOutput.type(),
                     resolvedCommandOutput.required(),
                     resolvedCommandOutput.mount(),
                     resolvedCommandOutput.path(),
                     resolvedCommandOutput.glob(),
                     resolvedCommandOutput.label(),
+                    resolvedCommandOutput.format(),
                     null,
-                    resolvedCommandOutput.handledByWrapperInput(),
+                    resolvedCommandOutput.handledBy(),
                     resolvedCommandOutput.viaWrapupCommand());
         }
 
@@ -662,14 +751,17 @@ public abstract class Container {
         public static abstract class Builder {
             public abstract Builder databaseId(long databaseId);
             public abstract Builder name(String name);
+            public abstract Builder fromCommandOutput(String fromCommandOutput);
+            public abstract Builder fromOutputHandler(String fromOutputHandler);
             public abstract Builder type(String type);
             public abstract Builder required(Boolean required);
             public abstract Builder mount(String mount);
             public abstract Builder path(String path);
             public abstract Builder glob(String glob);
             public abstract Builder label(String label);
+            public abstract Builder format(String format);
             public abstract Builder created(String created);
-            public abstract Builder handledByWrapperInput(String handledByWrapperInput);
+            public abstract Builder handledBy(String handledBy);
             public abstract Builder viaWrapupContainer(String viaWrapupContainer);
 
             public abstract ContainerOutput build();

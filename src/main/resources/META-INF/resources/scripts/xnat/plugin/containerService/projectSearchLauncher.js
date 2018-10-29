@@ -1,6 +1,8 @@
 console.log('containerServices-projectSearchLauncher.js');
 
 var XNAT = getObject(XNAT || {});
+XNAT.plugin = getObject(XNAT.plugin || {});
+XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
 (function(factory){
     if (typeof define === 'function' && define.amd) {
@@ -53,6 +55,10 @@ var XNAT = getObject(XNAT || {});
             ]
         });
     }
+    function queueCount($list){
+        var numChecked = $list.find('input[type=checkbox]:checked').not('.selectable-select-all').length;
+        $(document).find('#queue-targets').html(numChecked);
+    }
 
     projectSearchLauncher.confirmTargets = function(targetList, config){
         // config contains information necessary to build the container launcher
@@ -68,8 +74,27 @@ var XNAT = getObject(XNAT || {});
                 content: spawn('div.targetList.panel'),
                 beforeShow: function(obj){
                     var inputArea = obj.$modal.find('.targetList');
+                    if (!document.documentMode){
+                        inputArea
+                            .off('change','input[type=checkbox]')
+                            .on('change','input[type=checkbox]', function(){
+                                queueCount(inputArea);
+                            });
+                    } else {
+                        inputArea
+                            .off('mouseup','.selectable-select-one')
+                            .on('mouseup','.selectable-select-one', function(){
+                                // HACK: wait for selectable table behavior to process, then check checkbox status
+                                window.setTimeout(queueCount,50,inputArea);
+                            })
+                            .on('mouseup','.selectable-select-all', function(){
+                                // HACK: wait for selectable table behavior to process, then check checkbox status
+                                window.setTimeout(queueCount,50,inputArea);
+                            })
+                    }
+                    
                     inputArea.append(spawn('!',[
-                        spawn('h3', targetList.length + ' '+config['root-element-name']+s+' queued for this container launch.'),
+                        spawn('h3', '<b id="queue-targets">' + targetList.length + '</b> '+config['root-element-name']+s+' queued for this container launch.'),
                         spawn('p','Select some or all to launch on, or add filters to your search table.')
                         ]));
 
@@ -85,14 +110,22 @@ var XNAT = getObject(XNAT || {});
                     {
                         label: 'OK',
                         isDefault: true,
+                        close: false,
                         action: function(obj){
                             var targets = [];
                             obj.$modal.find('input.target').each(function(){
                                 if ($(this).prop('checked')) targets.push($(this).val());
                             });
-                            var rootElementName = obj.$modal.find('input[name=root-element-name]').val();
-                            var wrapperId = obj.$modal.find('input[name=wrapper-id]').val();
-                            XNAT.plugin.containerService.launcher.bulkLaunchDialog(wrapperId,rootElementName,targets);
+
+                            if (!targets.length) {
+                                XNAT.ui.dialog.message('Error: No '+ config['root-element-name']+'s are selected.');
+                                return false;
+                            } else {
+                                var rootElementName = obj.$modal.find('input[name=root-element-name]').val();
+                                var wrapperId = obj.$modal.find('input[name=wrapper-id]').val();
+                                XNAT.ui.dialog.closeAll();
+                                XNAT.plugin.containerService.launcher.bulkLaunchDialog(wrapperId,rootElementName,targets);
+                            }
                         }
                     },
                     {
@@ -166,8 +199,8 @@ var XNAT = getObject(XNAT || {});
                 var targetList = [];
                 if (data.ResultSet.Result.length){
                     data.ResultSet.Result.forEach(function(target){
-                        // determine the label field -- it differs for each project and data type.
-                        var labelField = Object.keys(target).find(findLabel);
+                        // determine the label field -- it differs for each project and data type. Return the first matching value.
+                        var labelField = Object.keys(target).filter(findLabel)[0];
                         targetList.push({ 'accession-id': target.key, 'label': target[labelField] });
                     });
                 }

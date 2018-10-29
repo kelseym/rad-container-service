@@ -5,6 +5,7 @@ import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -31,6 +32,7 @@ public class CommandWrapperDerivedInputEntity {
     private String rawReplacementKey;
     private boolean required = false;
     private boolean loadChildren = true;
+    private Boolean sensitive;
 
     private String derivedFromWrapperInput;
     private String derivedFromXnatObjectProperty;
@@ -58,6 +60,7 @@ public class CommandWrapperDerivedInputEntity {
         this.setRawReplacementKey(commandWrapperInput.rawReplacementKey());
         this.setRequired(commandWrapperInput.required());
         this.setLoadChildren(commandWrapperInput.loadChildren());
+        this.setSensitive(commandWrapperInput.sensitive());
         switch (commandWrapperInput.type()) {
             case "string":
                 this.setType(CommandWrapperInputType.STRING);
@@ -149,6 +152,7 @@ public class CommandWrapperDerivedInputEntity {
         this.name = name;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getDescription() {
         return description;
     }
@@ -197,6 +201,7 @@ public class CommandWrapperDerivedInputEntity {
         this.viaSetupCommand = viaSetupCommand;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getDefaultValue() {
         return defaultValue;
     }
@@ -241,6 +246,13 @@ public class CommandWrapperDerivedInputEntity {
         this.loadChildren = loadChildren;
     }
 
+    public Boolean getSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(final Boolean sensitive) {
+        this.sensitive = sensitive;
+    }
 
     @Override
     public boolean equals(final Object o) {
@@ -274,6 +286,7 @@ public class CommandWrapperDerivedInputEntity {
                 .add("rawReplacementKey", rawReplacementKey)
                 .add("required", required)
                 .add("loadChildren", loadChildren)
+                .add("sensitive", sensitive)
                 .toString();
     }
 }

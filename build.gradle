@@ -29,7 +29,7 @@ buildscript {
 }
 
 group 'org.nrg'
-version '1.5.1'
+version '1.6.0'
 
 apply plugin: 'java'
 apply plugin: 'idea'
@@ -76,7 +76,10 @@ dependencyManagement {
     }
 }
 
-def vDockerClient = '8.11.2'
+// I would prefer to use a floating version for docker client, like 8+, but they moved to java 8 and we are stuck on 7.
+// Once we can move to java 8 I want to put this back to a floating version. That way we always get the latest updates.
+def vDockerClient = '8.13.0'
+
 def vJsonPath = '2.2.0'
 def vAutoValue = '1.3'
 def vPowerMock = '1.7.0'
@@ -105,9 +108,6 @@ configurations.all {
 //}
 
 dependencies {
-    compileAndInclude (group: "org.nrg", name: "transporter", version: "1.0.0") {
-        transitive = false
-    }
     compileAndInclude (group: 'com.spotify', name: 'docker-client', version: vDockerClient) {
         exclude group: "ch.qos.logback"
         exclude group: "com.fasterxml.jackson.core"
@@ -160,6 +160,8 @@ dependencies {
 
     compile "org.slf4j:slf4j-api"
     compile "org.slf4j:slf4j-log4j12"
+    compile "org.projectlombok:lombok:1.18.0"
+    apt "org.projectlombok:lombok:1.18.0"
 
     compile "commons-lang:commons-lang"
 

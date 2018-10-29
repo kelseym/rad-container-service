@@ -4,9 +4,11 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.action.ClientException;
+import org.nrg.action.ServerException;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
@@ -17,8 +19,7 @@ import org.nrg.containers.model.container.auto.Container.ContainerMount;
 import org.nrg.containers.model.container.auto.Container.ContainerOutput;
 import org.nrg.containers.services.ContainerFinalizeService;
 import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.services.ContainerUtils;
-import org.nrg.transporter.TransportService;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.xdat.om.XnatResourcecatalog;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
@@ -29,16 +30,13 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.restlet.util.XNATRestConstants;
 import org.nrg.xnat.services.archive.CatalogService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -49,23 +47,20 @@ import java.util.Map;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
 
+@Slf4j
 @Service
 public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
-    private static final Logger log = LoggerFactory.getLogger(ContainerFinalizeServiceImpl.class);
 
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
-    private final TransportService transportService;
     private final CatalogService catalogService;
 
     @Autowired
     public ContainerFinalizeServiceImpl(final ContainerControlApi containerControlApi,
                                         final SiteConfigPreferences siteConfigPreferences,
-                                        final TransportService transportService,
                                         final CatalogService catalogService) {
         this.containerControlApi = containerControlApi;
         this.siteConfigPreferences = siteConfigPreferences;
-        this.transportService = transportService;
         this.catalogService = catalogService;
     }
 
@@ -83,12 +78,13 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         // private String exitCode;
         private boolean isFailed;
 
-        private Map<String, ContainerMount> untransportedMounts;
-        private Map<String, ContainerMount> transportedMounts;
+        private Map<String, ContainerMount> outputMounts;
 
         private String prefix;
 
         private Map<String, Container> wrapupContainerMap;
+
+        private Map<String, String> wrapperInputAndOutputValues;
 
         private ContainerFinalizeHelper(final Container toFinalize,
                                         final UserI userI,
@@ -98,8 +94,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             this.userI = userI;
             this.isFailed = isFailed;
 
-            untransportedMounts = Maps.newHashMap();
-            transportedMounts = Maps.newHashMap();
+            outputMounts = Maps.newHashMap();
 
             prefix = "Container " + toFinalize.databaseId() + ": ";
 
@@ -111,6 +106,10 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     wrapupContainerMap.put(wrapupContainer.parentSourceObjectName(), wrapupContainer);
                 }
             }
+
+            // Pre-populate the map of wrapper input and output values with the inputs.
+            // Output URI values will be added as we create them here.
+            wrapperInputAndOutputValues = new HashMap<>(toFinalize.getWrapperInputs());
         }
 
         private Container finalizeContainer() {
@@ -120,7 +119,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             if (!isFailed) {
                 // Do not try to upload outputs if we know the container failed.
                 for (final ContainerMount mountOut : toFinalize.mounts()) {
-                    untransportedMounts.put(mountOut.name(), mountOut);
+                    outputMounts.put(mountOut.name(), mountOut);
                 }
 
                 final OutputsAndExceptions outputsAndExceptions = uploadOutputs();
@@ -202,35 +201,19 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         }
 
         private String getStderrLogStr() {
-            if (toFinalize.isSwarmService()) {
-                try {
-                    return containerControlApi.getServiceStderrLog(toFinalize.serviceId());
-                } catch (DockerServerException | NoDockerServerException e) {
-                    log.error(prefix + "Could not get service stderr log.", e);
-                }
-            } else {
-                try {
-                    return containerControlApi.getContainerStderrLog(toFinalize.containerId());
-                } catch (DockerServerException | NoDockerServerException e) {
-                    log.error(prefix + "Could not get container stderr log.", e);
-                }
+            try {
+                return containerControlApi.getStderrLog(toFinalize);
+            } catch (DockerServerException | NoDockerServerException e) {
+                log.error(prefix + "Could not get stderr log.", e);
             }
             return null;
         }
 
         private String getStdoutLogStr() {
-            if (toFinalize.isSwarmService()) {
-                try {
-                    return containerControlApi.getServiceStdoutLog(toFinalize.serviceId());
-                } catch (DockerServerException | NoDockerServerException e) {
-                    log.error(prefix + "Could not get service stdout log.", e);
-                }
-            } else {
-                try {
-                    return containerControlApi.getContainerStdoutLog(toFinalize.containerId());
-                } catch (DockerServerException | NoDockerServerException e) {
-                    log.error(prefix + "Could not get container stdout log.", e);
-                }
+            try {
+                return containerControlApi.getStdoutLog(toFinalize);
+            } catch (DockerServerException | NoDockerServerException e) {
+                log.error(prefix + "Could not get stdout log.", e);
             }
             return null;
         }
@@ -302,19 +285,17 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     FilenameUtils.concat(mountXnatHostPath, relativeFilePath);
             final String globMatcher = output.glob() != null ? output.glob() : "";
 
-            final List<File> toUpload = matchGlob(filePath, globMatcher);
-            if (toUpload == null || toUpload.size() == 0) {
-                if (output.required()) {
-                    throw new ContainerException(String.format(prefix + "Nothing to upload for output \"%s\".", output.name()));
-                }
-                return output;
+            final List<File> toUpload = new ArrayList<>(matchGlob(filePath, globMatcher));
+            if (toUpload.size() == 0) {
+                // The glob matched nothing. But we could still upload the root path
+                toUpload.add(new File(filePath));
             }
 
             final String label = StringUtils.isNotBlank(output.label()) ? output.label() : output.name();
 
-            String parentUri = getWrapperInputValue(output.handledByWrapperInput());
+            String parentUri = getUriByInputOrOutputHandlerName(output.handledBy());
             if (parentUri == null) {
-                throw new ContainerException(String.format(prefix + "Cannot upload output \"%s\". Could not instantiate object from input \"%s\".", output.name(), output.handledByWrapperInput()));
+                throw new ContainerException(String.format(prefix + "Cannot upload output \"%s\". Could not instantiate object from input \"%s\".", output.name(), output.handledBy()));
             }
             if (!parentUri.startsWith("/archive")) {
                 parentUri = "/archive" + parentUri;
@@ -336,7 +317,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         throw new UnauthorizedException(message);
                     }
 
-                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload, label, null, null, null);
+                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload, label, null, output.format(), null);
                     createdUri = UriParserUtils.getArchiveUri(resourcecatalog);
                     if (StringUtils.isBlank(createdUri)) {
                         createdUri = parentUri + "/resources/" + resourcecatalog.getLabel();
@@ -347,6 +328,13 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     throw new UnauthorizedException(message);
                 } catch (Exception e) {
                     throw new ContainerException(prefix + "Could not upload files to resource.", e);
+                }
+
+                try {
+                    catalogService.refreshResourceCatalog(userI, createdUri);
+                } catch (ServerException | ClientException e) {
+                    final String message = String.format(prefix + "Could not refresh catalog for resource %s.", createdUri);
+                    log.error(message, e);
                 }
             } else if (type.equals(ASSESSOR.getName())) {
                 /* TODO Waiting on XNAT-4556
@@ -396,56 +384,48 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
 
             log.info(prefix + "Done uploading output \"{}\". URI of created output: {}", output.name(), createdUri);
+
+            // We use the "fromOutputHandler" property here rather than name. The reason is that we will be looking
+            // up the value later based on what users set in subsequent handers' "handled-by" properties, and the value
+            // they put in that property is going to be the output handler name.
+            wrapperInputAndOutputValues.put(output.fromOutputHandler(), createdUri);
+            
             return output.toBuilder().created(createdUri).build();
         }
 
         private ContainerMount getMount(final String mountName) throws ContainerException {
-            // If mount has been transported, we're done
-            if (transportedMounts.containsKey(mountName)) {
-                return transportedMounts.get(mountName);
+
+            if(outputMounts == null || outputMounts.isEmpty()){
+                for (final ContainerMount mountOut : toFinalize.mounts()) {
+                    outputMounts.put(mountOut.name(), mountOut);
+                }
             }
-
-            // If mount exists but has not been transported, transport it
-            if (untransportedMounts.containsKey(mountName)) {
-                if (log.isDebugEnabled()) {
-                    log.debug(String.format(prefix + "Transporting mount \"%s\".", mountName));
-                }
-                ContainerMount mountToTransport = untransportedMounts.get(mountName);
-
-                if (StringUtils.isBlank(mountToTransport.xnatHostPath())) {
-                    final Path pathOnExecutionMachine = Paths.get(mountToTransport.containerHostPath());
-                    final Path pathOnXnatMachine = transportService.transport("", pathOnExecutionMachine); // TODO this currently does nothing
-                    mountToTransport = mountToTransport.toBuilder().xnatHostPath(pathOnXnatMachine.toAbsolutePath().toString()).build();
-                } else {
-                    // TODO add transporter method to transport from specified source path to specified destination path
-                    // transporter.transport(sourceMachineName, mountToTransport.getContainerHostPath(), mountToTransport.getXnatHostPath());
-                }
-
-                transportedMounts.put(mountName, mountToTransport);
-                untransportedMounts.remove(mountName);
-
-                log.debug(prefix + "Done transporting mount.");
-                return mountToTransport;
+            ContainerMount containerMount = outputMounts.get(mountName);
+            if(containerMount != null){
+                return containerMount;
             }
 
             // Mount does not exist
             throw new ContainerException(String.format(prefix + "Mount \"%s\" does not exist.", mountName));
         }
 
-        private String getWrapperInputValue(final String inputName) {
+        private String getUriByInputOrOutputHandlerName(final String name) {
             if (log.isDebugEnabled()) {
-                log.debug(String.format(prefix + "Getting URI for input \"%s\".", inputName));
+                log.debug(String.format(prefix + "Getting URI for input or output handler \"%s\".", name));
             }
 
-            final Map<String, String> wrapperInputs = toFinalize.getWrapperInputs();
-            if (!wrapperInputs.containsKey(inputName)) {
+            if (wrapperInputAndOutputValues.containsKey(name)) {
+                final String uri = wrapperInputAndOutputValues.get(name);
                 if (log.isDebugEnabled()) {
-                    log.debug(String.format(prefix + "No input found with name \"%s\". Input name set: %s", inputName, wrapperInputs.keySet()));
+                    log.debug(prefix + String.format("Found uri value \"%s\".", uri));
                 }
-                return null;
+                return uri;
             }
 
-            return wrapperInputs.get(inputName);
+            if (log.isDebugEnabled()) {
+                log.debug(String.format(prefix + "No input or output handler found with name \"%s\".", name));
+            }
+            return null;
         }
 
         @Nullable

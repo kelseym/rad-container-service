@@ -48,7 +48,7 @@
                     "name": "output-handler",
                     "accepts-command-output": "output",
                     "via-wrapup-command": "xnat/test-wrapup-command:latest:wrapup-command",
-                    "as-a-child-of-wrapper-input": "session",
+                    "as-a-child-of": "session",
                     "label": "WRAPUP"
                 }
             ]

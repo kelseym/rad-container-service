@@ -1,18 +1,20 @@
 package org.nrg.containers.events;
 
 import com.google.common.collect.Lists;
+import com.spotify.docker.client.exceptions.ServiceNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.container.auto.Container;
-import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xdat.turbine.utils.AdminUtils;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -21,9 +23,9 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+@Slf4j
 @Component
 public class DockerStatusUpdater implements Runnable {
-    private static final Logger log = LoggerFactory.getLogger(DockerStatusUpdater.class);
 
     private ContainerControlApi controlApi;
     private DockerServerService dockerServerService;
@@ -100,9 +102,6 @@ public class DockerStatusUpdater implements Runnable {
             haveLoggedXftInitFailure = false;
             haveLoggedNoServerInDb = false;
         } else if (updateReport.successful) {
-            if (updateReport.updateReports.size() > 0) {
-                log.debug("Updated status successfully.");
-            }
             // Reset failure flags
             haveLoggedDockerConnectFailure = false;
             haveLoggedXftInitFailure = false;
@@ -140,6 +139,20 @@ public class DockerStatusUpdater implements Runnable {
             try {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
+            } catch (ServiceNotFoundException e) {
+                final String msg = String.format("Service %s is in database, but not found on swarm. Setting status to \"Failed\".", service.serviceId());
+                log.error(msg, e);
+                report.add(UpdateReportEntry.failure(service.serviceId(), msg));
+
+                final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem("Failed", "Not found on swarm.");
+                final Container notFound = service.toBuilder()
+                        .status(failedHistoryItem.status())
+                        .statusTime(failedHistoryItem.timeRecorded())
+                        .build();
+
+                containerService.update(notFound);
+
+                ContainerUtils.updateWorkflowStatus(notFound.workflowId(), PersistentWorkflowUtils.FAILED, AdminUtils.getAdminUser());
             } catch (DockerServerException e) {
                 log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));

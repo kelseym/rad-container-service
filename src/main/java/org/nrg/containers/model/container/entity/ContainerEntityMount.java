@@ -18,6 +18,7 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Transient;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,6 +42,7 @@ public class ContainerEntityMount implements Serializable {
         return containerEntityMount;
     }
 
+    @SuppressWarnings("deprecation")
     public ContainerEntityMount update(final Container.ContainerMount containerMountPojo) {
         this.setId(containerMountPojo.databaseId());
         this.setName(containerMountPojo.name());
@@ -124,11 +126,26 @@ public class ContainerEntityMount implements Serializable {
         return writable;
     }
 
+    /**
+     * This used to return a list of the files that were found in an input mount. But we didn't use it anywhere in
+     * the code. Now I think it just takes up space in the database for nothing.
+     *
+     * @return A list of the mounted files
+     * @deprecated Since 2.0.0
+     */
+    @Deprecated
     @OneToMany(mappedBy = "containerEntityMount", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     public List<ContainerMountFilesEntity> getInputFiles() {
         return inputFiles;
     }
 
+    /**
+     * This used to return a list of the files that were found in an input mount. But we didn't use it anywhere in
+     * the code. Now I think it just takes up space in the database for nothing.
+     *
+     * @deprecated Since 2.0.0
+     */
+    @Deprecated
     public void setInputFiles(final List<ContainerMountFilesEntity> inputFiles) {
         this.inputFiles = inputFiles == null ?
                 Lists.<ContainerMountFilesEntity>newArrayList() :

@@ -14,8 +14,6 @@ import org.nrg.containers.model.command.auto.Command.CommandWrapperDerivedInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperExternalInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperOutput;
 import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
-import org.nrg.containers.model.configuration.CommandConfiguration.Builder;
-import org.nrg.containers.model.configuration.CommandConfigurationInternal.CommandInputConfiguration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -24,7 +22,6 @@ import java.util.Map;
 import java.util.Set;
 
 @AutoValue
-@JsonInclude(Include.ALWAYS)
 public abstract class CommandConfiguration {
     @JsonProperty("inputs") public abstract ImmutableMap<String, CommandInputConfiguration> inputs();
     @JsonProperty("outputs") public abstract ImmutableMap<String, CommandOutputConfiguration> outputs();

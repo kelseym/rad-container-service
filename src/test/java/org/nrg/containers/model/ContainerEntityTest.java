@@ -1,7 +1,11 @@
 package org.nrg.containers.model;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.nrg.containers.config.ContainerEntityTestConfig;
@@ -12,6 +16,7 @@ import org.nrg.containers.model.command.auto.ResolvedInputValue;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.services.ContainerEntityService;
+import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xft.security.UserI;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -37,8 +42,9 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = ContainerEntityTestConfig.class)
 public class ContainerEntityTest {
 
-    @Autowired private ObjectMapper mapper;
     @Autowired private ContainerEntityService containerEntityService;
+
+    @Rule public ExpectedException expectedException = ExpectedException.none();
 
     @Test
     public void testSpringConfiguration() {
@@ -143,5 +149,48 @@ public class ContainerEntityTest {
         final List<ContainerEntity> nonfinalizedServices = containerEntityService.retrieveNonfinalizedServices();
         assertThat(nonfinalizedServices, hasSize(1));
         assertThat(nonfinalizedServices, hasItem(serviceNonfinalizedCreated));
+    }
+
+    @Test
+    public void testGet() throws Exception {
+        final long dbId = 1L;
+        final String containerId = "cId";
+        final String serviceId = "sId";
+        final Container toCreate = Container.builder()
+                .databaseId(dbId)
+                .serviceId(serviceId)
+                .containerId(containerId)
+                .commandId(55L)
+                .wrapperId(99L)
+                .commandLine("foo")
+                .dockerImage("bar")
+                .userId("user")
+                .build();
+        containerEntityService.create(ContainerEntity.fromPojo(toCreate));
+
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        TestTransaction.start();
+
+        final ContainerEntity getByDbId = containerEntityService.get(dbId);
+        final ContainerEntity getByContainerId = containerEntityService.get(containerId);
+        final ContainerEntity getByServiceId = containerEntityService.get(serviceId);
+        assertThat(getByDbId, is(getByContainerId));
+        assertThat(getByDbId, is(getByServiceId));
+
+        final Matcher<Exception> notFoundMatcher = new TypeSafeMatcher<Exception>() {
+            @Override
+            protected boolean matchesSafely(final Exception item) {
+                return item != null && item.getClass().equals(NotFoundException.class) &&
+                        item.getMessage().equals("No container with ID null");
+            }
+
+            @Override
+            public void describeTo(final Description description) {
+
+            }
+        };
+        expectedException.expect(notFoundMatcher);
+        containerEntityService.get(null);
     }
 }

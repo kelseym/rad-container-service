@@ -1,7 +1,6 @@
 package org.nrg.containers.model.command.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
@@ -13,13 +12,14 @@ import javax.annotation.Nullable;
  * a list of commands that are available to be launched for a given context.
  */
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class CommandSummaryForContext {
     @JsonProperty("command-id") public abstract long commandId();
     @JsonProperty("command-name") public abstract String commandName();
+    @Nullable @JsonProperty("command-label") public abstract String commandLabel();
     @Nullable @JsonProperty("command-description") public abstract String commandDescription();
     @JsonProperty("wrapper-id") public abstract long wrapperId();
     @JsonProperty("wrapper-name") public abstract String wrapperName();
+    @Nullable @JsonProperty("wrapper-label") public abstract String wrapperLabel();
     @Nullable @JsonProperty("wrapper-description") public abstract String wrapperDescription();
     @JsonProperty("image-name") public abstract String imageName();
     @JsonProperty("image-type") public abstract String imageType();
@@ -30,9 +30,11 @@ public abstract class CommandSummaryForContext {
     @VisibleForTesting
     public static CommandSummaryForContext create(@JsonProperty("command-id") final long commandId,
                                                   @JsonProperty("command-name") final String commandName,
+                                                  @JsonProperty("command-label") final String commandLabel,
                                                   @JsonProperty("command-description") final String commandDescription,
                                                   @JsonProperty("wrapper-id") final long wrapperId,
                                                   @JsonProperty("wrapper-name") final String wrapperName,
+                                                  @JsonProperty("wrapper-label") final String wrapperLabel,
                                                   @JsonProperty("wrapper-description") final String wrapperDescription,
                                                   @JsonProperty("image-name") final String imageName,
                                                   @JsonProperty("image-type") final String imageType,
@@ -41,9 +43,11 @@ public abstract class CommandSummaryForContext {
         return new AutoValue_CommandSummaryForContext(
                 commandId,
                 commandName,
+                commandLabel,
                 commandDescription,
                 wrapperId,
                 wrapperName,
+                wrapperLabel,
                 wrapperDescription,
                 imageName,
                 imageType,
@@ -59,9 +63,11 @@ public abstract class CommandSummaryForContext {
         return create(
                 command.id(),
                 command.name(),
+                command.label(),
                 command.description(),
                 wrapper.id(),
                 wrapper.name(),
+                wrapper.label(),
                 wrapper.description(),
                 command.image(),
                 command.type(),

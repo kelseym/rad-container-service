@@ -17,7 +17,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.config.LaunchRestApiTestConfig;
@@ -52,7 +51,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.io.File;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +61,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
@@ -146,7 +143,7 @@ public class LaunchRestApiTest {
         // Mock out the prefs bean
         final String containerServerName = "testy test";
         final String containerHost = "unix:///var/run/docker.sock";
-        final DockerServer dockerServer = DockerServer.create(0L, containerServerName, containerHost, null, false);
+        final DockerServer dockerServer = DockerServer.create(containerServerName, containerHost);
         when(mockDockerServerService.getServer()).thenReturn(dockerServer);
 
         // Mock the userI

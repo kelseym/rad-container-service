@@ -9,16 +9,7 @@ import org.nrg.containers.model.command.auto.Command;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 
 import javax.annotation.Nonnull;
-import javax.persistence.CascadeType;
-import javax.persistence.DiscriminatorColumn;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.Inheritance;
-import javax.persistence.InheritanceType;
-import javax.persistence.OneToMany;
-import javax.persistence.Table;
-import javax.persistence.Transient;
-import javax.persistence.UniqueConstraint;
+import javax.persistence.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -191,6 +182,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
         this.label = label;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getDescription() {
         return description;
     }
@@ -239,6 +231,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
         this.workingDirectory = workingDirectory;
     }
 
+    @Column(columnDefinition = "TEXT")
     public String getCommandLine() {
         return commandLine;
     }
@@ -280,6 +273,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
     }
 
     @OneToMany(mappedBy = "commandEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandMountEntity> getMounts() {
         return mounts;
     }
@@ -319,6 +313,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
     }
 
     @OneToMany(mappedBy = "commandEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandInputEntity> getInputs() {
         return inputs;
     }
@@ -347,6 +342,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
     }
 
     @OneToMany(mappedBy = "commandEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy
     public List<CommandOutputEntity> getOutputs() {
         return outputs;
     }
@@ -375,6 +371,7 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
     }
 
     @OneToMany(mappedBy = "commandEntity", cascade = CascadeType.ALL)
+    @OrderBy
     public List<CommandWrapperEntity> getCommandWrapperEntities() {
         return commandWrapperEntities;
     }

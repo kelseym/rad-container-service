@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Set;
 
 @AutoValue
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public abstract class Command {
     @JsonProperty("id") public abstract long id();
     @Nullable @JsonProperty("name") public abstract String name();
@@ -205,6 +204,7 @@ public abstract class Command {
                 .hash(creation.hash())
                 .workingDirectory(creation.workingDirectory())
                 .commandLine(creation.commandLine())
+                .overrideEntrypoint(creation.overrideEntrypoint())
                 .reserveMemory(creation.reserveMemory())
                 .limitMemory(creation.limitMemory())
                 .limitCpu(creation.limitCpu())
@@ -406,20 +406,22 @@ public abstract class Command {
                 final List<String> outputErrors = Lists.newArrayList();
                 outputErrors.addAll(Lists.transform(output.validate(), addWrapperNameToError));
 
-                if (wrapperOutputNames.contains(output.name())) {
-                    errors.add(wrapperName + "output handler name \"" + output.name() + "\" is not unique.");
-                } else {
-                    wrapperOutputNames.add(output.name());
-                }
-
                 if (!outputNames.contains(output.commandOutputName())) {
                     errors.add(wrapperName + "output handler refers to unknown command output \"" + output.commandOutputName() + "\". Known outputs: " + knownOutputs + ".");
                 } else {
                     handledOutputs.add(output.commandOutputName());
                 }
 
-                if (!wrapperInputNames.contains(output.wrapperInputName())) {
-                    errors.add(wrapperName + "output handler refers to unknown XNAT input \"" + output.wrapperInputName() + "\". Known inputs: " + knownWrapperInputs + ".");
+                if (!(wrapperInputNames.contains(output.targetName()) || wrapperOutputNames.contains(output.targetName()))) {
+                    errors.add(wrapperName + "output handler does not refer to a known wrapper input or output. \"as-a-child-of\": \"" + output.targetName() + "\"." +
+                            "\nKnown inputs: " + knownWrapperInputs + "." +
+                            "\nKnown outputs (so far): " + StringUtils.join(wrapperOutputNames, ", ") + ".");
+                }
+
+                if (wrapperOutputNames.contains(output.name())) {
+                    errors.add(wrapperName + "output handler name \"" + output.name() + "\" is not unique.");
+                } else {
+                    wrapperOutputNames.add(output.name());
                 }
 
                 if (!outputErrors.isEmpty()) {
@@ -617,7 +619,8 @@ public abstract class Command {
                                    @JsonProperty("command-line-flag") final String commandLineFlag,
                                    @JsonProperty("command-line-separator") final String commandLineSeparator,
                                    @JsonProperty("true-value") final String trueValue,
-                                   @JsonProperty("false-value") final String falseValue) {
+                                   @JsonProperty("false-value") final String falseValue,
+                                   @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -630,6 +633,7 @@ public abstract class Command {
                     .commandLineSeparator(commandLineSeparator)
                     .trueValue(trueValue)
                     .falseValue(falseValue)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -650,6 +654,7 @@ public abstract class Command {
                     .commandLineSeparator(commandInputEntity.getCommandLineSeparator())
                     .trueValue(commandInputEntity.getTrueValue())
                     .falseValue(commandInputEntity.getFalseValue())
+                    .sensitive(commandInputEntity.getSensitive())
                     .build();
         }
 
@@ -673,6 +678,7 @@ public abstract class Command {
                     .commandLineSeparator(this.commandLineSeparator())
                     .trueValue(this.trueValue())
                     .falseValue(this.falseValue())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .build();
@@ -703,6 +709,7 @@ public abstract class Command {
             public abstract Builder commandLineSeparator(final String commandLineSeparator);
             public abstract Builder trueValue(final String trueValue);
             public abstract Builder falseValue(final String falseValue);
+            public abstract Builder sensitive(Boolean sensitive);
 
             public abstract CommandInput build();
         }
@@ -807,6 +814,7 @@ public abstract class Command {
     public static abstract class CommandWrapper {
         @JsonProperty("id") public abstract long id();
         @Nullable @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("label") public abstract String label();
         @Nullable @JsonProperty("description") public abstract String description();
         @JsonProperty("contexts") public abstract ImmutableSet<String> contexts();
         @JsonProperty("external-inputs") public abstract ImmutableList<CommandWrapperExternalInput> externalInputs();
@@ -816,6 +824,7 @@ public abstract class Command {
         @JsonCreator
         static CommandWrapper create(@JsonProperty("id") final long id,
                                      @JsonProperty("name") final String name,
+                                     @JsonProperty("label") final String label,
                                      @JsonProperty("description") final String description,
                                      @JsonProperty("contexts") final Set<String> contexts,
                                      @JsonProperty("external-inputs") final List<CommandWrapperExternalInput> externalInputs,
@@ -824,6 +833,7 @@ public abstract class Command {
             return builder()
                     .id(id)
                     .name(name == null ? "" : name)
+                    .label(label)
                     .description(description)
                     .contexts(contexts == null ? Collections.<String>emptySet() : contexts)
                     .externalInputs(externalInputs == null ? Collections.<CommandWrapperExternalInput>emptyList() : externalInputs)
@@ -835,11 +845,19 @@ public abstract class Command {
         public static CommandWrapper create(final CommandWrapperCreation creation) {
             return builder()
                     .name(creation.name())
+                    .label(creation.label())
                     .description(creation.description())
                     .contexts(creation.contexts() == null ? Collections.<String>emptySet() : creation.contexts())
                     .externalInputs(creation.externalInputs() == null ? Collections.<CommandWrapperExternalInput>emptyList() : creation.externalInputs())
                     .derivedInputs(creation.derivedInputs() == null ? Collections.<CommandWrapperDerivedInput>emptyList() : creation.derivedInputs())
-                    .outputHandlers(creation.outputHandlers() == null ? Collections.<CommandWrapperOutput>emptyList() : creation.outputHandlers())
+                    .outputHandlers(creation.outputHandlers() == null ?
+                            Collections.<CommandWrapperOutput>emptyList() :
+                            Lists.<CommandWrapperOutput>newArrayList(Lists.transform(creation.outputHandlers(), new Function<CommandWrapperOutputCreation, CommandWrapperOutput>() {
+                        @Override
+                        public CommandWrapperOutput apply(final CommandWrapperOutputCreation input) {
+                            return CommandWrapperOutput.create(input);
+                        }
+                    })))
                     .build();
         }
 
@@ -888,6 +906,7 @@ public abstract class Command {
             return builder()
                     .id(commandWrapperEntity.getId())
                     .name(commandWrapperEntity.getName())
+                    .label(commandWrapperEntity.getLabel())
                     .description(commandWrapperEntity.getDescription())
                     .contexts(contexts)
                     .externalInputs(external)
@@ -911,6 +930,8 @@ public abstract class Command {
             public abstract Builder id(long id);
 
             public abstract Builder name(String name);
+
+            public abstract Builder label(String label);
 
             public abstract Builder description(String description);
 
@@ -954,24 +975,26 @@ public abstract class Command {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     public static abstract class CommandWrapperCreation {
         @Nullable @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("label") public abstract String label();
         @Nullable @JsonProperty("description") public abstract String description();
         @JsonProperty("contexts") public abstract ImmutableSet<String> contexts();
         @JsonProperty("external-inputs") public abstract ImmutableList<CommandWrapperExternalInput> externalInputs();
         @JsonProperty("derived-inputs") public abstract ImmutableList<CommandWrapperDerivedInput> derivedInputs();
-        @JsonProperty("output-handlers") public abstract ImmutableList<CommandWrapperOutput> outputHandlers();
+        @JsonProperty("output-handlers") public abstract ImmutableList<CommandWrapperOutputCreation> outputHandlers();
 
         @JsonCreator
         static CommandWrapperCreation create(@JsonProperty("name") final String name,
+                                             @JsonProperty("label") final String label,
                                              @JsonProperty("description") final String description,
                                              @JsonProperty("contexts") final Set<String> contexts,
                                              @JsonProperty("external-inputs") final List<CommandWrapperExternalInput> externalInputs,
                                              @JsonProperty("derived-inputs") final List<CommandWrapperDerivedInput> derivedInputs,
-                                             @JsonProperty("output-handlers") final List<CommandWrapperOutput> outputHandlers) {
-            return new AutoValue_Command_CommandWrapperCreation(name, description,
+                                             @JsonProperty("output-handlers") final List<CommandWrapperOutputCreation> outputHandlers) {
+            return new AutoValue_Command_CommandWrapperCreation(name, label, description,
                     contexts == null ? ImmutableSet.<String>of() : ImmutableSet.copyOf(contexts),
                     externalInputs == null ? ImmutableList.<CommandWrapperExternalInput>of() : ImmutableList.copyOf(externalInputs),
                     derivedInputs == null ? ImmutableList.<CommandWrapperDerivedInput>of() : ImmutableList.copyOf(derivedInputs),
-                    outputHandlers == null ? ImmutableList.<CommandWrapperOutput>of() : ImmutableList.copyOf(outputHandlers));
+                    outputHandlers == null ? ImmutableList.<CommandWrapperOutputCreation>of() : ImmutableList.copyOf(outputHandlers));
         }
     }
 
@@ -1022,7 +1045,8 @@ public abstract class Command {
                                                   @JsonProperty("user-settable") final Boolean userSettable,
                                                   @JsonProperty("replacement-key") final String rawReplacementKey,
                                                   @JsonProperty("required") final Boolean required,
-                                                  @JsonProperty("load-children") final Boolean loadChildren) {
+                                                  @JsonProperty("load-children") final Boolean loadChildren,
+                                                  @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -1036,6 +1060,7 @@ public abstract class Command {
                     .rawReplacementKey(rawReplacementKey)
                     .required(required == null || required)
                     .loadChildren(loadChildren == null || loadChildren)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -1058,6 +1083,7 @@ public abstract class Command {
                     .rawReplacementKey(wrapperInput.getRawReplacementKey())
                     .required(wrapperInput.isRequired() == null || wrapperInput.isRequired())
                     .loadChildren(wrapperInput.getLoadChildren())
+                    .sensitive(wrapperInput.getSensitive())
                     .build();
         }
 
@@ -1080,6 +1106,7 @@ public abstract class Command {
                     .viaSetupCommand(this.viaSetupCommand())
                     .required(this.required())
                     .loadChildren(this.loadChildren())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .userSettable(commandInputConfiguration.userSettable())
@@ -1093,6 +1120,7 @@ public abstract class Command {
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
+            public abstract Builder sensitive(Boolean sensitive);
             public abstract Builder providesValueForCommandInput(final String providesValueForCommandInput);
             public abstract Builder providesFilesForCommandMount(final String providesFilesForCommandMount);
             public abstract Builder viaSetupCommand(final String viaSetupCommand);
@@ -1127,7 +1155,8 @@ public abstract class Command {
                                                  @JsonProperty("user-settable") final Boolean userSettable,
                                                  @JsonProperty("replacement-key") final String rawReplacementKey,
                                                  @JsonProperty("required") final Boolean required,
-                                                 @JsonProperty("load-children") final Boolean loadChildren) {
+                                                 @JsonProperty("load-children") final Boolean loadChildren,
+                                                 @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
                     .description(description)
@@ -1143,6 +1172,7 @@ public abstract class Command {
                     .rawReplacementKey(rawReplacementKey)
                     .required(required == null || required)
                     .loadChildren(loadChildren == null || loadChildren)
+                    .sensitive(sensitive)
                     .build();
         }
 
@@ -1167,6 +1197,7 @@ public abstract class Command {
                     .rawReplacementKey(wrapperInput.getRawReplacementKey())
                     .required(wrapperInput.isRequired() == null || wrapperInput.isRequired())
                     .loadChildren(wrapperInput.getLoadChildren())
+                    .sensitive(wrapperInput.getSensitive())
                     .build();
         }
 
@@ -1192,6 +1223,7 @@ public abstract class Command {
                     .rawReplacementKey(this.rawReplacementKey())
                     .required(this.required())
                     .loadChildren(this.loadChildren())
+                    .sensitive(this.sensitive())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .userSettable(commandInputConfiguration.userSettable())
@@ -1217,6 +1249,7 @@ public abstract class Command {
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
+            public abstract Builder sensitive(Boolean sensitive);
             public abstract Builder providesValueForCommandInput(final String providesValueForCommandInput);
             public abstract Builder providesFilesForCommandMount(final String providesFilesForCommandMount);
             public abstract Builder viaSetupCommand(final String viaSetupCommand);
@@ -1239,24 +1272,27 @@ public abstract class Command {
         @Nullable @JsonProperty("name") public abstract String name();
         @Nullable @JsonProperty("accepts-command-output") public abstract String commandOutputName();
         @Nullable @JsonProperty("via-wrapup-command") public abstract String viaWrapupCommand();
-        @Nullable @JsonProperty("as-a-child-of-wrapper-input") public abstract String wrapperInputName();
+        @Nullable @JsonProperty("as-a-child-of") public abstract String targetName();
         @JsonProperty("type") public abstract String type();
         @Nullable @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("format") public abstract String format();
 
         @JsonCreator
         public static CommandWrapperOutput create(@JsonProperty("name") final String name,
                                                   @JsonProperty("accepts-command-output") final String commandOutputName,
-                                                  @JsonProperty("as-a-child-of-wrapper-input") final String wrapperInputName,
+                                                  @JsonProperty("as-a-child-of") final String targetName,
                                                   @JsonProperty("via-wrapup-command") final String viaWrapupCommand,
                                                   @JsonProperty("type") final String type,
-                                                  @JsonProperty("label") final String label) {
+                                                  @JsonProperty("label") final String label,
+                                                  @JsonProperty("format") final String format) {
             return builder()
                     .name(name)
                     .commandOutputName(commandOutputName)
-                    .wrapperInputName(wrapperInputName)
+                    .targetName(targetName)
                     .viaWrapupCommand(viaWrapupCommand)
                     .type(type == null ? CommandWrapperOutputEntity.DEFAULT_TYPE.getName() : type)
                     .label(label)
+                    .format(format)
                     .build();
         }
 
@@ -1268,10 +1304,23 @@ public abstract class Command {
                     .id(wrapperOutput.getId())
                     .name(wrapperOutput.getName())
                     .commandOutputName(wrapperOutput.getCommandOutputName())
-                    .wrapperInputName(wrapperOutput.getWrapperInputName())
+                    .targetName(wrapperOutput.getWrapperInputName())
                     .viaWrapupCommand(wrapperOutput.getViaWrapupCommand())
                     .type(wrapperOutput.getType().getName())
                     .label(wrapperOutput.getLabel())
+                    .format(wrapperOutput.getFormat())
+                    .build();
+        }
+
+        public static CommandWrapperOutput create(final CommandWrapperOutputCreation commandWrapperOutputCreation) {
+            return builder()
+                    .name(commandWrapperOutputCreation.name())
+                    .commandOutputName(commandWrapperOutputCreation.commandOutputName())
+                    .targetName(commandWrapperOutputCreation.targetName())
+                    .viaWrapupCommand(commandWrapperOutputCreation.viaWrapupCommand())
+                    .type(commandWrapperOutputCreation.type())
+                    .label(commandWrapperOutputCreation.label())
+                    .format(commandWrapperOutputCreation.format())
                     .build();
         }
 
@@ -1297,15 +1346,20 @@ public abstract class Command {
                 errors.add("Command wrapper output - name cannot be blank.");
             }
 
+            final String prefix = "Command wrapper output \"" + name() + "\" - ";
             if (StringUtils.isBlank(commandOutputName())) {
-                errors.add("Command wrapper output \"" + name() + "\" - property \"accepts-command-output\" cannot be blank.");
+                errors.add(prefix + "property \"accepts-command-output\" cannot be blank.");
             }
-            if (StringUtils.isBlank(wrapperInputName())) {
-                errors.add("Command wrapper output \"" + name() + "\" - property \"as-a-child-of-wrapper-input\" cannot be blank.");
+            if (StringUtils.isBlank(targetName())) {
+                errors.add(prefix + "property \"as-a-child-of\" cannot be blank.");
             }
             final List<String> types = CommandWrapperOutputEntity.Type.names();
             if (!types.contains(type())) {
-                errors.add("Command wrapper output \"" + name() + "\" - Unknown type \"" + type() + "\". Known types: " + StringUtils.join(types, ", "));
+                errors.add(prefix + "Unknown type \"" + type() + "\". Known types: " + StringUtils.join(types, ", "));
+            }
+
+            if (type().equals(CommandWrapperOutputEntity.Type.RESOURCE.getName()) && StringUtils.isBlank(label())) {
+                errors.add(prefix + "when type = Resource, label cannot be blank.");
             }
 
             return errors;
@@ -1321,11 +1375,13 @@ public abstract class Command {
 
             public abstract Builder viaWrapupCommand(final String viaWrapupCommand);
 
-            public abstract Builder wrapperInputName(final String wrapperInputName);
+            public abstract Builder targetName(final String targetName);
 
             public abstract Builder type(final String type);
 
             public abstract Builder label(final String label);
+
+            public abstract Builder format(final String format);
 
             public abstract CommandWrapperOutput build();
         }
@@ -1394,6 +1450,59 @@ public abstract class Command {
                     reserveMemory, limitMemory, limitCpu);
         }
     }
+
+    @AutoValue
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    public static abstract class CommandWrapperOutputCreation {
+        @Nullable @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("accepts-command-output") public abstract String commandOutputName();
+        @Nullable @JsonProperty("via-wrapup-command") public abstract String viaWrapupCommand();
+        @Nullable @JsonProperty("as-a-child-of") public abstract String targetName();
+        @JsonProperty("type") public abstract String type();
+        @Nullable @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("format") public abstract String format();
+
+        @JsonCreator
+        public static CommandWrapperOutputCreation create(@JsonProperty("name") final String name,
+                                                          @JsonProperty("accepts-command-output") final String commandOutputName,
+                                                          @JsonProperty("as-a-child-of") final String targetName,
+                                                          @JsonProperty("as-a-child-of-wrapper-input") final String oldStyleTargetName,
+                                                          @JsonProperty("via-wrapup-command") final String viaWrapupCommand,
+                                                          @JsonProperty("type") final String type,
+                                                          @JsonProperty("label") final String label,
+                                                          @JsonProperty("format") final String format) {
+            return builder()
+                    .name(name)
+                    .commandOutputName(commandOutputName)
+                    .targetName(targetName != null ? targetName : oldStyleTargetName)
+                    .viaWrapupCommand(viaWrapupCommand)
+                    .type(type == null ? CommandWrapperOutputEntity.DEFAULT_TYPE.getName() : type)
+                    .label(label)
+                    .format(format)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_Command_CommandWrapperOutputCreation.Builder()
+                    .type(CommandWrapperOutputEntity.DEFAULT_TYPE.getName());
+        }
+
+        public abstract Builder toBuilder();
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder name(final String name);
+            public abstract Builder commandOutputName(final String commandOutputName);
+            public abstract Builder viaWrapupCommand(final String viaWrapupCommand);
+            public abstract Builder targetName(final String targetName);
+            public abstract Builder type(final String type);
+            public abstract Builder label(final String label);
+            public abstract Builder format(final String format);
+
+            public abstract CommandWrapperOutputCreation build();
+        }
+    }
+
 
     /**
      * A command with project- or site-wide configuration applied. Contains only a single wrapper.
@@ -1521,13 +1630,14 @@ public abstract class Command {
 
     public static abstract class Input {
         @JsonIgnore public abstract long id();
-        @Nullable @JsonProperty("name") public abstract String name();
+        @JsonProperty("name") public abstract String name();
         @Nullable @JsonProperty("description") public abstract String description();
         @JsonProperty("type") public abstract String type();
         @Nullable @JsonProperty("matcher") public abstract String matcher();
         @Nullable @JsonProperty("default-value") public abstract String defaultValue();
         @JsonProperty("required") public abstract boolean required();
         @Nullable @JsonProperty("replacement-key") public abstract String rawReplacementKey();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         public String replacementKey() {
             return StringUtils.isNotBlank(rawReplacementKey()) ? rawReplacementKey() : "#" + name() + "#";

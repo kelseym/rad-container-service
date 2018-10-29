@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.hibernate.exception.DataException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,13 +32,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.nio.file.Paths;
+import java.security.SecureRandom;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.junit.Assert.assertThat;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -106,7 +111,7 @@ public class CommandEntityTest {
         final CommandWrapperOutput outputHandler = CommandWrapperOutput.builder()
                 .name(outputHandlerName)
                 .commandOutputName(commandOutputName)
-                .wrapperInputName(externalInputName)
+                .targetName(externalInputName)
                 .type("Resource")
                 .label(outputHandlerLabel)
                 .build();
@@ -160,9 +165,7 @@ public class CommandEntityTest {
     public void testPersistCommandWithWrapper() throws Exception {
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandEntity retrievedCommandEntity = commandEntityService.retrieve(created.getId());
 
@@ -183,15 +186,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         commandEntityService.delete(created);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         assertThat(commandEntityService.retrieve(created.getId()), is(nullValue()));
     }
@@ -202,9 +201,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
         final long wrapperId = createdWrapper.getId();
@@ -222,15 +219,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandWrapperEntity added = commandEntityService.addWrapper(created, toAdd);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(COMMAND_ENTITY.getId());
         assertThat(retrieved.getCommandWrapperEntities().get(0), is(added));
@@ -244,9 +237,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
 
@@ -254,9 +245,7 @@ public class CommandEntityTest {
         createdWrapper.setDescription(newDescription);
 
         commandEntityService.update(created);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
         final CommandWrapperEntity retrievedWrapper = retrieved.getCommandWrapperEntities().get(0);
@@ -271,9 +260,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandInput inputToAdd = CommandInput.builder()
                 .name("this is new")
@@ -285,9 +272,7 @@ public class CommandEntityTest {
         created.addInput(CommandInputEntity.fromPojo(inputToAdd));
 
         commandEntityService.update(created);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
 
@@ -319,16 +304,12 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         final long wrapperId = created.getCommandWrapperEntities().get(0).getId();
         commandEntityService.deleteWrapper(wrapperId);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        commitTransaction();
 
         assertThat(commandEntityService.retrieveWrapper(wrapperId), is(nullValue()));
     }
@@ -404,5 +385,37 @@ public class CommandEntityTest {
         final List<String> errors = wrapup.validate();
         assertThat(errors, is(Matchers.<String>emptyIterable()));
         final CommandEntity createdWrapupCommandEntity = commandEntityService.create(CommandEntity.fromPojo(wrapup));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testLongCommandLine() throws Exception {
+        final String alphanumeric = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        final SecureRandom rnd = new SecureRandom();
+        final int stringSize = 2048;
+
+        final StringBuilder sb = new StringBuilder( stringSize );
+        for( int i = 0; i < stringSize; i++ ) {
+            sb.append(alphanumeric.charAt(rnd.nextInt(alphanumeric.length())));
+        }
+        final String longString = sb.toString();
+
+        final CommandEntity command = commandEntityService.create(
+                CommandEntity.fromPojo(Command.builder()
+                        .name("long")
+                        .image("foo")
+                        .commandLine(longString)
+                        .build())
+        );
+
+        commitTransaction();
+
+        assertThat(commandEntityService.get(command.getId()).getCommandLine(), is(longString));
+    }
+
+    public void commitTransaction() {
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        TestTransaction.start();
     }
 }

@@ -1,6 +1,7 @@
 package org.nrg.containers.model.container.auto;
 
 import com.google.auto.value.AutoValue;
+import com.spotify.docker.client.messages.swarm.ContainerStatus;
 import com.spotify.docker.client.messages.swarm.Task;
 
 import javax.annotation.Nonnull;
@@ -15,14 +16,16 @@ public abstract class ServiceTask {
 
     public abstract String serviceId();
     public abstract String taskId();
-    public abstract String nodeId();
+    @Nullable public abstract String nodeId();
     public abstract String status();
     @Nullable public abstract Date statusTime();
     @Nullable public abstract String containerId();
     @Nullable public abstract String message();
-    @Nullable public abstract Integer exitCode();
+    @Nullable public abstract String err();
+    @Nullable public abstract Long exitCode();
 
     public static ServiceTask create(final @Nonnull Task task, final String serviceId) {
+        final ContainerStatus containerStatus = task.status().containerStatus();
         return ServiceTask.builder()
                 .serviceId(serviceId)
                 .taskId(task.id())
@@ -30,8 +33,9 @@ public abstract class ServiceTask {
                 .status(task.status().state())
                 .statusTime(task.status().timestamp())
                 .message(task.status().message())
-                .exitCode(task.status().containerStatus().exitCode())
-                .containerId(task.status().containerStatus().containerId())
+                .err(task.status().err())
+                .exitCode(containerStatus == null ? null : containerStatus.exitCode())
+                .containerId(containerStatus == null ? null : containerStatus.containerId())
                 .build();
     }
 
@@ -60,7 +64,8 @@ public abstract class ServiceTask {
         public abstract Builder status(final String status);
         public abstract Builder statusTime(final Date statusTime);
         public abstract Builder message(final String message);
-        public abstract Builder exitCode(final Integer exitCode);
+        public abstract Builder err(final String err);
+        public abstract Builder exitCode(final Long exitCode);
 
         public abstract ServiceTask build();
     }

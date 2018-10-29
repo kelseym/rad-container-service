@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.exceptions.BadRequestException;
 import org.nrg.containers.exceptions.CommandResolutionException;
@@ -28,8 +29,6 @@ import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -40,7 +39,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import springfox.documentation.annotations.ApiIgnore;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,10 +49,10 @@ import static org.nrg.xdat.security.helpers.AccessLevel.Member;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
 
+@Slf4j
 @XapiRestController
 @Api("API for Launching Containers with XNAT Container service")
 public class LaunchRestApi extends AbstractXapiRestController {
-    private static final Logger log = LoggerFactory.getLogger(LaunchRestApi.class);
 
     private static final String JSON = MediaType.APPLICATION_JSON_UTF8_VALUE;
     private static final String TEXT = MediaType.TEXT_PLAIN_VALUE;

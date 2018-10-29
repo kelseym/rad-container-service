@@ -1,5 +1,6 @@
 package org.nrg.containers.events.listeners;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.SessionArchiveEvent;
 import org.nrg.framework.services.NrgEventService;
@@ -9,8 +10,6 @@ import org.nrg.xdat.security.user.exceptions.UserInitException;
 import org.nrg.xdat.security.user.exceptions.UserNotFoundException;
 import org.nrg.xft.event.entities.WorkflowStatusEvent;
 import org.nrg.xft.security.UserI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.bus.Event;
@@ -19,9 +18,9 @@ import reactor.fn.Consumer;
 
 import static reactor.bus.selector.Selectors.type;
 
+@Slf4j
 @Service
 public class SessionTransferredListener implements Consumer<Event<WorkflowStatusEvent>> {
-    private static final Logger log = LoggerFactory.getLogger(SessionTransferredListener.class);
 
     private final NrgEventService eventService;
 

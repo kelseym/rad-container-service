@@ -209,7 +209,7 @@ Some of the "other" properties (environment variables, ports) are simple templat
 
 ###  Outputs
 
-Each output needs to have a value in the `handled-by-wrapper-input` property. We look up the wrapper input named in that property to verify it exists, it has a uniquely resolved value, and it is of an XNAT object type that can handle new resources.
+Each output needs to have a value in the `handled-by` property. We look up the wrapper input named in that property to verify it exists, it has a uniquely resolved value, and it is of an XNAT object type that can handle new resources.
 
 The output's `path` and `label` properties can be templates.
 

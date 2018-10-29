@@ -24,16 +24,9 @@ public class ContainerEntityInput {
     @Enumerated(EnumType.STRING) private ContainerInputType type;
     private String name;
     private String value;
+    private Boolean sensitive;
 
     public ContainerEntityInput() {}
-
-    public static ContainerEntityInput create(final String name, final String value, final ContainerInputType type) {
-        final ContainerEntityInput input = new ContainerEntityInput();
-        input.type = type;
-        input.name = name;
-        input.value = value;
-        return input;
-    }
 
     public static ContainerEntityInput fromPojo(final Container.ContainerInput containerInputPojo) {
         final ContainerEntityInput containerEntityInput = new ContainerEntityInput();
@@ -46,6 +39,7 @@ public class ContainerEntityInput {
         this.setType(containerInputPojo.type());
         this.setName(containerInputPojo.name());
         this.setValue(containerInputPojo.value());
+        this.setSensitive(containerInputPojo.sensitive());
         return this;
     }
 
@@ -93,6 +87,14 @@ public class ContainerEntityInput {
         this.value = value;
     }
 
+    public Boolean getSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(final Boolean sensitive) {
+        this.sensitive = sensitive;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -100,13 +102,14 @@ public class ContainerEntityInput {
         final ContainerEntityInput that = (ContainerEntityInput) o;
         return Objects.equals(this.containerEntity, that.containerEntity) &&
                 type == that.type &&
+                sensitive == that.sensitive &&
                 Objects.equals(this.name, that.name) &&
                 Objects.equals(this.value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(containerEntity, type, name, value);
+        return Objects.hash(containerEntity, type, name, value, sensitive);
     }
 
     @Override
@@ -115,7 +118,8 @@ public class ContainerEntityInput {
                 .add("id", id)
                 .add("type", type)
                 .add("name", name)
-                .add("value", value)
+                .add("value", sensitive ? "*****" : value)
+                .add("sensitive", sensitive)
                 .toString();
     }
 

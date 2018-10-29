@@ -91,7 +91,7 @@ public class DockerRestApiTest {
 
     private final static String MOCK_CONTAINER_CERT_PATH = "/path/to/file";
     private final static DockerServer MOCK_CONTAINER_SERVER =
-            DockerServer.create(0L, MOCK_CONTAINER_SERVER_NAME, MOCK_CONTAINER_HOST, MOCK_CONTAINER_CERT_PATH, false);
+            DockerServer.create(MOCK_CONTAINER_SERVER_NAME, MOCK_CONTAINER_HOST);
     private final NoDockerServerException NO_SERVER_PREF_EXCEPTION =
             new NoDockerServerException("message");
     private final NotFoundException NOT_FOUND_EXCEPTION =

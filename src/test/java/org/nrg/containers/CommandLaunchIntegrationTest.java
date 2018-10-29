@@ -18,6 +18,7 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.Task;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
@@ -63,8 +64,6 @@ import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.modules.junit4.PowerMockRunnerDelegate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -91,7 +90,6 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasSize;
@@ -104,11 +102,11 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 import static org.powermock.api.mockito.PowerMockito.when;
 
+@Slf4j
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
 @PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class})
@@ -116,8 +114,6 @@ import static org.powermock.api.mockito.PowerMockito.when;
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Transactional
 public class CommandLaunchIntegrationTest {
-    private static final Logger log = LoggerFactory.getLogger(CommandLaunchIntegrationTest.class);
-
     private UserI mockUser;
     private String buildDir;
     private String archiveDir;
@@ -205,7 +201,7 @@ public class CommandLaunchIntegrationTest {
             }
         }
 
-        dockerServerService.setServer(DockerServer.create(0L, "name", containerHost, certPath, swarmMode));
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, false, null, null, null, false));
 
         // Mock the userI
         mockUser = mock(UserI.class);
@@ -325,11 +321,11 @@ public class CommandLaunchIntegrationTest {
 
         // xnat wrapper inputs
         final Map<String, String> expectedXnatInputValues = Maps.newHashMap();
-        expectedXnatInputValues.put("session", session.getUri());
+        expectedXnatInputValues.put("session", session.getExternalWrapperInputValue());
         expectedXnatInputValues.put("T1-scantype", t1Scantype);
         expectedXnatInputValues.put("label", session.getLabel());
-        expectedXnatInputValues.put("T1", session.getScans().get(0).getUri());
-        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getUri());
+        expectedXnatInputValues.put("T1", session.getScans().get(0).getDerivedWrapperInputValue());
+        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getDerivedWrapperInputValue());
         assertThat(execution.getWrapperInputs(), is(expectedXnatInputValues));
 
         // command inputs
@@ -348,7 +344,7 @@ public class CommandLaunchIntegrationTest {
                 return output == null ? "" : output.name();
             }
         });
-        assertThat(outputNames, contains("data", "text-file"));
+        assertThat(outputNames, contains("data:data-output", "text-file:text-file-output"));
 
         // Environment variables
         final Map<String, String> expectedEnvironmentVariables = Maps.newHashMap();
@@ -454,7 +450,7 @@ public class CommandLaunchIntegrationTest {
                 return output.name();
             }
         });
-        assertThat(outputNames, contains("outputs"));
+        assertThat(outputNames, contains("outputs:file-and-dir-lists"));
 
         // Environment variables
         final Map<String, String> expectedEnvironmentVariables = Maps.newHashMap();

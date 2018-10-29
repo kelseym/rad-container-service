@@ -8,54 +8,17 @@ dockerSetupPanel:
     name: dockerSetupPanel
     label: Docker Server Setup
     contents:
-        containerHostTemplate:
-            tag: "div#container-host-editor-template.html-template"
-            contents:
-                containerHostEditor:
-                    kind: panel.form
-                    name: containerHostEditor
-                    id: container-host-editor
-                    header: false
-                    footer: false
-                    action: /xapi/docker/server
-                    contentType: json
-                    contents:
-                        pad:
-                            tag: div.pad20top
-                        name:
-                            kind: panel.input.text
-                            id: name
-                            name: name
-                            label: Host Name
-                            validation: not-empty
-                        host:
-                            kind: panel.input.text
-                            id: host
-                            name: host
-                            label: Host Path
-                            validation: not-empty
-                        certPath:
-                            kind: panel.input.text
-                            id: cert-path
-                            name: certPath
-                            label: "Certificate Path"
-                        swarmMode:
-                            kind: panel.input.switchbox
-                            id: swarm-mode
-                            name: swarmMode
-                            label: "Toggle Swarm Mode"
-                            onText: "ON"
-                            offText: "OFF"
-                            value: "true"
-
         containerHostTable:
             tag: "div#container-host-manager"
         csStylesheet:
         #   tag: link|rel="stylesheet"|type="text/css"|href="/scripts/xnat/plugin/containerService/containerConfig.css"
             tag: link|rel="stylesheet"|type="text/css"|href="~/scripts/xnat/plugin/containerService/containerConfig.css"
+        csHistoryScript:
+#           tag: script|src="/scripts/xnat/plugin/containerService/containerService-history.js"
+            tag: script|src="~/scripts/xnat/plugin/containerService/containerService-history.js"
         csSiteAdminScripts:
-#           tag: script|src="/scripts/xnat/plugin/containerService/containerServices-siteAdmin.js"
-            tag: script|src="~/scripts/xnat/plugin/containerService/containerServices-siteAdmin.js"
+#           tag: script|src="/scripts/xnat/plugin/containerService/containerService-siteAdmin.js"
+            tag: script|src="~/scripts/xnat/plugin/containerService/containerService-siteAdmin.js"
 
 imageHostsPanel:
     kind: panel
@@ -73,26 +36,22 @@ imageHostsPanel:
                     footer: false
                     action: /xapi/docker/hubs
                     contentType: json
+                    element:
+                        style:
+                            padding: 20px 0
                     contents:
-                        pad:
-                            tag: div.pad20
-                            contents:
-                                id:
-                                    kind: panel.input.hidden
-                                    id: hub-id
-                                    name: id
-                                name:
-                                    kind: panel.input.text
-                                    id: hub-name
-                                    name: name
-                                    label: Image Host Name
-                                    validation: not-empty
-                                url:
-                                    kind: panel.input.text
-                                    id: hub-url
-                                    name: url
-                                    label: URL
-                                    validation: url not-empty
+                        name:
+                            kind: panel.input.text
+                            id: hub-name
+                            name: name
+                            label: Image Host Name
+                            validation: not-empty
+                        url:
+                            kind: panel.input.text
+                            id: hub-url
+                            name: url
+                            label: URL
+                            validation: url not-empty
         imageHostTable:
             tag: "div#image-host-manager"
 
@@ -110,42 +69,41 @@ installedImagesPanel:
             contents:
                 addImageform:
                     kind: panel.form
-                    name: addImageForm
                     id: add-image-form
                     header: false
                     footer: false
+                    element:
+                        style:
+                            padding: 20px 0
                     contents:
-                        pad:
-                            tag: div.pad20
-                            contents:
-                                hubSelector:
-                                    kind: panel.select.single
-                                    name: hubId
-                                    label: Select Image Host
-                                    element:
-                                        title: Select Image Host
-                                imageName:
-                                    kind: panel.input.text
-                                    name: image
-                                    label: Image Name
-                                    validation: not-empty
-                                    element:
-                                        title: Enter Image Name
-                                    description: >
-                                        Specify the image name to pull, including the account name (if necessary). For example, to pull the XNAT dcm2niix image, enter "xnat/dcm2niix"
-                                tag:
-                                    kind: panel.input.text
-                                    name: tag
-                                    label: Version Tag
-                                    value: ":latest"
-                                    element:
-                                        title: Enter Version Tag (Optional)
-                                    description: >
-                                        "Specify the tag version of the image to pull. The default is :latest"
-                                saveCommands:
-                                    kind: panel.input.hidden
-                                    name: save-commands
-                                    value: true
+                        hubId:
+                            kind: panel.select.single
+                            name: hubId
+                            label: Select Image Host
+                            element:
+                                title: Select Image Host
+                        image:
+                            kind: panel.input.text
+                            name: image
+                            label: Image Name
+                            validation: not-empty
+                            element:
+                                title: Enter Image Name
+                            description: >
+                                Specify the image name to pull, including the account name (if necessary). For example, to pull the XNAT dcm2niix image, enter "xnat/dcm2niix"
+                        tagInput:
+                            kind: panel.input.text
+                            name: tag
+                            label: Version Tag
+                            value: ":latest"
+                            element:
+                                title: Enter Version Tag (Optional)
+                            description: >
+                                "Specify the tag version of the image to pull. The default is :latest"
+                        saveCommands:
+                            kind: panel.input.hidden
+                            name: save-commands
+                            value: true
         setCommandDefaults:
             tag: "div#set-command-defaults-template.html-template"
             contents:
@@ -155,16 +113,16 @@ installedImagesPanel:
                     id: set-command-defaults-form
                     header: false
                     footer: false
+                    element:
+                        style:
+                            padding: 20px 0
                     contents:
-                        pad:
-                            tag: div.pad20
-                            contents:
-                                imageId:
-                                    kind: panel.input.hidden
-                                    name: imageId
-                                commandId:
-                                    kind: panel.input.hidden
-                                    name: commandId
+                        imageId:
+                            kind: panel.input.hidden
+                            name: imageId
+                        commandId:
+                            kind: panel.input.hidden
+                            name: commandId
         commandViewerTemplate:
             tag: "div#command-viewer-template.html-template"
             contents:
@@ -174,12 +132,12 @@ installedImagesPanel:
                     id: command-viewer
                     header: false
                     footer: false
+                    element:
+                        style:
+                            padding: 20px 0
                     contents:
-                        pad:
-                            tag: div.pad20
-                            contents:
-                                commandViewerDisplay:
-                                    tag: textarea.commandViewer
+                        commandViewerDisplay:
+                            tag: textarea.commandViewer
 
 sitewideCommandConfigsPanel:
     kind: panel
@@ -212,9 +170,6 @@ siteCommandAutomationPanel:
             tag: div.message
             contents:
                 "With this panel, you can set up an automated command execution that will be triggered by an XNAT event, such as an image session being archived."
-        siteCommandAutomationSetup:
-            kind: panel.input.button
-            id:
         siteCommandAutomationTable:
             tag: div#command-automation-admin-list
             contents: Table will go here
@@ -227,7 +182,7 @@ sitewideCommandHistoryPanel:
     contents:
         commandHistoryTableContainer:
             tag: div#command-history-container
-            contents: No history to display yet
+            contents: Loading history entries...
 
 #################################################
 ####  Root Site Admin Spawner Config Object  ####
