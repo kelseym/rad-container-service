@@ -501,6 +501,8 @@ public class DockerControlApi implements ContainerControlApi {
             }
         }
 
+        final String user = server.containerUser();
+
         final HostConfig hostConfig =
                 HostConfig.builder()
                         .binds(bindMounts)
@@ -519,6 +521,7 @@ public class DockerControlApi implements ContainerControlApi {
                         .entrypoint(overrideEntrypoint ? Collections.singletonList("") : null)
                         .env(environmentVariables)
                         .workingDir(workingDirectory)
+                        .user(user)
                         .build();
 
         if (log.isDebugEnabled()) {
@@ -528,6 +531,7 @@ public class DockerControlApi implements ContainerControlApi {
                             "\n\timage %s" +
                             "\n\tcommand \"%s\"" +
                             "\n\tworking directory \"%s\"" +
+                            "\n\tcontainerUser \"%s\"" +
                             "\n\tvolumes [%s]" +
                             "\n\tenvironment variables [%s]" +
                             "\n\texposed ports: {%s}",
@@ -535,6 +539,7 @@ public class DockerControlApi implements ContainerControlApi {
                     imageName,
                     runCommand,
                     workingDirectory,
+                    user,
                     StringUtils.join(bindMounts, ", "),
                     StringUtils.join(environmentVariables, ", "),
                     StringUtils.join(portStringList, ", ")
@@ -618,11 +623,14 @@ public class DockerControlApi implements ContainerControlApi {
             bindMounts.add(mount.source() + ":" + mount.target() + (ro != null && ro ? ":ro" : ""));
         }
 
+        final String user = server.containerUser();
+
         final ContainerSpec.Builder containerSpecBuilder = ContainerSpec.builder()
                 .image(imageName)
                 .env(environmentVariables)
                 .dir(workingDirectory)
-                .mounts(mounts);
+                .mounts(mounts)
+                .user(user);
         if (overrideEntrypoint) {
             containerSpecBuilder.command("/bin/sh", "-c", runCommand);
         } else {
@@ -664,6 +672,7 @@ public class DockerControlApi implements ContainerControlApi {
                             "\n\timage %s" +
                             "\n\tcommand \"%s\"" +
                             "\n\tworking directory \"%s\"" +
+                            "\n\tcontainerUser \"%s\"" +
                             "\n\tvolumes [%s]" +
                             "\n\tenvironment variables [%s]" +
                             "\n\texposed ports: {%s}",
@@ -671,6 +680,7 @@ public class DockerControlApi implements ContainerControlApi {
                     imageName,
                     runCommand,
                     workingDirectory,
+                    user,
                     StringUtils.join(bindMounts, ", "),
                     StringUtils.join(environmentVariables, ", "),
                     StringUtils.join(portStringList, ", ")
