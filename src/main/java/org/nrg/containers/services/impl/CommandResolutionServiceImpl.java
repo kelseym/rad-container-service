@@ -418,8 +418,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private ResolvedCommand resolveSpecialCommandType(final CommandType type,
                                                           final String image,
-                                                          final String inputMountPath,
-                                                          final String outputMountPath,
+                                                          final String inputMountXnatHostPath,
+                                                          final String outputMountXnatHostPath,
                                                           final String parentSourceObjectName)
                 throws CommandResolutionException {
             final String typeStringForLog;
@@ -448,7 +448,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             }
 
             log.debug("Done resolving {} command {} from image {}.", typeStringForLog, command.name(), image);
-            return ResolvedCommand.fromSpecialCommandType(command, inputMountPath, outputMountPath, parentSourceObjectName);
+
+            return ResolvedCommand.fromSpecialCommandType(command, inputMountXnatHostPath, getMountContainerHostPath(inputMountXnatHostPath),
+                    outputMountXnatHostPath, getMountContainerHostPath(outputMountXnatHostPath), parentSourceObjectName);
+        }
+
+        private String getMountContainerHostPath(final String mountXnatHostPath) {
+            return (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
+                    mountXnatHostPath.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
+                    mountXnatHostPath;
         }
 
         private void checkForIllegalInputValue(final String inputName,
@@ -2173,10 +2181,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             // TODO transporting is currently a no-op, and the code is simpler if we don't pretend that we are doing something here.
 
             // Translate paths from XNAT prefix to container host prefix
-            final String containerHostPath =
-                    (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
-                            pathToMount.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
-                            pathToMount;
+            final String containerHostPath = getMountContainerHostPath(pathToMount);
             log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, containerHostPath);
             resolvedCommandMountBuilder.containerHostPath(containerHostPath);
 

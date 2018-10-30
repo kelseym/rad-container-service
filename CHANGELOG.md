@@ -10,6 +10,9 @@ Not yet released.
 
 ### Bugfixes
 
+* [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
+
+[CS-541]: https://issues.xnat.org/browse/CS-541
 
 ## 1.6.0
 

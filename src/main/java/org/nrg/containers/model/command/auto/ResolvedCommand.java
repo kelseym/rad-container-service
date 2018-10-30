@@ -163,16 +163,20 @@ public abstract class ResolvedCommand {
     /**
      * Creates ResolvedCommands for setup and wrapup commands.
      * @param command The Command definition for the setup or wrapup command
-     * @param inputMountPath Path on the host to the input mount
-     * @param outputMountPath Path on the host to the output mount
+     * @param inputMountXnatHostPath Path on the XNAT host to the input mount
+     * @param inputMountContainerHostPath Path on the container host to the input mount
+     * @param outputMountXnatHostPath Path on the XNAT host to the output mount
+     * @param outputMountContainerHostPath Path on the container host to the output mount
      * @param parentSourceObjectName Name of the Resolved Command Mount / Container Mount (for setup commands) or
      *                               Resolved Command Output / Container Ouput (for wrapup commands) from which this
      *                               special Resolved Command is being created.
      * @return A Resolved Setup Command or Resolved Wrapup Command
      */
     public static ResolvedCommand fromSpecialCommandType(final Command command,
-                                                         final String inputMountPath,
-                                                         final String outputMountPath,
+                                                         final String inputMountXnatHostPath,
+                                                         final String inputMountContainerHostPath,
+                                                         final String outputMountXnatHostPath,
+                                                         final String outputMountContainerHostPath,
                                                          final String parentSourceObjectName) {
         return builder()
                 .wrapperId(0L)
@@ -190,15 +194,15 @@ public abstract class ResolvedCommand {
                 .addMount(ResolvedCommandMount.builder()
                         .name("input")
                         .containerPath("/input")
-                        .xnatHostPath(inputMountPath)
-                        .containerHostPath(inputMountPath)
+                        .xnatHostPath(inputMountXnatHostPath)
+                        .containerHostPath(inputMountContainerHostPath)
                         .writable(false)
                         .build())
                 .addMount(ResolvedCommandMount.builder()
                         .name("output")
                         .containerPath("/output")
-                        .xnatHostPath(outputMountPath)
-                        .containerHostPath(outputMountPath)
+                        .xnatHostPath(outputMountXnatHostPath)
+                        .containerHostPath(outputMountContainerHostPath)
                         .writable(true)
                         .build())
                 .build();
