@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.1
+
+Not yet released.
+
+### Features
+
+
+
+### Bugfixes
+
+
 ## 1.6.0
 
 [Released 2018-10-29](https://github.com/NrgXnat/container-service/releases/tag/1.6.0).
