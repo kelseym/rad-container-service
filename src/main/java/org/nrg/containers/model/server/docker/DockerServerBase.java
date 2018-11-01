@@ -19,6 +19,7 @@ public abstract class DockerServerBase {
     @Nullable @JsonProperty("path-translation-xnat-prefix") public abstract String pathTranslationXnatPrefix();
     @Nullable @JsonProperty("path-translation-docker-prefix") public abstract String pathTranslationDockerPrefix();
     @JsonProperty("pull-images-on-xnat-init") public abstract Boolean pullImagesOnXnatInit();
+    @Nullable @JsonProperty("container-user") public abstract String containerUser();
 
     @AutoValue
     public abstract static class DockerServer extends DockerServerBase {
@@ -32,8 +33,9 @@ public abstract class DockerServerBase {
                                           @JsonProperty("swarm-mode") final Boolean swarmMode,
                                           @JsonProperty("path-translation-xnat-prefix") final String pathTranslationXnatPrefix,
                                           @JsonProperty("path-translation-docker-prefix") final String pathTranslationDockerPrefix,
-                                          @JsonProperty("pull-images-on-xnat-init") final Boolean pullImagesOnXnatInit) {
-            return create(id, name, host, certPath, swarmMode, null, pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit);
+                                          @JsonProperty("pull-images-on-xnat-init") final Boolean pullImagesOnXnatInit,
+                                          @JsonProperty("container-user") final String containerUser) {
+            return create(id, name, host, certPath, swarmMode, null, pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser);
         }
 
         public static DockerServer create(final String name,
@@ -49,7 +51,8 @@ public abstract class DockerServerBase {
                                           final Date lastEventCheckTime,
                                           final String pathTranslationXnatPrefix,
                                           final String pathTranslationDockerPrefix,
-                                          final Boolean pullImagesOnXnatInit) {
+                                          final Boolean pullImagesOnXnatInit,
+                                          final String containerUser) {
             return new AutoValue_DockerServerBase_DockerServer(
                     id == null ? 0L : id,
                     StringUtils.isBlank(name) ? host : name,
@@ -59,7 +62,8 @@ public abstract class DockerServerBase {
                     lastEventCheckTime != null ? lastEventCheckTime : new Date(),
                     pathTranslationXnatPrefix,
                     pathTranslationDockerPrefix,
-                    pullImagesOnXnatInit != null && pullImagesOnXnatInit
+                    pullImagesOnXnatInit != null && pullImagesOnXnatInit,
+                    containerUser
             );
         }
 
@@ -74,8 +78,8 @@ public abstract class DockerServerBase {
                     dockerServerEntity.getLastEventCheckTime(),
                     dockerServerEntity.getPathTranslationXnatPrefix(),
                     dockerServerEntity.getPathTranslationDockerPrefix(),
-                    pullImagesOnXnatInit == null ? false : pullImagesOnXnatInit
-            );
+                    pullImagesOnXnatInit == null ? false : pullImagesOnXnatInit,
+                    dockerServerEntity.getContainerUser());
         }
 
         @SuppressWarnings("deprecation")
@@ -89,7 +93,7 @@ public abstract class DockerServerBase {
                     dockerServerPrefsBean.getLastEventCheckTime(),
                     null,
                     null,
-                    false);
+                    false, null);
         }
 
         public DockerServer updateEventCheckTime(final Date newLastEventCheckTime) {
@@ -104,8 +108,8 @@ public abstract class DockerServerBase {
                             newLastEventCheckTime,
                             this.pathTranslationXnatPrefix(),
                             this.pathTranslationDockerPrefix(),
-                            this.pullImagesOnXnatInit()
-                    );
+                            this.pullImagesOnXnatInit(),
+                            this.containerUser());
         }
     }
 
@@ -122,9 +126,10 @@ public abstract class DockerServerBase {
                                                   @JsonProperty("path-translation-xnat-prefix") final String pathTranslationXnatPrefix,
                                                   @JsonProperty("path-translation-docker-prefix") final String pathTranslationDockerPrefix,
                                                   @JsonProperty("pull-images-on-xnat-init") final Boolean pullImagesOnXnatInit,
+                                                  @JsonProperty("container-user") final String user,
                                                   @JsonProperty("ping") final Boolean ping) {
             return create(id == null ? 0L : id, name, host, certPath, swarmMode, new Date(0),
-                    pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, ping);
+                    pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, user, ping);
         }
 
         public static DockerServerWithPing create(final Long id,
@@ -136,6 +141,7 @@ public abstract class DockerServerBase {
                                                   final String pathTranslationXnatPrefix,
                                                   final String pathTranslationDockerPrefix,
                                                   final Boolean pullImagesOnXnatInit,
+                                                  final String user,
                                                   final Boolean ping) {
             return new AutoValue_DockerServerBase_DockerServerWithPing(
                     id == null ? 0L : id,
@@ -147,6 +153,7 @@ public abstract class DockerServerBase {
                     pathTranslationXnatPrefix,
                     pathTranslationDockerPrefix,
                     pullImagesOnXnatInit != null && pullImagesOnXnatInit,
+                    user,
                     ping != null && ping);
         }
 
@@ -162,6 +169,7 @@ public abstract class DockerServerBase {
                     dockerServer.pathTranslationXnatPrefix(),
                     dockerServer.pathTranslationDockerPrefix(),
                     dockerServer.pullImagesOnXnatInit(),
+                    dockerServer.containerUser(),
                     ping
             );
         }

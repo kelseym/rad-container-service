@@ -205,7 +205,14 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             onText: 'ON',
                             offText: 'OFF',
                             value: 'false'
-                        })
+                        }),
+                        spawn('p.divider', '<strong>Container User (Optional)</strong><br>System user who will own process inside container. Use this if XNAT files are on a mount restricting permissions to certain users. ' +
+                            'Value can be of the form user, user:group, uid, uid:gid, user:gid, or uid:group. ' +
+                            '<br>If no value is set, container processes are run as the value set in the image; if no value is set in the image, the default is root.'),
+                        XNAT.ui.panel.input.text({
+                            name: 'container-user',
+                            label: 'Container User'
+                        }).element
                     ])
                 );
 
