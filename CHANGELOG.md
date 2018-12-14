@@ -7,6 +7,7 @@ Not yet released.
 ### Features
 
 * [CS-542][] Add `"container-user"` to Docker Server settings. This allows you to specify the user within the container as whom the command should be run. If you specify nothing, the process within the container is run as root or whatever user settings are defined on the image (which is unchanged from the current behavior).
+* [CS-543][] Add support for setting container user as `"containerUser=username"` in prefs-init.ini config file. This value is only used when no other server settings exist in the database, such as initial deployment. 
 
 ### Bugfixes
 
@@ -14,6 +15,7 @@ Not yet released.
 
 [CS-541]: https://issues.xnat.org/browse/CS-541
 [CS-542]: https://issues.xnat.org/browse/CS-542
+[CS-543]: https://issues.xnat.org/browse/CS-543
 
 ## 1.6.0
 

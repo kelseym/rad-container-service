@@ -93,7 +93,8 @@ public abstract class DockerServerBase {
                     dockerServerPrefsBean.getLastEventCheckTime(),
                     null,
                     null,
-                    false, null);
+                    false,
+                    dockerServerPrefsBean.getContainerUser());
         }
 
         public DockerServer updateEventCheckTime(final Date newLastEventCheckTime) {
