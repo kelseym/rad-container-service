@@ -12,11 +12,13 @@ Not yet released.
 ### Bugfixes
 
 * [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
+* [CS-546][] Fixed Assessor as Command Input functionality.
 
 [CS-541]: https://issues.xnat.org/browse/CS-541
 [CS-542]: https://issues.xnat.org/browse/CS-542
 [CS-543]: https://issues.xnat.org/browse/CS-543
-
+[CS-546]: https://issues.xnat.org/browse/CS-546
+ 
 ## 1.6.0
 
 [Released 2018-10-29](https://github.com/NrgXnat/container-service/releases/tag/1.6.0).
