@@ -388,13 +388,14 @@ var XNAT = getObject(XNAT || {});
 
     };
 
-    launcher.populateForm = function($form, inputList){
+    launcher.populateForm = function($form, inputList, rootElement){
         // receive $form as a jquery form object
         // receives optional input list, which can define just a subgroup of inputs to render.
         // requires input list and default values to be stored in the XNAT.plugin.containerService.launcher object
         // get input values via JSONpath queries
 
         inputList = inputList || launcher.inputList;
+        rootElement = rootElement || false;
         var inputValues = launcher.inputPresets;
 
         function findInput(inputName, $form){
@@ -456,13 +457,14 @@ var XNAT = getObject(XNAT || {});
                 selectedLabel,
                 valueArr = jsonPath(inputValues, "$..[?(@.name=='"+input.name+"')].values[0]");
 
-            input.type = (input['user-settable'] || key === rootElement) ? input['input-type'] : 'static';
+            input.type = (input['user-settable'] || input.name === rootElement) ? input['input-type'] : 'static';
 
-            if (valueArr.length > 1) {
-                // if  more than one possible value can be set, render the input without a value selected
-                selectedVal = false;
+            if (valueArr.length > 1 || !isArray(valueArr)) {
+                // if no values can be set, or more than one possible value can be set, render the input without a value selected
+                selectedVal = '';
                 selectedLabel = '';
-            } else {
+            }
+            else {
                 selectedVal = valueArr[0].value;
                 selectedLabel = valueArr[0].label || 'N/A';
             }
@@ -484,8 +486,10 @@ var XNAT = getObject(XNAT || {});
                 // render a new input
                 input.value = selectedVal;
                 input.valueLabel = selectedLabel;
-                input.childInputs = jsonPath(inputValues, "$.[?(@.name=='"+input.name+"')]..children[*].name")
-                    .filter(function(value, index, self){ return self.indexOf(value) === index; }); // build an array of the input names of all child inputs. Ensure the array is unique. 
+                if (isArray(jsonPath(inputValues, "$.[?(@.name=='"+input.name+"')]..children[*].name"))) {
+                    input.childInputs = jsonPath(inputValues, "$.[?(@.name=='"+input.name+"')]..children[*].name")
+                        .filter(function(value, index, self){ return self.indexOf(value) === index; }); // build an array of the input names of all child inputs. Ensure the array is unique.
+                }
                 $form.append(launcher.formInputs(input));
             }
 
@@ -538,7 +542,7 @@ var XNAT = getObject(XNAT || {});
                     var $standardInputContainer = $panel.find('.standard-settings');
                     var $advancedInputContainer = $panel.find('.advanced-settings');
 
-                    launcher.populateForm($panel, inputList);
+                    launcher.populateForm($panel, inputList, rootElement);
 
                     // loop through each input and determine how to display it
                     // standard inputs with no children -- append the appropriate UI element
@@ -1366,9 +1370,8 @@ var XNAT = getObject(XNAT || {});
                 errorHandler(e);
             },
             success: function(data){
-                var inputs = data.inputs;
                 var rootElement = 'scan';
-                launchOneContainer(inputs,rootElement,wrapperId);
+                launchOneContainer(data,rootElement,wrapperId);
             }
         });
     };
