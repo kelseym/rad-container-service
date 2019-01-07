@@ -56,6 +56,9 @@ var XNAT = getObject(XNAT || {});
             }
         });
     }
+    function uniqueArray(value, index, self) {
+        return self.indexOf(value) === index;
+    }
     function getEnabledCommandsUrl(appended){
         appended = isDefined(appended) ? appended : '';
         return rootUrl('/xapi/commands' + appended);
@@ -246,10 +249,33 @@ var XNAT = getObject(XNAT || {});
         ]);
     };
 
+    var configSelect = function(input){
+        var name = input.name,
+            label = input.label,
+            dataProps = {},
+            classes = ['panel-element panel-input'],
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+
+        if (input.childInputs) {
+            classes.push('has-children');
+            dataProps['children'] = input.childInputs.join(',');
+        }
+
+        return XNAT.ui.panel.select.single({
+            name: name,
+            label: label,
+            data: dataProps,
+            attr: attr,
+            className: classes.join(' '),
+            options: input.options
+        }).element;
+    };
+
     var hiddenConfigInput = function(input) {
         var name = input.name || input.label,
             value = input.value,
             dataProps = {},
+            classes = [],
             attr = (input.disabled) ? { 'disabled':'disabled' } : {};
 
         if (input.childInputs) {
@@ -327,6 +353,8 @@ var XNAT = getObject(XNAT || {});
         }
     };
 
+    launcher.errorMessages = [];
+
     launcher.formInputs = function(input) {
         var formPanelElements = [];
 
@@ -373,6 +401,9 @@ var XNAT = getObject(XNAT || {});
                 input.innerLabel = input.innerLabel || input.value;
                 formPanelElements.push(configRadio(input));
                 break;
+            case 'select-one':
+                formPanelElements.push(configSelect(input));
+                break;
             case 'boolean':
                 input.boolean = true;
                 input.outerLabel = input.label;
@@ -388,15 +419,15 @@ var XNAT = getObject(XNAT || {});
 
     };
 
-    launcher.populateForm = function($form, inputList, rootElement){
+    launcher.populateForm = function($form, inputList, inputValues, rootElement){
         // receive $form as a jquery form object
         // receives optional input list, which can define just a subgroup of inputs to render.
         // requires input list and default values to be stored in the XNAT.plugin.containerService.launcher object
         // get input values via JSONpath queries
 
-        inputList = inputList || launcher.inputList;
+        // inputList = inputList || launcher.inputList;
         rootElement = rootElement || false;
-        var inputValues = launcher.inputPresets;
+        inputValues = inputValues || launcher.inputPresets;
 
         function findInput(inputName, $form){
             return $form.find('input[name='+inputName+']') || $form.find('select[name='+inputName+']') || $form.find('textarea[name='+inputName+']');
@@ -436,7 +467,7 @@ var XNAT = getObject(XNAT || {});
                         .val(newValue.value)
                         .parent('.panel-input').find('.element-wrapper').html(newValue.label);
                     break;
-                case 'select' :
+                case 'select-one' :
                     var $select = $form.find('select[name='+input.name+']');
                     if (newValue) {
                         $select.find('option[value='+newValue+']').prop('selected','selected');
@@ -455,14 +486,31 @@ var XNAT = getObject(XNAT || {});
         function renderInput(input, $form){
             var selectedVal,
                 selectedLabel,
-                valueArr = jsonPath(inputValues, "$..[?(@.name=='"+input.name+"')].values[0]");
+                valueArr = jsonPath(inputValues, "$..[?(@.name=='"+input.name+"')].values[*]"),
+                configInput = extend({}, input);
 
-            input.type = (input['user-settable'] || input.name === rootElement) ? input['input-type'] : 'static';
+            configInput.type = (configInput['user-settable'] || configInput.name === rootElement) ? configInput['input-type'] : 'static';
 
-            if (valueArr.length > 1 || !isArray(valueArr)) {
-                // if no values can be set, or more than one possible value can be set, render the input without a value selected
+            if (!isArray(valueArr)) {
+                // if no values can be set, render the input without a value selected
                 selectedVal = '';
                 selectedLabel = '';
+                // if this is a required input, we might have a problem
+                if (configInput.required) {
+                    launcher.errorMessages.push('Error: '+ configInput.label +' is a required field and has no available values. You may not be able to submit this container.');
+                }
+            }
+            else if (valueArr.length > 1) {
+                if (input['input-type'] === "select-one") {
+                    var options = { 'default': { label: 'Select One', attr: { 'selected':'selected'} }};
+                    valueArr.forEach(function(val,i){ options['option-'+i] = val });
+                    configInput.options = options;
+                }
+                else {
+                    // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
+                    selectedVal = '';
+                    selectedLabel = '';
+                }
             }
             else {
                 selectedVal = valueArr[0].value;
@@ -472,7 +520,7 @@ var XNAT = getObject(XNAT || {});
             if (findInput(input.name, $form).length) {
                 // don't render a new input, change the value instead
                 var value;
-                if (input.type === 'static') {
+                if (configInput['input-type'] === 'static') {
                     value = {
                         value: selectedVal,
                         label: selectedLabel
@@ -480,32 +528,53 @@ var XNAT = getObject(XNAT || {});
                 } else {
                     value = selectedVal;
                 }
-                setValue(input,value,$form);
+                setValue(configInput,value,$form);
             }
             else {
                 // render a new input
-                input.value = selectedVal;
-                input.valueLabel = selectedLabel;
-                if (isArray(jsonPath(inputValues, "$.[?(@.name=='"+input.name+"')]..children[*].name"))) {
-                    input.childInputs = jsonPath(inputValues, "$.[?(@.name=='"+input.name+"')]..children[*].name")
-                        .filter(function(value, index, self){ return self.indexOf(value) === index; }); // build an array of the input names of all child inputs. Ensure the array is unique.
+                configInput = extend({
+                    value: selectedVal,
+                    valueLabel: selectedLabel
+                }, configInput); // add value properties without impacting the canonical input list
+
+                if (isArray(jsonPath(inputValues, "$.[?(@.name=='"+configInput.name+"')]..children[*].name"))) {
+                    configInput.childInputs = jsonPath(inputValues, "$.[?(@.name=='"+configInput.name+"')]..children[*].name")
+                        .filter(uniqueArray); // build an array of the input names of all child inputs. Ensure the array is unique.
                 }
-                $form.append(launcher.formInputs(input));
+                $form.append(launcher.formInputs(configInput));
             }
 
 
             // iterate recursively over child inputs
-            if (isArray(input.children) && input.children.length > 0) {
-                input.children.forEach(function(childInput){
+            if (isArray(configInput.children) && configInput.children.length > 0) {
+                configInput.children.forEach(function(childInput){
                     renderInput(childInput, $form);
                 })
             }
         }
-
+        
         inputList.forEach(function(thisInput){
             renderInput(thisInput, $form)
         });
     };
+
+    $(document).on('change','.has-children',function(){
+        if ($(this).data('children')) {
+            // var children = $(this).data('children').split(',');
+            // console.log('Inputs to change: ', children);
+
+            var $form = $(this).parents('form'),
+                input = $(this).prop('name'),
+                selectedVal = $(this).val();
+
+            var children = jsonPath(launcher.inputPresets, "$.[?(@.name=='"+input+"')]..[?(@.value=='"+selectedVal+"')].children[*]");
+
+            children.forEach(function(childVal){
+                var childInputList = jsonPath(launcher.inputList, "$.[?(@.name=='"+childVal.name+"')]");
+                launcher.populateForm($form, childInputList, childVal);
+            })
+        }
+    });
 
 
     /*
@@ -514,10 +583,9 @@ var XNAT = getObject(XNAT || {});
 
     function launchOneContainer(configData,rootElement,wrapperId){
 
-        var inputList = launcher.inputList = configData['input-config'];
+        var workList = configData['input-config'];
+        launcher.inputList = configData['input-config'];
         launcher.inputPresets = configData['input-values'];
-
-        // var inputList = Object.keys(inputs);
 
         var launcherContent = spawn('div.panel',[
             spawn('p','Please specify settings for this container.'),
@@ -528,7 +596,7 @@ var XNAT = getObject(XNAT || {});
             ])
         ]);
 
-        if (inputList.filter(function(input){ return input.name === rootElement }).length > 0) {
+        if (workList.filter(function(input){ return input.name === rootElement }).length > 0) {
             // if the root element is specified in the list of inputs ...
 
 
@@ -538,119 +606,16 @@ var XNAT = getObject(XNAT || {});
                 width: 550,
                 scroll: true,
                 beforeShow: function(obj){
+                    xmodal.loading.open({title: 'Configuring Container Launcher'});
                     var $panel = obj.$modal.find('.panel');
                     var $standardInputContainer = $panel.find('.standard-settings');
                     var $advancedInputContainer = $panel.find('.advanced-settings');
 
-                    launcher.populateForm($panel, inputList, rootElement);
+                    launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
 
-                    // loop through each input and determine how to display it
-                    // standard inputs with no children -- append the appropriate UI element
-                    // standard inputs with children -- append the UI element and the child element(s) in a child element wrapper
-                    // advanced inputs (that aren't children) -- append the UI element to the advanced input container
-
-                    // inputList.forEach(function(thisInput){
-                    //     // var thisInput = inputs[key];
-                    //
-                    //     // thisInput.type = (thisInput['user-settable'] || key === rootElement) ? thisInput['input-type'] : 'static';
-                    //     // thisInput.value = '';
-                    //     // thisInput.valueLabel = '';
-                    //     // var inputElement = launcher.formInputs(thisInput);
-                    //     // if (thisInput.advanced) {
-                    //     //     $advancedInputContainer
-                    //     // } else $standardInputContainer.append(inputElement);
-                    //
-                    //     // if (!thisInput.parent || thisInput.parent === undefined) {
-                    //     //     // child inputs that specify a parent get special treatment
-                    //     //     // thisInput.type = (thisInput['user-settable'] || key === rootElement) ? thisInput.ui.default.type : 'hidden';
-                    //     //     // thisInput.value = thisInput.ui.default.values[0].value || thisInput.value;
-                    //     //     // thisInput.valueLabel = thisInput.ui.default.values[0].label || '';
-                    //     //
-                    //     //     if (thisInput.advanced === undefined || thisInput.advanced !== true) {
-                    //     //         var inputElement = launcher.formInputs(thisInput);
-                    //     //         $standardInputContainer.append(inputElement);
-                    //     //
-                    //     //         if (thisInput.children) {
-                    //     //             // child inputs are listed as an array of input ids
-                    //     //
-                    //     //             var parentInput = thisInput;
-                    //     //             var children = thisInput.children;
-                    //     //
-                    //     //             children.forEach(function(childKey){
-                    //     //
-                    //     //                 var useDefault = true;
-                    //     //                 var childInput = inputs[childKey];
-                    //     //
-                    //     //                 for (var k in inputs[childKey].ui) {
-                    //     //                     // loop through each possible UI instance for all preset values for this child input.
-                    //     //                     // append each child input in a special wrapper
-                    //     //
-                    //     //                     if (parentInput.ui[k] !== undefined) {
-                    //     //                         useDefault = false; // if value-specific definitions are found, don't use the default
-                    //     //
-                    //     //                         if (parentInput.ui[k].values.length === 1) {
-                    //     //                             var classes = ['child-input'];
-                    //     //                             childInput.type = childInput.ui[k].type;
-                    //     //                             childInput.value = childInput.ui[k].values[0].value;
-                    //     //                             childInput.valueLabel = childInput.ui[k].values[0].label;
-                    //     //                             if (k !== parentInput.value) {
-                    //     //                                 // if a preset value has been defined and does not match the default value of its parent input, then hide and disable this possible input.
-                    //     //                                 childInput.disabled = true;
-                    //     //                                 classes.push('hidden');
-                    //     //                             }
-                    //     //
-                    //     //                             $standardInputContainer.append( spawn('div', { className: classes.join(' '), data: { preset: k }}, launcher.formInputs(childInput)) );
-                    //     //                         }
-                    //     //
-                    //     //                         if (parentInput.ui[k].values.length > 1) {
-                    //     //                             // if more than one possible preset value is found for a child input,
-                    //     //                             // disregard the suggested input type and force a user selection
-                    //     //                             // generate a radio input for each possible value
-                    //     //
-                    //     //                             var childInputs = [];
-                    //     //
-                    //     //                             parentInput.ui[k].values.forEach(function(value){
-                    //     //                                 var classes = ['child-input'];
-                    //     //                                 childInput.type = 'radio';
-                    //     //                                 childInput.value = childInput.ui[k].values[0].value;
-                    //     //                                 childInput.valueLabel = childInput.ui[k].values[0].label;
-                    //     //                                 if (k !== parentInput.value) {
-                    //     //                                     // if a preset value has been defined and does not match the default value of its parent input, then hide and disable this possible input.
-                    //     //                                     childInput.disabled = true;
-                    //     //                                     classes.push('hidden');
-                    //     //                                 }
-                    //     //                             });
-                    //     //                         }
-                    //     //                     }
-                    //     //
-                    //     //                     if (useDefault) {
-                    //     //                         // if no value-specific settings are found, use the parent input's default values
-                    //     //                         var childInput = inputs[childKey];
-                    //     //                         var classes = ['child-input'];
-                    //     //                         childInput.type = childInput.ui[k].type;
-                    //     //                         if (childInput.ui[k].values.length) {
-                    //     //                             childInput.value = childInput.ui[k].values[0].value;
-                    //     //                             childInput.valueLabel = childInput.ui[k].values[0].label;
-                    //     //                         } else {
-                    //     //                             childInput.value = childInput.valueLabel = '';
-                    //     //                         }
-                    //     //                         $standardInputContainer.append( spawn('div', { className: classes.join(' '), data: { preset: k }}, launcher.formInputs(childInput)) );
-                    //     //                     }
-                    //     //
-                    //     //                 }
-                    //     //
-                    //     //             });
-                    //     //         }
-                    //     //     }
-                    //     //     if (thisInput.advanced) {
-                    //     //         var advancedInput = launcher.formInputs(thisInput);
-                    //     //         $advancedInputContainer.append(advancedInput);
-                    //     //         $advancedInputContainer.parents('.advanced-settings-container').removeClass('hidden');
-                    //     //     }
-                    //     // }
-                    //
-                    // })
-
+                },
+                afterShow: function(){
+                    xmodal.loading.close();
                 },
                 buttons: [
                     {
