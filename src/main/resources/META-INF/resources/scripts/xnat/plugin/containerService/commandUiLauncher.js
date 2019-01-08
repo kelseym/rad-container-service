@@ -425,9 +425,7 @@ var XNAT = getObject(XNAT || {});
         // requires input list and default values to be stored in the XNAT.plugin.containerService.launcher object
         // get input values via JSONpath queries
 
-        // inputList = inputList || launcher.inputList;
         rootElement = rootElement || false;
-        inputValues = inputValues || launcher.inputPresets;
 
         function findInput(inputName, $form){
             return $form.find('input[name='+inputName+']') || $form.find('select[name='+inputName+']') || $form.find('textarea[name='+inputName+']');
@@ -483,10 +481,11 @@ var XNAT = getObject(XNAT || {});
             }
         }
 
-        function renderInput(input, $form){
+        function renderInput(input, $form, valueArr){
             var selectedVal,
                 selectedLabel,
-                valueArr = jsonPath(inputValues, "$..[?(@.name=='"+input.name+"')].values[*]"),
+                inputValues = launcher.inputPresets,
+                valueArr = valueArr || jsonPath(inputValues, "$..[?(@.name=='"+input.name+"')].values[*]"),
                 configInput = extend({}, input);
 
             configInput.type = (configInput['user-settable'] || configInput.name === rootElement) ? configInput['input-type'] : 'static';
@@ -500,21 +499,26 @@ var XNAT = getObject(XNAT || {});
                     launcher.errorMessages.push('Error: '+ configInput.label +' is a required field and has no available values. You may not be able to submit this container.');
                 }
             }
-            else if (valueArr.length > 1) {
-                if (input['input-type'] === "select-one") {
-                    var options = { 'default': { label: 'Select One', attr: { 'selected':'selected'} }};
-                    valueArr.forEach(function(val,i){ options['option-'+i] = val });
-                    configInput.options = options;
+            else {
+                // HACK HACK HACK -- The top level element may return improperly-formatted JSON from the jsonPath query.
+                if (valueArr[0].values !== undefined) valueArr = valueArr[0].values;
+
+                if (valueArr.length > 1) {
+                    if (input['input-type'] === "select-one") {
+                        var options = { 'default': { label: 'Select One', attr: { 'selected':'selected'} }};
+                        valueArr.forEach(function(val,i){ options['option-'+i] = val });
+                        configInput.options = options;
+                    }
+                    else {
+                        // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
+                        selectedVal = '';
+                        selectedLabel = '';
+                    }
                 }
                 else {
-                    // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
-                    selectedVal = '';
-                    selectedLabel = '';
+                    selectedVal = valueArr[0].value;
+                    selectedLabel = valueArr[0].label || 'N/A';
                 }
-            }
-            else {
-                selectedVal = valueArr[0].value;
-                selectedLabel = valueArr[0].label || 'N/A';
             }
 
             if (findInput(input.name, $form).length) {
@@ -552,9 +556,9 @@ var XNAT = getObject(XNAT || {});
                 })
             }
         }
-        
+
         inputList.forEach(function(thisInput){
-            renderInput(thisInput, $form)
+            renderInput(thisInput, $form, inputValues)
         });
     };
 
@@ -563,15 +567,16 @@ var XNAT = getObject(XNAT || {});
             // var children = $(this).data('children').split(',');
             // console.log('Inputs to change: ', children);
 
-            var $form = $(this).parents('form'),
+            var $form = $(this).parents('.panel'),
                 input = $(this).prop('name'),
                 selectedVal = $(this).val();
 
-            var children = jsonPath(launcher.inputPresets, "$.[?(@.name=='"+input+"')]..[?(@.value=='"+selectedVal+"')].children[*]");
+            var children = jsonPath(launcher.inputPresets, "$.[?(@.name=='"+input+"')]..[?(@.value=='"+selectedVal+"')].children[*]")
+                .filter(function(value, index, self) { return self.indexOf(value) === index; });
 
             children.forEach(function(childVal){
-                var childInputList = jsonPath(launcher.inputList, "$.[?(@.name=='"+childVal.name+"')]");
-                launcher.populateForm($form, childInputList, childVal);
+                var childInputList = jsonPath(launcher.inputList, "$..children[?(@.name=='"+childVal.name+"')]");
+                launcher.populateForm($form, childInputList, childVal.values);
             })
         }
     });
