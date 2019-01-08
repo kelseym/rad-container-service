@@ -386,6 +386,16 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             final List<ResolvedCommandMount> resolvedCommandMounts = resolveCommandMounts(resolvedInputTrees, resolvedInputValuesByReplacementKey);
             final List<ResolvedCommand> resolvedWrapupCommands = resolveWrapupCommands(resolvedCommandOutputs, resolvedCommandMounts);
 
+            // Populate setup & wrap-up commands with environment variables from parent command
+            List<ResolvedCommand> populatedSetupCommands = new ArrayList<>();
+            List<ResolvedCommand> populatedWrapupCommands = new ArrayList<>();
+            for(ResolvedCommand setup : resolvedSetupCommands){
+                populatedSetupCommands.add(setup.toBuilder().addEnvironmentVariables(resolvedEnvironmentVariables).build());
+            }
+            for(ResolvedCommand wrapup : resolvedWrapupCommands){
+                populatedWrapupCommands.add(wrapup.toBuilder().addEnvironmentVariables(resolvedEnvironmentVariables).build());
+            }
+
             final ResolvedCommand resolvedCommand = ResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
                     .wrapperName(commandWrapper.name())
@@ -404,8 +414,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     .workingDirectory(resolvedWorkingDirectory)
                     .ports(resolvedPorts)
                     .mounts(resolvedCommandMounts)
-                    .setupCommands(resolvedSetupCommands)
-                    .wrapupCommands(resolvedWrapupCommands)
+                    .setupCommands(populatedSetupCommands)
+                    .wrapupCommands(populatedWrapupCommands)
                     .reserveMemory(command.reserveMemory())
                     .limitMemory(command.limitMemory())
                     .limitCpu(command.limitCpu())
