@@ -496,7 +496,7 @@ var XNAT = getObject(XNAT || {});
                 selectedLabel = '';
                 // if this is a required input, we might have a problem
                 if (configInput.required) {
-                    launcher.errorMessages.push('Error: '+ configInput.label +' is a required field and has no available values. You may not be able to submit this container.');
+                    launcher.errorMessages.push('Error: <strong>'+ configInput.label +'</strong> is a required field and has no available values. You may not be able to submit this container.');
                 }
             }
             else {
@@ -629,8 +629,14 @@ var XNAT = getObject(XNAT || {});
                     launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
 
                 },
-                afterShow: function(){
+                afterShow: function(obj){
                     xmodal.loading.close();
+                    if (isArray(launcher.errorMessages) && launcher.errorMessages.length) {
+                        var $panel = obj.$modal.find('.panel');
+                        launcher.errorMessages.forEach(function(msg){
+                            $panel.prepend(spawn('div.warning',{style: { 'margin-bottom': '1em' }},msg));
+                        });
+                    }
                 },
                 buttons: [
                     {
@@ -859,6 +865,15 @@ var XNAT = getObject(XNAT || {});
 
                     });
 
+                },
+                afterShow: function(obj){
+                    xmodal.loading.close();
+                    if (isArray(launcher.errorMessages) && launcher.errorMessages.length) {
+                        var $panel = obj.$modal.find('.panel');
+                        launcher.errorMessages.forEach(function(msg){
+                            $panel.prepend(spawn('div.warning',{style: { 'margin-bottom': '1em' }},msg));
+                        });
+                    }
                 },
                 buttons: [
                     {
@@ -1304,7 +1319,7 @@ var XNAT = getObject(XNAT || {});
 
         switch(launcher) {
             case 'select-scan':
-                XNAT.dialog.message({ title: 'Method Not Supported', content: 'Sorry, the "select-scan" method of launching multiple container is no longer supported. Use the "multiple-scans" method instead.' }); 
+                XNAT.dialog.message({ title: 'Method Not Supported', content: 'Sorry, the "select-scan" method of launching multiple container is no longer supported. Use the "multiple-scans" method instead.' });
                 break;
             case 'single-scan':
                 var rootElementPath = obj.uri;
