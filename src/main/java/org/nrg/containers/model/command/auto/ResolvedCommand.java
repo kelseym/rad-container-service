@@ -300,9 +300,11 @@ public abstract class ResolvedCommand {
     public abstract static class PartiallyResolvedCommand {
         public abstract Long wrapperId();
         public abstract String wrapperName();
+        @Nullable public abstract String wrapperLabel();
         @Nullable public abstract String wrapperDescription();
         public abstract Long commandId();
         public abstract String commandName();
+        @Nullable public abstract String commandLabel();
         @Nullable public abstract String commandDescription();
         public abstract String image();
         public abstract String type();
@@ -323,9 +325,11 @@ public abstract class ResolvedCommand {
         public static abstract class Builder {
             public abstract Builder wrapperId(Long wrapperId);
             public abstract Builder wrapperName(String wrapperDescription);
+            public abstract Builder wrapperLabel(String wrapperLabel);
             public abstract Builder wrapperDescription(String wrapperDescription);
             public abstract Builder commandId(Long commandId);
             public abstract Builder commandName(String commandDescription);
+            public abstract Builder commandLabel(String commandLabel);
             public abstract Builder commandDescription(String commandDescription);
             public abstract Builder image(String image);
             public abstract Builder type(String type);

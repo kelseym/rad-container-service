@@ -7,12 +7,14 @@ Not yet released.
 ### Features
 
 * [CS-29][] Enable output handlers to have type "`Assessor`". If a command output points to an assessor XML, the output handler can now upload that XML and create the assessor object in XNAT.
+* [CS-549][] Refactor the container launch API output to support complex parent-child-grandchild relationships between inputs, then adjust the UI to use the new API.
 
 ### Bugfixes
 
 * [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
 
 [CS-29]: https://issues.xnat.org/browse/CS-29
+[CS-549]: https://issues.xnat.org/browse/CS-549
 [XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
 
 ## 1.6.1
@@ -82,6 +84,7 @@ Not yet released.
 * Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
 * [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
 * [CS-531][] CommandWrapperEntity derivedInputs, externalInputs, and outputHandlers and CommandEntity inputs, outputs, wrappers, and mounts sorted by primary table id.
+* Fix `null` label on `XnatFile` objects. Now label is the same as name.
 
 ### Other
 
