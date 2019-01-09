@@ -335,11 +335,8 @@ public abstract class LaunchUi {
                         final String inputName = rootNode.input().name();
 
                         // We only need to populate the input relationship tree once.
-                        // A good way to know whether we've not done it before is if our input
-                        // min and max maps are empty.
-                        if (maxInputValues.isEmpty() && minInputValues.isEmpty()) {
+                        if (listOfValueTrees.isEmpty()) {
                             findMaxAndMinInputValuesForTree(rootNode, maxInputValues, minInputValues);
-
                             if (log.isDebugEnabled()) {
                                 log.debug("ROOT " + inputName + " - Populating input relationship tree.");
                             }
