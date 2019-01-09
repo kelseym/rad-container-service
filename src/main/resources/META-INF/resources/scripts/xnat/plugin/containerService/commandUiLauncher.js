@@ -558,7 +558,17 @@ var XNAT = getObject(XNAT || {});
         }
 
         inputList.forEach(function(thisInput){
-            renderInput(thisInput, $form, inputValues)
+            // normalize format of values, only submit those pertinent to this input
+            var valueArr;
+            if (jsonPath(inputValues, "$..[?(@.name=='"+thisInput.name+"')]")) {
+                // inputValues = inputValues.filter(function(valueSet){ return valueSet.name === thisInput.name })[0].values;
+                valueArr = jsonPath(inputValues, "$..[?(@.name=='"+thisInput.name+"')].values[*]");
+            }
+            else {
+                valueArr = inputValues;
+            }
+
+            renderInput(thisInput, $form, valueArr);
         });
     };
 
@@ -686,9 +696,9 @@ var XNAT = getObject(XNAT || {});
                                             } else {
                                                 messageContent = spawn('p',{ style: { 'word-wrap': 'break-word'}}, 'Container ID: '+data['container-id']);
                                             }
-										}else {
-											messageContent = spawn('p', data.message);
-										}
+                                        }else {
+                                            messageContent = spawn('p', data.message);
+                                        }
 
                                         XNAT.ui.dialog.open({
                                             title: 'Container Launch <span style="text-transform: capitalize">'+data.status+'</span>',
@@ -767,7 +777,7 @@ var XNAT = getObject(XNAT || {});
         }
     }
 
-    function launchManyContainers(inputArray,rootElement,wrapperId,targets,project){
+    function launchManyContainers(configData,rootElement,wrapperId,targets,project){
         /* In a bulk launcher, a list of input objects will be passed to the launcher.
          * The launcher should consider the target elements to be static
          * (i.e. once selected and sent to the bulk launcher, the user shouldn't be re-selecting them)
@@ -779,14 +789,15 @@ var XNAT = getObject(XNAT || {});
 
         project = project || false;
 
-        var inputList = Object.keys(inputArray[0]);
+        var workList = configData['input-config'];
+        launcher.inputList = configData['input-config'];
 
         var launcherContent = spawn('div.panel',[
             spawn('p','Please specify settings for this container.'),
             spawn('div.target-list')
         ]);
 
-        if ( inputList.indexOf(rootElement) >=0 ) { // if the specified root element matches an input parameter, we can proceed
+        if ( jsonPath(workList, "$..name").indexOf(rootElement) >=0 ) { // if the specified root element matches an input parameter, we can proceed
 
             XNAT.ui.dialog.open({
                 title: 'Set Container Launch Values',
@@ -810,8 +821,10 @@ var XNAT = getObject(XNAT || {});
                     // standard inputs with children -- append the UI element and the child element(s) in a child element wrapper
                     // advanced inputs (that aren't children) -- append the UI element to the advanced input container
 
-                    inputArray.forEach(function(inputs,k){
-                        // iterate through each list of inputs.
+                    targets.forEach(function(target,k){
+                        // iterate through each list of targets.
+                        // reset the stored preset values for each iteration
+                        launcher.inputPresets = configData['input-values'][k];
 
                         if (k===0) {
                             // on first iteration, create all user-settable inputs
@@ -827,140 +840,79 @@ var XNAT = getObject(XNAT || {});
                             var $standardInputContainer = $panel.find('.standard-settings'),
                                 $advancedInputContainer = $panel.find('.advanced-settings');
 
-                            for (var i in inputs) {
-                                // child inputs that specify a parent get special treatment
-                                if ((!inputs[i].parent || inputs[i].parent === undefined)) {
-                                    // don't display the root element input again ... it has already been listed.
-                                    inputs[i].type = (!inputs[i]['user-settable'] || i === rootElement) ? 'hidden' : inputs[i].ui.default.type;
-                                    inputs[i].value = inputs[i].ui.default.values[0].value || inputs[i].value;
-                                    inputs[i].valueLabel = inputs[i].ui.default.values[0].label || '';
+                            // hide the root element since it has been displayed in the target list
+                            workList.forEach(function(input){ if (input.name === rootElement) input['input-type'] = 'hidden' });
 
-                                    if (inputs[i].advanced === undefined || inputs[i].advanced !== true) {
-                                        var inputElement = launcher.formInputs(inputs[i]);
-                                        $standardInputContainer.append(inputElement);
-
-                                        if (inputs[i].children) {
-                                            // child inputs are listed as an array of input ids
-
-                                            var parentInput = inputs[i];
-                                            var children = inputs[i].children;
-
-                                            children.forEach(function(child){
-
-                                                var useDefault = true;
-
-                                                for (var k in inputs[child].ui) {
-                                                    // loop through each possible UI instance for all preset values for this child input.
-                                                    // append each child input in a special wrapper
-
-                                                    if (parentInput.ui[k] !== undefined) {
-                                                        useDefault = false; // if value-specific definitions are found, don't use the default
-
-                                                        var childInput = inputs[child];
-                                                        var classes = ['child-input'];
-                                                        childInput.type = 'hidden';
-                                                        childInput.value = childInput.ui[k].values[0].value;
-                                                        childInput.valueLabel = childInput.ui[k].values[0].label;
-                                                        if (k !== parentInput.value) {
-                                                            // if a preset value has been defined and does not match the default value of its parent input, then hide and disable this possible input.
-                                                            childInput.disabled = true;
-                                                            classes.push('hidden');
-                                                        }
-                                                        $standardInputContainer.append( spawn('div', { className: classes.join(' '), data: { preset: k }}, launcher.formInputs(childInput)) );
-                                                    }
-
-                                                    if (useDefault) {
-                                                        // if no value-specific settings are found, use the parent input's default values
-                                                        var childInput = inputs[child];
-                                                        var classes = ['child-input'];
-                                                        childInput.type = 'hidden';
-                                                        if (childInput.ui[k].values.length) {
-                                                            childInput.value = childInput.ui[k].values[0].value;
-                                                            childInput.valueLabel = childInput.ui[k].values[0].label;
-                                                        } else {
-                                                            childInput.value = childInput.valueLabel = '';
-                                                        }
-                                                        $standardInputContainer.append( spawn('div', { className: classes.join(' '), data: { preset: k }}, launcher.formInputs(childInput)) );
-                                                    }
-
-                                                }
-
-                                            });
-                                        }
-                                    }
-                                    if (inputs[i].advanced) {
-                                        var advancedInput = launcher.formInputs(inputs[i]);
-                                        $advancedInputContainer.append(advancedInput);
-                                        $advancedInputContainer.parents('.advanced-settings-container').removeClass('hidden');
-                                    }
-                                }
-
-                            }
-
+                            launcher.populateForm($standardInputContainer, workList, launcher.inputPresets, rootElement);
 
                         } else {
                             // on 2nd - nth inputs, simply create hidden inputs whose values will be toggled by user changes to first set of inputs
-                            $panel.append(spawn('div',{ className: 'bulk-controls bulk-inputs inputs-'+k }));
+                            $panel.append(spawn('div',{ className: 'hidden bulk-controls bulk-inputs inputs-'+k }));
                             var $bulkInputContainer = $panel.find('.inputs-'+k);
 
-                            for (var i in inputs) {
-                                if (!inputs[i].parent || inputs[i].parent === undefined) {
-                                    // child inputs that specify a parent get special treatment
-                                    inputs[i].type = 'hidden';
-                                    inputs[i].value = inputs[i].ui.default.values[0].value || inputs[i].value;
+                            var bulkInputs = [].concat(workList);
+                            bulkInputs.forEach(function(bulkInput){ bulkInput['input-type'] = 'hidden' });
 
-                                    // handle non-standard boolean input values in bulk hidden inputs
-                                    if (inputs[i].ui.default.type === 'boolean') {
-                                        inputs[i].value = booleanEval(inputs[i].value)
-                                    }
+                            launcher.populateForm($bulkInputContainer, bulkInputs, launcher.inputPresets, rootElement);
 
-                                    var inputElement = launcher.formInputs(inputs[i]);
-                                    $bulkInputContainer.append(inputElement);
-
-                                    if (inputs[i].children) {
-                                        // child inputs are listed as an array of input ids
-
-                                        var parentInput = inputs[i];
-                                        var children = inputs[i].children;
-
-                                        children.forEach(function(child){
-
-                                            var useDefault = true;
-
-                                            for (var k in inputs[child].ui) {
-                                                // loop through each possible UI instance for all preset values for this child input.
-                                                // append each child input in a special wrapper
-
-                                                if (parentInput.ui[k] !== undefined) {
-                                                    useDefault = false; // if value-specific definitions are found, don't use the default
-
-                                                    var childInput = inputs[child];
-                                                    childInput.type = 'hidden';
-                                                    childInput.value = childInput.ui[k].values[0].value;
-                                                    if (k !== parentInput.value) {
-                                                        // if a preset value has been defined and does not match the default value of its parent input, then hide and disable this possible input.
-                                                        childInput.disabled = true;
-                                                    }
-                                                    $bulkInputContainer.append( launcher.formInputs(childInput) );
-                                                }
-
-                                                if (useDefault) {
-                                                    // if no value-specific settings are found, use the parent input's default values
-                                                    var childInput = inputs[child];
-                                                    childInput.type = 'hidden';
-                                                    if (childInput.ui[k].values.length) {
-                                                        childInput.value = childInput.ui[k].values[0].value;
-                                                    } else {
-                                                        childInput.value = '';
-                                                    }
-                                                    $bulkInputContainer.append( launcher.formInputs(childInput) );
-                                                }
-                                            }
-                                        });
-                                    }
-                                }
-
-                            }
+                            // for (var i in inputs) {
+                            //     if (!inputs[i].parent || inputs[i].parent === undefined) {
+                            //         // child inputs that specify a parent get special treatment
+                            //         inputs[i].type = 'hidden';
+                            //         inputs[i].value = inputs[i].ui.default.values[0].value || inputs[i].value;
+                            //
+                            //         // handle non-standard boolean input values in bulk hidden inputs
+                            //         if (inputs[i].ui.default.type === 'boolean') {
+                            //             inputs[i].value = booleanEval(inputs[i].value)
+                            //         }
+                            //
+                            //         var inputElement = launcher.formInputs(inputs[i]);
+                            //         $bulkInputContainer.append(inputElement);
+                            //
+                            //         if (inputs[i].children) {
+                            //             // child inputs are listed as an array of input ids
+                            //
+                            //             var parentInput = inputs[i];
+                            //             var children = inputs[i].children;
+                            //
+                            //             children.forEach(function(child){
+                            //
+                            //                 var useDefault = true;
+                            //
+                            //                 for (var k in inputs[child].ui) {
+                            //                     // loop through each possible UI instance for all preset values for this child input.
+                            //                     // append each child input in a special wrapper
+                            //
+                            //                     if (parentInput.ui[k] !== undefined) {
+                            //                         useDefault = false; // if value-specific definitions are found, don't use the default
+                            //
+                            //                         var childInput = inputs[child];
+                            //                         childInput.type = 'hidden';
+                            //                         childInput.value = childInput.ui[k].values[0].value;
+                            //                         if (k !== parentInput.value) {
+                            //                             // if a preset value has been defined and does not match the default value of its parent input, then hide and disable this possible input.
+                            //                             childInput.disabled = true;
+                            //                         }
+                            //                         $bulkInputContainer.append( launcher.formInputs(childInput) );
+                            //                     }
+                            //
+                            //                     if (useDefault) {
+                            //                         // if no value-specific settings are found, use the parent input's default values
+                            //                         var childInput = inputs[child];
+                            //                         childInput.type = 'hidden';
+                            //                         if (childInput.ui[k].values.length) {
+                            //                             childInput.value = childInput.ui[k].values[0].value;
+                            //                         } else {
+                            //                             childInput.value = '';
+                            //                         }
+                            //                         $bulkInputContainer.append( launcher.formInputs(childInput) );
+                            //                     }
+                            //                 }
+                            //             });
+                            //         }
+                            //     }
+                            //
+                            // }
 
                         }
 
@@ -1047,14 +999,14 @@ var XNAT = getObject(XNAT || {});
                                             messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Successful Container Launches') );
 
                                             data.successes.forEach(function(success){
-												if (success['type'] === 'service') {
-													messageContent.push( spawn('p',[spawn('strong','Service ID: '),spawn('span',success['service-id']) ]));
-												} else {
-													messageContent.push( spawn('p',[
-														spawn('strong','Container ID: '),
-														spawn('span',success['container-id'])
-													]) );
-												}
+                                                if (success['type'] === 'service') {
+                                                    messageContent.push( spawn('p',[spawn('strong','Service ID: '),spawn('span',success['service-id']) ]));
+                                                } else {
+                                                    messageContent.push( spawn('p',[
+                                                        spawn('strong','Container ID: '),
+                                                        spawn('span',success['container-id'])
+                                                    ]) );
+                                                }
                                                 messageContent.push( spawn('div',prettifyJSON(success.params)) );
                                             });
                                         }
@@ -1126,10 +1078,6 @@ var XNAT = getObject(XNAT || {});
                                 });
                                 return false;
                             }
-
-
-
-
                         }
                     },
                     {
@@ -1159,6 +1107,8 @@ var XNAT = getObject(XNAT || {});
             $('.bulk-controls').find('input[name='+name+']').val(changedVal);
         }
     });
+
+    /* ---- Launcher Types ---- */
 
     launcher.defaultLauncher = function(wrapperId,rootElement,rootElementValue){
         rootElementValue = rootElementValue || XNAT.data.context.ID; // if no value is provided, assume that the current page context provides the value.
@@ -1371,8 +1321,7 @@ var XNAT = getObject(XNAT || {});
             },
             success: function(data){
                 xmodal.loading.close();
-                var inputs = data.inputs;
-                launchManyContainers(inputs,rootElement,wrapperId,targets,project);
+                launchManyContainers(data,rootElement,wrapperId,targets,project);
             }
         });
     };
