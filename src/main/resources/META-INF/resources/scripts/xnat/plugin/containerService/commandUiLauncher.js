@@ -252,7 +252,7 @@ var XNAT = getObject(XNAT || {});
     var configSelect = function(input){
         var name = input.name,
             label = input.label,
-            dataProps = {},
+            dataProps = input.dataProps || {},
             classes = ['panel-element panel-input'],
             attr = (input.disabled) ? { 'disabled':'disabled'} : {};
 
@@ -428,7 +428,7 @@ var XNAT = getObject(XNAT || {});
         rootElement = rootElement || false;
 
         function findInput(inputName, $form){
-            return $form.find('input[name='+inputName+']') || $form.find('select[name='+inputName+']') || $form.find('textarea[name='+inputName+']');
+            return $form.find('input[name='+inputName+']').length || $form.find('select[name='+inputName+']').length || $form.find('textarea[name='+inputName+']').length;
         }
         function setValue(input, newValue, $form){
             newValue = newValue || '';
@@ -500,6 +500,8 @@ var XNAT = getObject(XNAT || {});
                 }
             }
             else {
+                valueArr = valueArr.filter(uniqueArray);
+
                 // HACK HACK HACK -- The top level element may return improperly-formatted JSON from the jsonPath query.
                 if (valueArr[0].values !== undefined) valueArr = valueArr[0].values;
 
@@ -508,6 +510,8 @@ var XNAT = getObject(XNAT || {});
                         var options = { 'default': { label: 'Select One', attr: { 'selected':'selected'} }};
                         valueArr.forEach(function(val,i){ options['option-'+i] = val });
                         configInput.options = options;
+
+                        configInput.dataProps = { 'childValues': JSON.stringify(valueArr) };
                     }
                     else {
                         // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
@@ -521,17 +525,38 @@ var XNAT = getObject(XNAT || {});
                 }
             }
 
-            if (findInput(input.name, $form).length) {
+            if (findInput(input.name, $form)) {
                 // don't render a new input, change the value instead
                 var value;
-                if (configInput['input-type'] === 'static') {
-                    value = {
-                        value: selectedVal,
-                        label: selectedLabel
-                    };
-                } else {
-                    value = selectedVal;
+                switch(configInput['input-type']){
+                    case 'static':
+                        value = {
+                            value: selectedVal,
+                            label: selectedLabel
+                        };
+                        break;
+                    case 'select-one':
+                        // re-render select menu to reflect updated options
+                        var thisSelect = $form.find('select[name='+configInput.name+']');
+                        thisSelect.empty();
+                        for (var opt in configInput.options){
+                            var optHtml = '<option ';
+                            optHtml += (configInput.options[opt]) ? 'value = "'+configInput.options[opt].value+'"' : '';
+                            if (configInput.options[opt].attr) {
+                                for (var attr in configInput.options[opt].attr) { optHtml += ' '+attr+'="'+configInput.options[opt].attr[attr]+'"'; }
+                            }
+                            optHtml += '>'+configInput.options[opt].label+'</option>';
+                            thisSelect.append(optHtml);
+                        }
+
+                        // also update its child value data object
+                        thisSelect.data('childValues',JSON.stringify(valueArr));
+                        break;
+                    default:
+                        value = selectedVal;
+                        break;
                 }
+
                 setValue(configInput,value,$form);
             }
             else {
@@ -541,8 +566,8 @@ var XNAT = getObject(XNAT || {});
                     valueLabel: selectedLabel
                 }, configInput); // add value properties without impacting the canonical input list
 
-                if (isArray(jsonPath(inputValues, "$.[?(@.name=='"+configInput.name+"')]..children[*].name"))) {
-                    configInput.childInputs = jsonPath(inputValues, "$.[?(@.name=='"+configInput.name+"')]..children[*].name")
+                if (isArray(jsonPath(valueArr, "$..children[*].name"))) {
+                    configInput.childInputs = jsonPath(valueArr, "$..children[*].name")
                         .filter(uniqueArray); // build an array of the input names of all child inputs. Ensure the array is unique.
                 }
                 $form.append(launcher.formInputs(configInput));
@@ -552,7 +577,12 @@ var XNAT = getObject(XNAT || {});
             // iterate recursively over child inputs
             if (isArray(configInput.children) && configInput.children.length > 0) {
                 configInput.children.forEach(function(childInput){
-                    renderInput(childInput, $form);
+                    var childValues = jsonPath(valueArr,"$..[?(@.name == '"+childInput.name+"')].values[*]");
+                    if (childValues && childValues.length) {
+                        renderInput(childInput, $form, childValues);
+                    } else {
+                        renderInput(childInput, $form);
+                    }
                 })
             }
         }
@@ -579,10 +609,19 @@ var XNAT = getObject(XNAT || {});
 
             var $form = $(this).parents('.panel'),
                 input = $(this).prop('name'),
-                selectedVal = $(this).val();
+                selectedVal = $(this).val(),
+                children;
 
-            var children = jsonPath(launcher.inputPresets, "$.[?(@.name=='"+input+"')]..[?(@.value=='"+selectedVal+"')].children[*]")
-                .filter(function(value, index, self) { return self.indexOf(value) === index; });
+            if ($(this).data('childValues')) {
+                var valueObj = $(this).data('childValues');
+                valueObj = (typeof valueObj === "string") ? JSON.parse(valueObj) : valueObj;
+                children = jsonPath(valueObj, "$..[?(@.value=='"+selectedVal+"')].children[*]")
+                    .filter(function(value, index, self) { return self.indexOf(value) === index; });
+            }
+            else {
+                children = jsonPath(launcher.inputPresets, "$.[?(@.name=='"+input+"')]..[?(@.value=='"+selectedVal+"')].children[*]")
+                    .filter(function(value, index, self) { return self.indexOf(value) === index; });
+            }
 
             children.forEach(function(childVal){
                 var childInputList = jsonPath(launcher.inputList, "$..children[?(@.name=='"+childVal.name+"')]");
@@ -621,6 +660,7 @@ var XNAT = getObject(XNAT || {});
                 width: 550,
                 scroll: true,
                 beforeShow: function(obj){
+                    launcher.errorMessages = [];
                     xmodal.loading.open({title: 'Configuring Container Launcher'});
                     var $panel = obj.$modal.find('.panel');
                     var $standardInputContainer = $panel.find('.standard-settings');
@@ -811,6 +851,8 @@ var XNAT = getObject(XNAT || {});
                 width: 550,
                 scroll: true,
                 beforeShow: function(obj){
+                    launcher.errorMessages = [];
+
                     var $panel = obj.$modal.find('.panel'),
                         $targetListContainer = $panel.find('.target-list');
 
