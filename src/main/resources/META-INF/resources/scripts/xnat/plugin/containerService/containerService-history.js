@@ -318,7 +318,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 command: {
                     label: 'Command',
                     filter: true,
-                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word' }},
+                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     apply: function () {
                         var wrapper = XNAT.plugin.containerService.wrapperList[this['wrapper-id']];
                         var label = (wrapper) ?
@@ -344,7 +344,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 },
                 ROOTELEMENT: {
                     label: 'Root Element',
-                    th: {style: { width: '180px' }},
+                    td: { style: { 'max-width': '145px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     filter: true,
                     apply: function(){
                         var rootElements = this.inputs.filter(function(input){ if (input.type === "wrapper-external") return input });
