@@ -7,6 +7,7 @@ Not yet released.
 ### Features
 
 * [CS-29][] Enable output handlers to have type "`Assessor`". If a command output points to an assessor XML, the output handler can now upload that XML and create the assessor object in XNAT.
+* [CS-547][] Replacement keys in Setup and Wrapup command line strings are now resolved with parent container input values.
 * [CS-549][] Refactor the container launch API output to support complex parent-child-grandchild relationships between inputs, then adjust the UI to use the new API.
 
 ### Bugfixes

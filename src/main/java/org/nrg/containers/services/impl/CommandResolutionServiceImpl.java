@@ -392,10 +392,18 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             List<ResolvedCommand> populatedSetupCommands = new ArrayList<>();
             List<ResolvedCommand> populatedWrapupCommands = new ArrayList<>();
             for(ResolvedCommand setup : resolvedSetupCommands){
-                populatedSetupCommands.add(setup.toBuilder().addEnvironmentVariables(resolvedEnvironmentVariables).build());
+                populatedSetupCommands.add(
+                        setup.toBuilder()
+                             .addEnvironmentVariables(resolvedEnvironmentVariables)
+                             .commandLine(resolveCommandLine(resolvedInputTrees, setup.commandLine()))
+                             .build());
             }
             for(ResolvedCommand wrapup : resolvedWrapupCommands){
-                populatedWrapupCommands.add(wrapup.toBuilder().addEnvironmentVariables(resolvedEnvironmentVariables).build());
+                populatedWrapupCommands.add(
+                        wrapup.toBuilder()
+                              .addEnvironmentVariables(resolvedEnvironmentVariables)
+                              .commandLine(resolveCommandLine(resolvedInputTrees, wrapup.commandLine()))
+                              .build());
             }
 
             final ResolvedCommand resolvedCommand = ResolvedCommand.builder()
@@ -1827,7 +1835,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private String resolveCommandLine(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees)
                 throws CommandResolutionException {
-            log.info("Resolving command-line string.");
+            return resolveCommandLine(resolvedInputTrees, command.commandLine());
+        }
+
+        @Nonnull
+        private String resolveCommandLine(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees, String commandLine)
+                throws CommandResolutionException {
+            log.info("Resolving command-line string: ", commandLine);
 
             // Look through the input tree, and find any command inputs that have uniquely resolved values
             final Map<String, String> resolvedInputCommandLineValuesByReplacementKey = Maps.newHashMap();
@@ -1839,7 +1853,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
             // Resolve the command-line string using the resolved command-line values
             log.debug("Using resolved command-line values to resolve command-line template string.");
-            final String resolvedCommandLine = resolveTemplate(command.commandLine(), resolvedInputCommandLineValuesByReplacementKey);
+            final String resolvedCommandLine = resolveTemplate(commandLine, resolvedInputCommandLineValuesByReplacementKey);
 
             log.info("Done resolving command-line string.");
             log.debug("Command-line string: {}", resolvedCommandLine);
