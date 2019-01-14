@@ -20,6 +20,7 @@ import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.exceptions.NrgRuntimeException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
+import org.nrg.xapi.rest.ProjectId;
 import org.nrg.xapi.rest.XapiRequestMapping;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.helpers.Permissions;
@@ -221,7 +222,7 @@ public class CommandRestApi extends AbstractXapiRestController {
     @XapiRequestMapping(value = {"/projects/{project}/commands/available"}, params = {"xsiType"}, method = GET, restrictTo = Read)
     @ApiOperation(value = "Get Commands available in given project context and XSIType")
     @ResponseBody
-    public List<CommandSummaryForContext> availableCommands2(final @PathVariable String project,
+    public List<CommandSummaryForContext> availableCommands2(final @PathVariable @ProjectId String project,
                                                              final @RequestParam String xsiType)
             throws ElementNotFoundException {
         final UserI userI = XDAT.getUserDetails();

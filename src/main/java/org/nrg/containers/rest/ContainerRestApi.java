@@ -15,6 +15,7 @@ import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xapi.exceptions.InsufficientPrivilegesException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
+import org.nrg.xapi.rest.ProjectId;
 import org.nrg.xapi.rest.XapiRequestMapping;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
@@ -83,7 +84,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
     @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Owner)
     @ApiOperation(value = "Get all Containers by project")
     @ResponseBody
-    public List<Container> getAll(final @PathVariable String project,
+    public List<Container> getAll(final @PathVariable @ProjectId String project,
                                   final @RequestParam(required = false) Boolean nonfinalized) {
         return Lists.transform(containerService.getAll(nonfinalized, project), new Function<Container, Container>() {
             @Override
