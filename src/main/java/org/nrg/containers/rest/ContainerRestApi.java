@@ -44,7 +44,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
-import static org.nrg.xdat.security.helpers.AccessLevel.Owner;
+import static org.nrg.xdat.security.helpers.AccessLevel.Delete;
 import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
@@ -81,7 +81,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Owner)
+    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Delete)
     @ApiOperation(value = "Get all Containers by project")
     @ResponseBody
     public List<Container> getAll(final @PathVariable @ProjectId String project,
