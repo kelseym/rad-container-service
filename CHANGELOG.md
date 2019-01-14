@@ -7,36 +7,28 @@ Not yet released.
 ### Features
 
 * [CS-29][] Enable output handlers to have type "`Assessor`". If a command output points to an assessor XML, the output handler can now upload that XML and create the assessor object in XNAT.
+* [CS-542][] Add `"container-user"` to Docker Server settings. This allows you to specify the user within the container as whom the command should be run. If you specify nothing, the process within the container is run as root or whatever user settings are defined on the image (which is unchanged from the current behavior).
+* [CS-543][] Add support for setting container user as `"containerUser=username"` in prefs-init.ini config file. This value is only used when no other server settings exist in the database, such as initial deployment. 
+* [CS-545][] Project owners can now view project-specific Container History tables in the Project Settings UI.
 * [CS-547][] Replacement keys in Setup and Wrapup command line strings are now resolved with parent container input values.
 * [CS-549][] Refactor the container launch API output to support complex parent-child-grandchild relationships between inputs, then adjust the UI to use the new API.
 
 ### Bugfixes
 
 * [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
-
-[CS-29]: https://issues.xnat.org/browse/CS-29
-[CS-549]: https://issues.xnat.org/browse/CS-549
-[XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
-
-## 1.6.1
-
-Not yet released.
-
-### Features
-
-* [CS-542][] Add `"container-user"` to Docker Server settings. This allows you to specify the user within the container as whom the command should be run. If you specify nothing, the process within the container is run as root or whatever user settings are defined on the image (which is unchanged from the current behavior).
-* [CS-543][] Add support for setting container user as `"containerUser=username"` in prefs-init.ini config file. This value is only used when no other server settings exist in the database, such as initial deployment. 
-* [CS-547][] Setup and wrapup container environment variables are now populated with resolved values from parent command. 
-
-### Bugfixes
-
 * [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
 * [CS-546][] Fixed Assessor as Command Input functionality.
 
+[CS-29]: https://issues.xnat.org/browse/CS-29
+[XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
 [CS-541]: https://issues.xnat.org/browse/CS-541
 [CS-542]: https://issues.xnat.org/browse/CS-542
 [CS-543]: https://issues.xnat.org/browse/CS-543
+[CS-545]: https://issues.xnat.org/browse/CS-545
 [CS-546]: https://issues.xnat.org/browse/CS-546
+[CS-547]: https://issues.xnat.org/browse/CS-547
+[CS-549]: https://issues.xnat.org/browse/CS-549
+
  
 ## 1.6.0
 
