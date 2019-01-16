@@ -227,8 +227,8 @@ task(type: SwaggerTask, 'swagger') {
                             version: "${version}",
                             description: 'XAPI endpoints for the XNAT Container Service',
                             contact: new Contact(
-                                    email: 'jflavin@wustl.edu',
-                                    name: 'John Flavin'
+                                    email: 'kelseym@wustl.edu',
+                                    name: 'Matt Kelsey'
                             ),
                             license: new License(
                                     url: 'https://github.com/NrgXnat/container-service/blob/master/LICENSE.md',

@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.framework.annotations.XapiRestController;
@@ -44,6 +45,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
+import static org.nrg.xdat.security.helpers.AccessLevel.Authenticated;
 import static org.nrg.xdat.security.helpers.AccessLevel.Delete;
 import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
@@ -67,6 +69,13 @@ public class ContainerRestApi extends AbstractXapiRestController {
                             final RoleHolder roleHolder) {
         super(userManagementService, roleHolder);
         this.containerService = containerService;
+    }
+
+    @XapiRequestMapping(value = "/containers/version", method = GET, restrictTo = Authenticated)
+    @ApiOperation(value = "Check XNAT Version compatibility.")
+    @ResponseBody
+    public PluginVersionCheck versionCheck() {
+        return containerService.checkXnatVersion();
     }
 
     @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Admin)

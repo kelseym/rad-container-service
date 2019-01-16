@@ -1,0 +1,32 @@
+package org.nrg.containers.model.configuration;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.auto.value.AutoValue;
+
+import javax.annotation.Nullable;
+
+@AutoValue
+public abstract class PluginVersionCheck {
+    @JsonProperty("compatible") public abstract Boolean compatible();
+    @Nullable @JsonProperty("xnat-version-detected") public abstract String xnatVersionDetected();
+    @Nullable @JsonProperty("min-xnat-version-required") public abstract String xnatVersionRequired();
+    @Nullable @JsonProperty("plugin-version") public abstract String PluginVersion();
+    @Nullable @JsonProperty("message") public abstract String message();
+
+    public static Builder builder() {return new AutoValue_PluginVersionCheck.Builder();}
+
+    @AutoValue.Builder
+    public abstract static class Builder {
+        public abstract Builder compatible(Boolean compatible);
+
+        public abstract Builder xnatVersionDetected(String xnatVersionDetected);
+
+        public abstract Builder xnatVersionRequired(String xnatVersionRequired);
+
+        public abstract Builder PluginVersion(String PluginVersion);
+
+        public abstract Builder message(String message);
+
+        public abstract PluginVersionCheck build();
+    }
+}

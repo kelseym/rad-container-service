@@ -145,7 +145,7 @@ public class IntegrationTestConfig {
                                              final ContainerFinalizeService containerFinalizeService) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                         commandResolutionService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService);
+                        containerFinalizeService, null);
     }
 
     @Bean
