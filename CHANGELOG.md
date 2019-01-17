@@ -17,6 +17,7 @@ Not yet released.
 
 * [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
 * [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
+* [CS-544][] Project level setup and wrapup command statuses now appear in project level history table.
 * [CS-546][] Fixed Assessor as Command Input functionality.
 
 [CS-29]: https://issues.xnat.org/browse/CS-29

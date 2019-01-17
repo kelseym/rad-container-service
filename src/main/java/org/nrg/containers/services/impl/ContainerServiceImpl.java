@@ -133,7 +133,7 @@ public class ContainerServiceImpl implements ContainerService {
                 log.debug("Unknown XNAT version.");
                 return false;
             }
-            log.debug("XNAT Version " + currentVersion + "found.");
+            log.debug("XNAT Version " + currentVersion + " found.");
             Pattern pattern = Pattern.compile("([0-9]+)[.]([0-9]+)[.]?([0-9]*)");
             Matcher reqMatcher =        pattern.matcher(minRequiredVersion);
             Matcher curMatcher =        pattern.matcher(currentVersion);
@@ -342,7 +342,7 @@ public class ContainerServiceImpl implements ContainerService {
                                                   final Container parent)
             throws NoDockerServerException, DockerServerException, ContainerException {
         log.info("Preparing to launch resolved command.");
-        final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, userI);
+        final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, parent, userI);
 
         log.info("Creating container from resolved command.");
         final Container createdContainerOrService = containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
@@ -392,6 +392,7 @@ public class ContainerServiceImpl implements ContainerService {
         final Container toCreate = Container.containerFromResolvedCommand(resolvedCommand, null, userI.getLogin()).toBuilder()
                 .parent(parent)
                 .subtype(DOCKER_WRAPUP.getName())
+                .project(parent != null ? parent.project() : null)
                 .build();
         return toPojo(containerEntityService.create(fromPojo(toCreate)));
     }
@@ -413,9 +414,11 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Nonnull
     private ResolvedCommand prepareToLaunch(final ResolvedCommand resolvedCommand,
+                                            final Container parent,
                                             final UserI userI) {
         return resolvedCommand.toBuilder()
                 .addEnvironmentVariables(getDefaultEnvironmentVariablesForLaunch(userI))
+                .project(resolvedCommand.project() == null && parent != null ? parent.project() : resolvedCommand.project())
                 .build();
     }
 
