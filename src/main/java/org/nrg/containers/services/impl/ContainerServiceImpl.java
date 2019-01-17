@@ -1,6 +1,7 @@
 package org.nrg.containers.services.impl;
 
 import com.google.common.base.Function;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
@@ -104,7 +105,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public PluginVersionCheck checkXnatVersion(){
         String implementationVersion = ContainersConfig.class.getPackage().getImplementationVersion();
-        String xnatVersion = xnatAppInfo != null ? xnatAppInfo.getSystemProperty("version") : "0.0.0";
+        String xnatVersion = getXnatVersion();
         Boolean compatible = isVersionCompatible(xnatVersion, MIN_XNAT_VERSION_REQUIRED);
         return PluginVersionCheck.builder()
                 .compatible(compatible)
@@ -117,8 +118,21 @@ public class ContainerServiceImpl implements ContainerService {
 
     }
 
+    private String getXnatVersion(){
+        try{
+            return xnatAppInfo != null ? xnatAppInfo.getVersion() : null;
+        } catch (Throwable e){
+            log.error("Could not detect XNAT Version.");
+        }
+        return null;
+    }
+
     private Boolean isVersionCompatible(String currentVersion, String minRequiredVersion){
         try{
+            if(Strings.isNullOrEmpty(currentVersion)){
+                log.debug("Unknown XNAT version.");
+                return false;
+            }
             log.debug("XNAT Version " + currentVersion + "found.");
             Pattern pattern = Pattern.compile("([0-9]+)[.]([0-9]+)[.]?([0-9]*)");
             Matcher reqMatcher =        pattern.matcher(minRequiredVersion);
