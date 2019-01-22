@@ -7,7 +7,6 @@ import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
-import org.nrg.containers.config.ContainersConfig;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
 import org.nrg.containers.exceptions.CommandResolutionException;
@@ -104,17 +103,14 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public PluginVersionCheck checkXnatVersion(){
-        String implementationVersion = ContainersConfig.class.getPackage().getImplementationVersion();
         String xnatVersion = getXnatVersion();
         Boolean compatible = isVersionCompatible(xnatVersion, MIN_XNAT_VERSION_REQUIRED);
         return PluginVersionCheck.builder()
                 .compatible(compatible)
-                .PluginVersion(implementationVersion)
                 .xnatVersionDetected(xnatVersion)
                 .xnatVersionRequired(MIN_XNAT_VERSION_REQUIRED)
                  .message(compatible ? null : "This version of Container Service requires XNAT " + MIN_XNAT_VERSION_REQUIRED + " or above. Some features may not function as expected.")
                 .build();
-
 
     }
 
@@ -130,7 +126,7 @@ public class ContainerServiceImpl implements ContainerService {
     private Boolean isVersionCompatible(String currentVersion, String minRequiredVersion){
         try{
             if(Strings.isNullOrEmpty(currentVersion)){
-                log.debug("Unknown XNAT version.");
+                log.error("Unknown XNAT version.");
                 return false;
             }
             log.debug("XNAT Version " + currentVersion + " found.");

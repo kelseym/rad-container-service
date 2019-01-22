@@ -10,7 +10,6 @@ public abstract class PluginVersionCheck {
     @JsonProperty("compatible") public abstract Boolean compatible();
     @Nullable @JsonProperty("xnat-version-detected") public abstract String xnatVersionDetected();
     @Nullable @JsonProperty("min-xnat-version-required") public abstract String xnatVersionRequired();
-    @Nullable @JsonProperty("plugin-version") public abstract String PluginVersion();
     @Nullable @JsonProperty("message") public abstract String message();
 
     public static Builder builder() {return new AutoValue_PluginVersionCheck.Builder();}
@@ -22,8 +21,6 @@ public abstract class PluginVersionCheck {
         public abstract Builder xnatVersionDetected(String xnatVersionDetected);
 
         public abstract Builder xnatVersionRequired(String xnatVersionRequired);
-
-        public abstract Builder PluginVersion(String PluginVersion);
 
         public abstract Builder message(String message);
 
