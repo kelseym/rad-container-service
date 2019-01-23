@@ -9,7 +9,12 @@ Not yet released.
 
 ### Bugfixes
 
+* [CS-554][] Prevent illegal characters from being used in command input names.
+
 ### Other
+
+
+[CS-554]: https://issues.xnat.org/browse/CS-554
 
 ## 2.0.0
 
@@ -32,7 +37,6 @@ Not yet released.
 * [CS-544][] Project level setup and wrapup command statuses now appear in project level history table.
 * [CS-546][] Fixed Assessor as Command Input functionality.
 * [CS-550][] Fixed rendering of long elements in container history table.
-* [CS-554][] Prevent illegal characters from being used in command input names.
 * [CS-557][] Fix element display for command table headers in Admin UI.
 * [CS-558][] Fix labeling bug in bulk launcher from project data listing.
 
@@ -48,7 +52,6 @@ Not yet released.
 [CS-547]: https://issues.xnat.org/browse/CS-547
 [CS-549]: https://issues.xnat.org/browse/CS-549
 [CS-550]: https://issues.xnat.org/browse/CS-550
-[CS-554]: https://issues.xnat.org/browse/CS-554
 [CS-557]: https://issues.xnat.org/browse/CS-557
 [CS-558]: https://issues.xnat.org/browse/CS-558
 

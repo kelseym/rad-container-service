@@ -13,17 +13,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
-import org.nrg.containers.model.command.entity.CommandEntity;
-import org.nrg.containers.model.command.entity.CommandInputEntity;
-import org.nrg.containers.model.command.entity.CommandMountEntity;
-import org.nrg.containers.model.command.entity.CommandOutputEntity;
-import org.nrg.containers.model.command.entity.CommandType;
-import org.nrg.containers.model.command.entity.CommandWrapperDerivedInputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperExternalInputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperInputType;
-import org.nrg.containers.model.command.entity.DockerCommandEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperEntity;
+import org.nrg.containers.model.command.entity.*;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandOutputConfiguration;
 
@@ -34,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @AutoValue
 public abstract class Command {
@@ -60,6 +52,9 @@ public abstract class Command {
     @Nullable @JsonProperty("reserve-memory") public abstract Long reserveMemory();
     @Nullable @JsonProperty("limit-memory") public abstract Long limitMemory();
     @Nullable @JsonProperty("limit-cpu") public abstract Double limitCpu();
+
+    @JsonIgnore private static Pattern regCharPattern = Pattern.compile("[^A-Za-z0-9_-]");
+
 
     @JsonCreator
     static Command create(@JsonProperty("id") final long id,
@@ -692,6 +687,11 @@ public abstract class Command {
             if (StringUtils.isBlank(name())) {
                 errors.add("Command input name cannot be blank");
             }
+            Pattern p = Pattern.compile("[^A-Za-z0-9_-]");
+            Matcher m = p.matcher(name());
+            if (m.find()){
+                errors.add("Command input \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
+            }
             return errors;
         }
 
@@ -785,6 +785,10 @@ public abstract class Command {
             }
             if (StringUtils.isBlank(mount())) {
                 errors.add("Output \"" + name() + "\" - mount cannot be blank.");
+            }
+            Matcher m = regCharPattern.matcher(name());
+            if (m.find()){
+                errors.add("Command output \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
             }
             return errors;
         }
@@ -1020,6 +1024,10 @@ public abstract class Command {
             if (StringUtils.isNotBlank(viaSetupCommand()) && StringUtils.isBlank(providesFilesForCommandMount())) {
                 errors.add("Command wrapper input \"" + name() + "\" - \"via-setup-command\": \"" + viaSetupCommand() + "\" - " +
                         "You cannot set \"via-setup-command\" on an input that does not provide files for a command mount.");
+            }
+            Matcher m = regCharPattern.matcher(name());
+            if (m.find()){
+                errors.add("Command wrapper input \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
             }
 
             return errors;
@@ -1361,7 +1369,10 @@ public abstract class Command {
             if (type().equals(CommandWrapperOutputEntity.Type.RESOURCE.getName()) && StringUtils.isBlank(label())) {
                 errors.add(prefix + "when type = Resource, label cannot be blank.");
             }
-
+            Matcher m = regCharPattern.matcher(name());
+            if (m.find()){
+                errors.add("Command wrapper output \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
+            }
             return errors;
         }
 
