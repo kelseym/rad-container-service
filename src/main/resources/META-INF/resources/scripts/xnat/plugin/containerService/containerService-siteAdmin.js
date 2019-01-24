@@ -2236,6 +2236,26 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         return caTable.table;
     };
 
+    commandAutomationAdmin.compatibilityCheck = function(){
+        XNAT.xhr.get(XNAT.url.restUrl('/xapi/containers/version'))
+            .success(function(data){
+                if (!data.compatible){
+                    // add an error banner to the plugin settings page
+                    $('.xnat-tab-content').prepend(
+                        spawn('div.alert.container-service-version-check',
+                            {style: {'margin-bottom': '2em' }},
+                            '<strong>Plugin Compatibility Error:</strong> '+ data.message
+                        )
+                    );
+                } else {
+                    console.log('Container Service compatibility check: Passed', data);
+                }
+            })
+            .fail(function(e){
+                console.log('Failed compatibility check',e);
+            });
+    };
+
     commandAutomationAdmin.init = function(){
         // initialize the list of command automations
         var manager = $('#command-automation-admin-list');
@@ -2266,6 +2286,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         } else {
             manager.append(spawn('p',{'style' : { 'margin-top': '1em'} },'There are no commands that can be automated. Please navigate to the Images &amp; Commands tab'))
         }
+
+        commandAutomationAdmin.compatibilityCheck();
 
     };
 
