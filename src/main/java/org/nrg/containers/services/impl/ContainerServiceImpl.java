@@ -316,7 +316,7 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException, ContainerException {
         log.info("Preparing to launch resolved command.");
         final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, userI);
-        final PersistentWorkflowI workflow = makeWorkflowIfAppropriate(resolvedCommand, null, userI);
+        final PersistentWorkflowI workflow = makeWorkflowIfAppropriate(resolvedCommand, userI);
 
         log.info("Creating container from resolved command.");
         try {
@@ -326,7 +326,7 @@ public class ContainerServiceImpl implements ContainerService {
             log.info("Recording container launch.");
             final Container savedContainerOrService = toPojo(containerEntityService.save(fromPojo(
                     createdContainerOrService.toBuilder()
-                            .workflowId(workflow.getWorkflowId())
+                            .workflowId(workflow.getWorkflowId().toString())
                             .parent(parent)
                             .build()
             ), userI));
@@ -352,6 +352,7 @@ public class ContainerServiceImpl implements ContainerService {
         }catch(Exception e) {
         	handleFailure(workflow);
         }
+        return null;
     }
 
     private void startContainer(final UserI userI, final Container savedContainerOrService) throws NoDockerServerException, ContainerException {
@@ -360,7 +361,7 @@ public class ContainerServiceImpl implements ContainerService {
             containerControlApi.startContainer(savedContainerOrService);
         } catch (DockerServerException e) {
             addContainerHistoryItem(savedContainerOrService, ContainerHistory.fromSystem("Failed", "Did not start." + e.getMessage()), userI);
-            handleFailure(savedContainerOrService);
+            handleFailure(userI,savedContainerOrService);
             throw new ContainerException("Failed to start");
         }
     }
@@ -890,7 +891,7 @@ public class ContainerServiceImpl implements ContainerService {
                     EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
                             resolvedCommand.wrapperName(),
                             "Container launch",
-                            "");
+                            ""));
             workflow.setStatus(PersistentWorkflowUtils.QUEUED);
             WorkflowUtils.save(workflow, workflow.buildEvent());
             log.debug("Created workflow {}.", workflow.getWorkflowId());
@@ -910,7 +911,7 @@ public class ContainerServiceImpl implements ContainerService {
             String wrkFlowComment = StringUtils.isNotBlank(containerOrService.serviceId()) ?
                                 					containerOrService.serviceId() :
                                 					containerOrService.containerId();
-            wrk.setComment(wrkFlowComment);
+            wrk.setComments(wrkFlowComment);
             wrk.setStatus(PersistentWorkflowUtils.IN_PROGRESS);
             WorkflowUtils.save(wrk, wrk.buildEvent());
             log.debug("updated workflow {}.", wrk.getWorkflowId());
