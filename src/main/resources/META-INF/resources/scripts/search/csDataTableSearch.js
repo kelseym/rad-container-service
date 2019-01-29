@@ -139,7 +139,7 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
 
         this.setDefaultValue("showReload", true);
         this.setDefaultValue("showOptionsDropdown", true);
-        this.setDefaultValue("showRcMenu", true);
+        this.setDefaultValue("showRcMenu", false);
         this.setDefaultValue("showFilterDisplay", true);
 
         this.setDefaultValue("allowInTableMods", true);
@@ -280,7 +280,7 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
                 "<td align='right'><div id='" + this.div_table_id + "_sv'></div></td>" +
                 "<td align='right' id='" + this.div_table_id + "_xT_pT3'><input type='button' id='" + this.div_table_id + "_reload' value='Reload'/></td>" +
                 "<td width='82' align='right'><div id='" + this.div_table_id + "_options' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "ot'>Options</a></li></ul></div></div></td>" +
-                "<td width='130' align='right' class='hidden'><div id='" + this.div_table_id + "_run' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "_rc'>Run Container</a></li></ul></div></div></td>" +
+              //  "<td width='130' align='right' class='hidden'><div id='" + this.div_table_id + "_run' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "_rc'>Run Container</a></li></ul></div></div></td>" +
                 "</tr>" +
                 "<tr><td style='line-height:11px;font-size:11px' id='" + this.div_table_id + "_flt' colspan='4'></td></tr></table>";
         }

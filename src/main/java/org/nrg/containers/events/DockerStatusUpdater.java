@@ -13,9 +13,13 @@ import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.framework.task.XnatTask;
+import org.nrg.framework.task.services.XnatTaskService;
 import org.nrg.xdat.turbine.utils.AdminUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
+import org.nrg.xnat.services.XnatAppInfo;
+import org.nrg.xnat.task.AbstractXnatTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -26,12 +30,13 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class DockerStatusUpdater implements Runnable {
+public class DockerStatusUpdater   implements Runnable {
 
     private ContainerControlApi controlApi;
     private DockerServerService dockerServerService;
     private ContainerService containerService;
-
+    final XnatAppInfo xnatAppInfo;
+    
     private boolean haveLoggedDockerConnectFailure = false;
     private boolean haveLoggedNoServerInDb = false;
     private boolean haveLoggedXftInitFailure = false;
@@ -40,88 +45,95 @@ public class DockerStatusUpdater implements Runnable {
     @SuppressWarnings("SpringJavaAutowiringInspection")
     public DockerStatusUpdater(final ContainerControlApi controlApi,
                                final DockerServerService dockerServerService,
-                               final ContainerService containerService) {
+                               final ContainerService containerService,
+                               final XnatAppInfo xnatAppInfo) {
         this.controlApi = controlApi;
         this.dockerServerService = dockerServerService;
         this.containerService = containerService;
+        this.xnatAppInfo=xnatAppInfo;
     }
 
     @Override
     public void run() {
-    	log.trace("-----------------------------------------------------------------------------");
-    	log.trace("Attempting to update status with docker.");
-
-        final String skipMessage = "Skipping attempt to update status.";
-
-        if (!XFTManager.isInitialized()) {
-            if (!haveLoggedXftInitFailure) {
-                log.info("XFT is not initialized. " + skipMessage);
-                haveLoggedXftInitFailure = true;
-            }
-            return;
-        }
-
-        // Since XFT is up, we should be able to connect to the database and read the docker server
-        DockerServer dockerServer = null;
-        try {
-            dockerServer = dockerServerService.getServer();
-        } catch (NotFoundException e) {
-            log.error("Docker server not found");
-        }
-        if (dockerServer == null) {
-        	log.trace("Docker server is null");
-        	if (!haveLoggedNoServerInDb) {
-                log.info("No docker server has been defined (or enabled) in the database. " + skipMessage);
-                haveLoggedNoServerInDb = true;
-                haveLoggedXftInitFailure = false;
-            }
-        	log.trace("haveLoggedNoServerInDb "+ haveLoggedNoServerInDb + " about to return ");
-        	return;
-        }
-
-        if (!controlApi.canConnect()) {
-            log.info("Cannot connect to  docker server " + dockerServer.name() + ". " + skipMessage);
-        	if (!haveLoggedDockerConnectFailure) {
-                log.info("Cannot ping docker server " + dockerServer.name() + ". " + skipMessage);
-                haveLoggedDockerConnectFailure = true;
-                haveLoggedXftInitFailure = false;
-                haveLoggedNoServerInDb = false;
-            }
-        	log.trace("haveLoggedDockerConnectFailure: " + haveLoggedDockerConnectFailure + " about to return");
-            return;
-        }
-
-        // Now we should be able to check the status
-        final UpdateReport updateReport = dockerServer.swarmMode() ? updateServices(dockerServer) : updateContainers(dockerServer);
-        if (updateReport.successful == null) {
-            // This means some, but not all, of the services didn't update properly. Which ones?
-            for (final UpdateReportEntry entry : updateReport.updateReports) {
-                if (!entry.successful) {
-                    log.error("Could not update status for {}. Message: {}", entry.id, entry.message);
-                } else {
-                    log.debug("Updated successfully for {}.", entry.id);
-                }
-            }
-
-            // Reset failure flags
-            haveLoggedDockerConnectFailure = false;
-            haveLoggedXftInitFailure = false;
-            haveLoggedNoServerInDb = false;
-        } else if (updateReport.successful) {
-            if (updateReport.updateReports.size() > 0) {
-                log.debug("Updated status successfully.");
-            }
-            // Reset failure flags
-            haveLoggedDockerConnectFailure = false;
-            haveLoggedXftInitFailure = false;
-            haveLoggedNoServerInDb = false;
-        } else {
-            log.info("Did not update status successfully.");
-        }
-    	log.trace("-----------------------------------------------------------------------------");
-        log.trace("DOCKERSTATUSUPDATER: RUN COMPLETE");
-    	log.trace("-----------------------------------------------------------------------------");
-
+    		if(!xnatAppInfo.isPrimaryNode()) {
+    			log.trace("Not the Primary node: skipping update status with docker.");		        return;
+	    	}
+	    	log.trace("-----------------------------------------------------------------------------");
+	
+	    	log.trace("Primary node: Attempting to update status with docker.");
+	
+	        final String skipMessage = "Skipping attempt to update status.";
+	
+	        if (!XFTManager.isInitialized()) {
+	            if (!haveLoggedXftInitFailure) {
+	                log.info("XFT is not initialized. " + skipMessage);
+	                haveLoggedXftInitFailure = true;
+	            }
+	            return;
+	        }
+	
+	        // Since XFT is up, we should be able to connect to the database and read the docker server
+	        DockerServer dockerServer = null;
+	        try {
+	            dockerServer = dockerServerService.getServer();
+	        } catch (NotFoundException e) {
+	            log.error("Docker server not found");
+	        }
+	        if (dockerServer == null) {
+	        	log.trace("Docker server is null");
+	        	if (!haveLoggedNoServerInDb) {
+	                log.info("No docker server has been defined (or enabled) in the database. " + skipMessage);
+	                haveLoggedNoServerInDb = true;
+	                haveLoggedXftInitFailure = false;
+	            }
+	        	log.trace("haveLoggedNoServerInDb "+ haveLoggedNoServerInDb + " about to return ");
+	        	return;
+	        }
+	
+	        if (!controlApi.canConnect()) {
+	            log.info("Cannot connect to  docker server " + dockerServer.name() + ". " + skipMessage);
+	        	if (!haveLoggedDockerConnectFailure) {
+	                log.info("Cannot ping docker server " + dockerServer.name() + ". " + skipMessage);
+	                haveLoggedDockerConnectFailure = true;
+	                haveLoggedXftInitFailure = false;
+	                haveLoggedNoServerInDb = false;
+	            }
+	        	log.trace("haveLoggedDockerConnectFailure: " + haveLoggedDockerConnectFailure + " about to return");
+	            return;
+	        }
+	        
+	       
+	        // Now we should be able to check the status
+	        final UpdateReport updateReport = dockerServer.swarmMode() ? updateServices(dockerServer) : updateContainers(dockerServer);
+	        if (updateReport.successful == null) {
+	            // This means some, but not all, of the services didn't update properly. Which ones?
+	            for (final UpdateReportEntry entry : updateReport.updateReports) {
+	                if (!entry.successful) {
+	                    log.error("Could not update status for {}. Message: {}", entry.id, entry.message);
+	                } else {
+	                    log.debug("Updated successfully for {}.", entry.id);
+	                }
+	            }
+	
+	            // Reset failure flags
+	            haveLoggedDockerConnectFailure = false;
+	            haveLoggedXftInitFailure = false;
+	            haveLoggedNoServerInDb = false;
+	        } else if (updateReport.successful) {
+	            if (updateReport.updateReports.size() > 0) {
+	                log.debug("Updated status successfully.");
+	            }
+	            // Reset failure flags
+	            haveLoggedDockerConnectFailure = false;
+	            haveLoggedXftInitFailure = false;
+	            haveLoggedNoServerInDb = false;
+	        } else {
+	            log.info("Did not update status successfully.");
+	        }
+	    	log.trace("-----------------------------------------------------------------------------");
+	        log.trace("DOCKERSTATUSUPDATER: RUN COMPLETE");
+	    	log.trace("-----------------------------------------------------------------------------");
+   
     }
 
     @Nonnull
@@ -243,4 +255,6 @@ public class DockerStatusUpdater implements Runnable {
             return updateReportEntry;
         }
     }
+
+	
 }

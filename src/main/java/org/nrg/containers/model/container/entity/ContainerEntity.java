@@ -5,11 +5,12 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.hibernate.envers.Audited;
 import org.nrg.containers.model.container.ContainerInputType;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
-
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
@@ -17,6 +18,7 @@ import javax.persistence.Entity;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Transient;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -29,6 +31,7 @@ import java.util.Set;
 
 @Entity
 @Audited
+@Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
             .put("complete", "Complete")
@@ -515,16 +518,42 @@ public class ContainerEntity extends AbstractHibernateEntity {
     }
 
     @Transient
+    /*
+     * Does this item have a different status that the most recent event. 
+     * 
+     */
     public boolean isItemInHistory(final ContainerEntityHistory historyItem) {
     	if (this.history == null){
     		return false;
     	}    	
+    	
     	historyItem.setContainerEntity(this);
-
-        return this.history.contains(historyItem);
-
+    	
+    	boolean match=false;
+    	Collections.sort(history);
+    	for (ContainerEntityHistory hist : history) {
+			log.debug("isItemInHistory items {} {} {}",hist.getContainerEntity().getId(),hist.getStatus(),hist.getTimeRecorded());
+		}
+    	if(history.size()>0){
+    		ContainerEntityHistory latest=history.get(0);
+    		match= StringUtils.equals(latest.getStatus(),historyItem.getStatus());
+    		if(log.isDebugEnabled()){
+    			log.debug("isItemInHistory skip {} {} {} {} {} {} {}",
+    					match,
+    					historyItem.getContainerEntity().getId(),
+    					latest.getContainerEntity().getId(),
+    					historyItem.getStatus(),
+    					latest.getStatus(),
+    					historyItem.getTimeRecorded(),
+    					latest.getTimeRecorded());
+    		}
+    	}
+    	return match;
     }
 
+   
+    
+    
     @ElementCollection
     public List<String> getLogPaths() {
         return logPaths;

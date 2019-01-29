@@ -1,15 +1,13 @@
 package org.nrg.containers.model.container.auto;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonGetter;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.auto.value.AutoValue;
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Nullable;
+
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
@@ -21,13 +19,22 @@ import org.nrg.containers.model.container.entity.ContainerEntityInput;
 import org.nrg.containers.model.container.entity.ContainerEntityMount;
 import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
+import org.nrg.containers.utils.JsonDateSerializer;
+import org.nrg.containers.utils.JsonStringToDateSerializer;
 
-import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.google.auto.value.AutoValue;
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 
 @AutoValue
 public abstract class Container {
@@ -36,6 +43,7 @@ public abstract class Container {
     @JsonProperty("id") public abstract long databaseId();
     @JsonProperty("command-id") public abstract long commandId();
     @Nullable @JsonProperty("status") public abstract String status();
+    @JsonSerialize(using=JsonDateSerializer.class)
     @Nullable @JsonProperty("status-time") public abstract Date statusTime();
     @JsonProperty("wrapper-id") public abstract long wrapperId();
     @Nullable @JsonProperty("container-id") public abstract String containerId();
@@ -735,7 +743,9 @@ public abstract class Container {
         @JsonProperty("status") public abstract String status();
         @JsonProperty("entity-type") public abstract String entityType();
         @Nullable @JsonProperty("entity-id") public abstract String entityId();
+        @JsonSerialize(using=JsonDateSerializer.class)
         @JsonProperty("time-recorded") public abstract Date timeRecorded();
+        @JsonSerialize(using=JsonStringToDateSerializer.class)
         @Nullable @JsonProperty("external-timestamp") public abstract String externalTimestamp();
         @Nullable @JsonProperty("message") public abstract String message();
         @Nullable @JsonProperty("exitCode") public abstract String exitCode();
@@ -792,7 +802,7 @@ public abstract class Container {
                     .entityType("system")
                     .entityId(null)
                     .timeRecorded(new Date())
-                    .externalTimestamp(null)
+                    .externalTimestamp(Long.toString(System.nanoTime()))
                     .build();
         }
 
@@ -802,7 +812,7 @@ public abstract class Container {
                     .entityType("user")
                     .entityId(username)
                     .timeRecorded(new Date())
-                    .externalTimestamp(null)
+                    .externalTimestamp(Long.toString(System.nanoTime()))
                     .message(null)
                     .build();
         }
