@@ -1079,9 +1079,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         var clmTable = XNAT.table({
             className: 'enabled-commands xnat-table',
             style: {
-                width: '100%',
-                marginTop: '15px',
-                marginBottom: '15px'
+                width: '100%'
             }
         });
 
@@ -1335,6 +1333,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                     newCommandButton(imageInfo)
                                 ])
                             ]),
+                            spawn('div.clearfix.clear'),
                             spawn('div.imageCommandList',{ id: imageInfo['imageSha']+'-commandlist' })
                         ]));
 

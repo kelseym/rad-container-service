@@ -6,6 +6,8 @@
 }
 .imageContainer h3 {
     border: none;
+    margin-bottom: 10px;
+    overflow: auto;
     padding: 20px 0 0 2em;
     position: relative;
 
@@ -16,7 +18,7 @@
     font-size: 1.5em;
     color: #808080;
     position: absolute;
-    bottom: -1px; left: 1px;
+    top: .9em; left: 1px;
 }
 .commandConfigInputRow {
     padding: 5px 0;
