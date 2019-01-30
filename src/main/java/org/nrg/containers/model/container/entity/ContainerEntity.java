@@ -529,26 +529,8 @@ public class ContainerEntity extends AbstractHibernateEntity {
     	
     	historyItem.setContainerEntity(this);
     	
-    	boolean match=false;
-    	Collections.sort(history);
-    	for (ContainerEntityHistory hist : history) {
-			log.debug("isItemInHistory items {} {} {}",hist.getContainerEntity().getId(),hist.getStatus(),hist.getTimeRecorded());
-		}
-    	if(history.size()>0){
-    		ContainerEntityHistory latest=history.get(0);
-    		match= StringUtils.equals(latest.getStatus(),historyItem.getStatus());
-    		if(log.isDebugEnabled()){
-    			log.debug("isItemInHistory skip {} {} {} {} {} {} {}",
-    					match,
-    					historyItem.getContainerEntity().getId(),
-    					latest.getContainerEntity().getId(),
-    					historyItem.getStatus(),
-    					latest.getStatus(),
-    					historyItem.getTimeRecorded(),
-    					latest.getTimeRecorded());
-    		}
-    	}
-    	return match;
+    	return this.history.contains(historyItem);
+    	 
     }
 
    
