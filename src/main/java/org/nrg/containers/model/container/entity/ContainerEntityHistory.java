@@ -21,7 +21,7 @@ import java.util.Objects;
 @Slf4j
 @Entity
 @Audited
-public class ContainerEntityHistory implements Comparable<ContainerEntityHistory>{
+public class ContainerEntityHistory {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;
     private String status;
@@ -192,9 +192,4 @@ public class ContainerEntityHistory implements Comparable<ContainerEntityHistory
                 .add("exitCode", exitCode)
                 .toString();
     }
-
-	@Override
-	public int compareTo(ContainerEntityHistory o) {
-		   return o.timeRecorded.compareTo(this.timeRecorded);
-	}
 }
