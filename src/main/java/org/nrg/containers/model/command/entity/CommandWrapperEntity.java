@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 
 @Entity
-@Audited
 public class CommandWrapperEntity implements Serializable {
     private long id;
     private String name;
