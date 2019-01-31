@@ -20,7 +20,6 @@ import java.util.Objects;
 
 @Slf4j
 @Entity
-
 public class ContainerEntityHistory {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;

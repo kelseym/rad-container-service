@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.Set;
 
 @Entity
-
 @Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()

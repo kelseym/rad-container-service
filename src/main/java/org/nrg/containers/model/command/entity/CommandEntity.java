@@ -32,7 +32,6 @@ import java.util.Objects;
 @Table(
         uniqueConstraints = {@UniqueConstraint(columnNames = {"name", "image", "version"})}
 )
-
 public abstract class CommandEntity extends AbstractHibernateEntity {
     public static CommandType DEFAULT_TYPE = CommandType.DOCKER;
     private String name;

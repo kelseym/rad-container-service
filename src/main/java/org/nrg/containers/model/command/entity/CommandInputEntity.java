@@ -18,7 +18,6 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-
 public class CommandInputEntity implements Serializable {
     public static Type DEFAULT_TYPE = Type.STRING;
 

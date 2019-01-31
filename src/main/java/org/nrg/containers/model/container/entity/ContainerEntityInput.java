@@ -17,7 +17,6 @@ import javax.persistence.ManyToOne;
 import java.util.Objects;
 
 @Entity
-
 public class ContainerEntityInput {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;
