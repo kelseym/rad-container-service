@@ -16,7 +16,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Audited
+
 public class ContainerEntityOutput implements Serializable {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;

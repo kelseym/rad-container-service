@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 @Entity
-@Audited
+
 @Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
@@ -528,6 +528,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     	}    	
     	
     	historyItem.setContainerEntity(this);
+    	
     	
     	return this.history.contains(historyItem);
     	 

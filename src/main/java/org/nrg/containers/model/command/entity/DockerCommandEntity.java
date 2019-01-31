@@ -15,7 +15,7 @@ import java.util.Objects;
 
 @Entity
 @DiscriminatorValue("docker")
-@Audited
+
 public class DockerCommandEntity extends CommandEntity {
     public static final CommandType type = CommandType.DOCKER;
 

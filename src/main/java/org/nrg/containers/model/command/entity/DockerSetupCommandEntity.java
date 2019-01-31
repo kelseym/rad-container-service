@@ -9,7 +9,7 @@ import javax.persistence.Transient;
 
 @Entity
 @DiscriminatorValue("docker-setup")
-@Audited
+
 public class DockerSetupCommandEntity extends CommandEntity {
     public static final CommandType type = CommandType.DOCKER_SETUP;
 
