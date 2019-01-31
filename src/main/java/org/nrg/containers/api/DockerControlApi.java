@@ -74,6 +74,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.spotify.docker.client.DockerClient.EventsParam.since;
 import static com.spotify.docker.client.DockerClient.EventsParam.type;
@@ -662,6 +663,7 @@ public class DockerControlApi implements ContainerControlApi {
                         .endpointSpec(EndpointSpec.builder()
                                 .ports(portConfigs)
                                 .build())
+                        .name(UUID.randomUUID().toString())
                         .build();
 
         if (log.isDebugEnabled()) {
