@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Audited
 public class CommandWrapperOutputEntity {
     public static final Type DEFAULT_TYPE = Type.RESOURCE;
 

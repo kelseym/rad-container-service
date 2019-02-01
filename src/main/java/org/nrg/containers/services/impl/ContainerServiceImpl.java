@@ -350,7 +350,7 @@ public class ContainerServiceImpl implements ContainerService {
 
             return savedContainerOrService;
         }catch(Exception e) {
-        	handleFailure(workflow);
+        	handleFailure(workflow,e);
         }
         return null;
     }
@@ -851,6 +851,22 @@ public class ContainerServiceImpl implements ContainerService {
     private void handleFailure(PersistentWorkflowI workflow) {
         try {
         	workflow.setStatus(PersistentWorkflowUtils.FAILED);
+        	WorkflowUtils.save(workflow, workflow.buildEvent());
+        }catch(Exception e) {
+        	log.error("Unable to update workflow and set it to FAILED status", e);
+        }
+    }
+    
+    private void handleFailure(PersistentWorkflowI workflow, final Exception source) {
+        try {
+        	workflow.setDetails(source.getMessage());
+        	if(source instanceof DockerServerException){
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Service)");
+        	}else if(source instanceof ContainerException){
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Container)");
+        	}else{
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED);
+        	}
         	WorkflowUtils.save(workflow, workflow.buildEvent());
         }catch(Exception e) {
         	log.error("Unable to update workflow and set it to FAILED status", e);
