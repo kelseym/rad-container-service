@@ -8,6 +8,7 @@ import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.exceptions.UnauthorizedException;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xft.security.UserI;
@@ -20,6 +21,8 @@ public interface ContainerService {
     String STDOUT_LOG_NAME = "stdout.log";
     String STDERR_LOG_NAME = "stderr.log";
     String[] LOG_NAMES = new String[] {STDOUT_LOG_NAME, STDERR_LOG_NAME};
+
+    PluginVersionCheck checkXnatVersion();
 
     List<Container> getAll();
     Container retrieve(final long id);

@@ -12,10 +12,10 @@ import org.junit.runner.RunWith;
 import org.nrg.config.entities.Configuration;
 import org.nrg.config.services.ConfigService;
 import org.nrg.containers.config.CommandRestApiTestConfig;
-import org.nrg.containers.model.command.auto.CommandSummaryForContext;
-import org.nrg.containers.model.configuration.CommandConfigurationInternal;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
+import org.nrg.containers.model.command.auto.CommandSummaryForContext;
+import org.nrg.containers.model.configuration.CommandConfigurationInternal;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerConfigService;
 import org.nrg.containers.services.DockerServerService;
@@ -25,10 +25,16 @@ import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.UserGroupI;
 import org.nrg.xdat.security.UserGroupServiceI;
 import org.nrg.xdat.security.helpers.AccessLevel;
+import org.nrg.xdat.security.helpers.Permissions;
 import org.nrg.xdat.security.services.RoleServiceI;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.security.UserI;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -55,13 +61,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.nrg.containers.model.server.docker.DockerServerBase.*;
+import static org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import static org.nrg.containers.services.ContainerConfigService.WRAPPER_CONFIG_PATH_TEMPLATE;
+import static org.powermock.api.mockito.PowerMockito.mockStatic;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.testSecurityContext;
@@ -72,7 +77,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RunWith(SpringJUnit4ClassRunner.class)
+@RunWith(PowerMockRunner.class)
+@PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
+@PrepareForTest({Permissions.class})
+@PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @WebAppConfiguration
 @Transactional
 @ContextConfiguration(classes = CommandRestApiTestConfig.class)
@@ -167,7 +175,16 @@ public class CommandRestApiTest {
         when(mockSiteConfigPreferences.getBuildPath()).thenReturn(folder.newFolder().getAbsolutePath()); // transporter makes a directory under build
         when(mockSiteConfigPreferences.getArchivePath()).thenReturn(folder.newFolder().getAbsolutePath()); // container logs get stored under archive
 
-        // Mock the site and project configurations
+        // Mock the permissions call
+        // This may render some of the above moot
+        // Added in 1.7.5 to avoid priming the cache
+        mockStatic(Permissions.class);
+        PowerMockito.when(Permissions.canEditProject(nonAdmin, NON_ADMIN_IS_OWNER_PROJECT)).thenReturn(true);
+        PowerMockito.when(Permissions.canEditProject(nonAdmin, NON_ADMIN_IS_MEMBER_PROJECT)).thenReturn(true);
+        PowerMockito.when(Permissions.canEditProject(nonAdmin, NON_ADMIN_IS_COLLABORATOR_PROJECT)).thenReturn(false);
+        PowerMockito.when(Permissions.canEditProject(admin, NON_ADMIN_IS_OWNER_PROJECT)).thenReturn(true);
+        PowerMockito.when(Permissions.canEditProject(admin, NON_ADMIN_IS_MEMBER_PROJECT)).thenReturn(true);
+        PowerMockito.when(Permissions.canEditProject(admin, NON_ADMIN_IS_COLLABORATOR_PROJECT)).thenReturn(true);
     }
 
     @Test

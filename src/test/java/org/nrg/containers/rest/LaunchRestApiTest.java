@@ -336,7 +336,7 @@ public class LaunchRestApiTest {
         when(mockCommandResolutionService.preResolve(eq(project), eq(WRAPPER_ID), anyMapOf(String.class, String.class), eq(mockAdmin)))
                 .thenReturn(partiallyResolvedCommand);
 
-        final LaunchUi expectedLaunchUi = LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, mockCommandConfiguration);
+        final LaunchUi expectedLaunchUi = LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, mockCommandConfiguration.inputs());
 
         final String path = String.format(pathTemplate, project, WRAPPER_ID);
         final MockHttpServletRequestBuilder request = get(path)
@@ -350,8 +350,7 @@ public class LaunchRestApiTest {
                 .getResponse()
                 .getContentAsString();
 
-        final LaunchUi actualLaunchUi = mapper.readValue(response, LaunchUi.SingleLaunchUi.class);
-        assertThat(actualLaunchUi, is(expectedLaunchUi));
+        assertThat(response, is(mapper.writeValueAsString(expectedLaunchUi)));
     }
 
     @SuppressWarnings("unchecked")

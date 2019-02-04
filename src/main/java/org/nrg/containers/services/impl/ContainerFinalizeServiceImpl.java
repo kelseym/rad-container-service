@@ -23,6 +23,7 @@ import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.xdat.om.XnatResourcecatalog;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
+import org.nrg.xft.XFTItem;
 import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.security.UserI;
 import org.nrg.xft.utils.FileUtils;
@@ -35,6 +36,9 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +47,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
@@ -54,6 +60,8 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
     private final CatalogService catalogService;
+
+    private final Pattern experimentUri = Pattern.compile("^(/archive)?/experiments/([^/]+)$");
 
     @Autowired
     public ContainerFinalizeServiceImpl(final ContainerControlApi containerControlApi,
@@ -317,7 +325,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         throw new UnauthorizedException(message);
                     }
 
-                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload, label, null, output.format(), null);
+                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload, true, label, null, output.format(), null);
                     createdUri = UriParserUtils.getArchiveUri(resourcecatalog);
                     if (StringUtils.isBlank(createdUri)) {
                         createdUri = parentUri + "/resources/" + resourcecatalog.getLabel();
@@ -327,7 +335,9 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     log.error(message);
                     throw new UnauthorizedException(message);
                 } catch (Exception e) {
-                    throw new ContainerException(prefix + "Could not upload files to resource.", e);
+                    final String message = prefix + "Could not upload files to resource.";
+                    log.error(message);
+                    throw new ContainerException(message, e);
                 }
 
                 try {
@@ -337,51 +347,44 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     log.error(message, e);
                 }
             } else if (type.equals(ASSESSOR.getName())) {
-                /* TODO Waiting on XNAT-4556
-                final CommandMount mount = getMount(output.getFiles().getMount());
-                final String absoluteFilePath = FilenameUtils.concat(mount.getHostPath(), output.getFiles().getPath());
-                final SAXReader reader = new SAXReader(userI);
-                XFTItem item = null;
+
+                final ContainerMount mount = getMount(output.mount());
+                final String absoluteFilePath = FilenameUtils.concat(mount.xnatHostPath(), output.path());
+                final InputStream fileInputStream;
                 try {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Reading XML file at " + absoluteFilePath);
-                    }
-                    item = reader.parse(new File(absoluteFilePath));
-
-                } catch (IOException e) {
-                    log.error("An error occurred reading the XML", e);
-                } catch (SAXException e) {
-                    log.error("An error occurred parsing the XML", e);
+                    fileInputStream = new FileInputStream(absoluteFilePath);
+                } catch (FileNotFoundException e) {
+                    final String message = prefix + String.format("Could not read file from mount %s at path %s.", mount.name(), output.path());
+                    log.error(message);
+                    throw new ContainerException(message, e);
                 }
 
-                if (!reader.assertValid()) {
-                    throw new ContainerException("XML file invalid", reader.getErrors().get(0));
-                }
-                if (item == null) {
-                    throw new ContainerException("Could not create assessor from XML");
-                }
-
+                XFTItem item;
                 try {
-                    if (item.instanceOf("xnat:imageAssessorData")) {
-                        final XnatImageassessordata assessor = (XnatImageassessordata) BaseElement.GetGeneratedItem(item);
-                        if(permissionsService.canCreate(userI, assessor)){
-                            throw new ContainerException(String.format("User \"%s\" has insufficient privileges for assessors in project \"%s\".", userI.getLogin(), assessor.getProject()));
-                        }
-
-                        if(assessor.getLabel()==null){
-                            assessor.setLabel(assessor.getId());
-                        }
-
-                        // I hate this
-                    }
-                } catch (ElementNotFoundException e) {
-                    throw new ContainerException(e);
+                    item = catalogService.insertXmlObject(userI, fileInputStream, true, Collections.<String, Object>emptyMap());
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    final String message = prefix + String.format("Could not insert object from XML file from mount %s at path %s.", mount.name(), output.path());
+                    log.error(message);
+                    throw new ContainerException(message, e);
                 }
-                 */
-            }
 
+                if (item == null) {
+                    final String message = prefix + String.format("An unknown error occurred creating object from XML file from mount %s at path %s.", mount.name(), output.path());
+                    log.error(message);
+                    throw new ContainerException(message);
+                }
+
+                final String createdUriThatNeedsToBeChecked = UriParserUtils.getArchiveUri(item);
+
+                // The URI that is returned from UriParserUtils is technically correct, but doesn't work very well.
+                // It is of the form /experiments/{assessorId}. If we try to upload resources to it, that will fail.
+                // We have to manually turn it into a URI of the form /experiments/{sessionId}/assessors/{assessorId}.
+                final Matcher createdUriMatchesExperimentUri = experimentUri.matcher(createdUriThatNeedsToBeChecked);
+                createdUri = createdUriMatchesExperimentUri.matches() ?
+                        String.format("%s/assessors/%s", parentUri, createdUriMatchesExperimentUri.group(2)) :
+                        createdUriThatNeedsToBeChecked;
+
+            }
 
             log.info(prefix + "Done uploading output \"{}\". URI of created output: {}", output.name(), createdUri);
 

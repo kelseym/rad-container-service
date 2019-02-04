@@ -163,16 +163,20 @@ public abstract class ResolvedCommand {
     /**
      * Creates ResolvedCommands for setup and wrapup commands.
      * @param command The Command definition for the setup or wrapup command
-     * @param inputMountPath Path on the host to the input mount
-     * @param outputMountPath Path on the host to the output mount
+     * @param inputMountXnatHostPath Path on the XNAT host to the input mount
+     * @param inputMountContainerHostPath Path on the container host to the input mount
+     * @param outputMountXnatHostPath Path on the XNAT host to the output mount
+     * @param outputMountContainerHostPath Path on the container host to the output mount
      * @param parentSourceObjectName Name of the Resolved Command Mount / Container Mount (for setup commands) or
      *                               Resolved Command Output / Container Ouput (for wrapup commands) from which this
      *                               special Resolved Command is being created.
      * @return A Resolved Setup Command or Resolved Wrapup Command
      */
     public static ResolvedCommand fromSpecialCommandType(final Command command,
-                                                         final String inputMountPath,
-                                                         final String outputMountPath,
+                                                         final String inputMountXnatHostPath,
+                                                         final String inputMountContainerHostPath,
+                                                         final String outputMountXnatHostPath,
+                                                         final String outputMountContainerHostPath,
                                                          final String parentSourceObjectName) {
         return builder()
                 .wrapperId(0L)
@@ -190,15 +194,15 @@ public abstract class ResolvedCommand {
                 .addMount(ResolvedCommandMount.builder()
                         .name("input")
                         .containerPath("/input")
-                        .xnatHostPath(inputMountPath)
-                        .containerHostPath(inputMountPath)
+                        .xnatHostPath(inputMountXnatHostPath)
+                        .containerHostPath(inputMountContainerHostPath)
                         .writable(false)
                         .build())
                 .addMount(ResolvedCommandMount.builder()
                         .name("output")
                         .containerPath("/output")
-                        .xnatHostPath(outputMountPath)
-                        .containerHostPath(outputMountPath)
+                        .xnatHostPath(outputMountXnatHostPath)
+                        .containerHostPath(outputMountContainerHostPath)
                         .writable(true)
                         .build())
                 .build();
@@ -296,9 +300,11 @@ public abstract class ResolvedCommand {
     public abstract static class PartiallyResolvedCommand {
         public abstract Long wrapperId();
         public abstract String wrapperName();
+        @Nullable public abstract String wrapperLabel();
         @Nullable public abstract String wrapperDescription();
         public abstract Long commandId();
         public abstract String commandName();
+        @Nullable public abstract String commandLabel();
         @Nullable public abstract String commandDescription();
         public abstract String image();
         public abstract String type();
@@ -319,9 +325,11 @@ public abstract class ResolvedCommand {
         public static abstract class Builder {
             public abstract Builder wrapperId(Long wrapperId);
             public abstract Builder wrapperName(String wrapperDescription);
+            public abstract Builder wrapperLabel(String wrapperLabel);
             public abstract Builder wrapperDescription(String wrapperDescription);
             public abstract Builder commandId(Long commandId);
             public abstract Builder commandName(String commandDescription);
+            public abstract Builder commandLabel(String commandLabel);
             public abstract Builder commandDescription(String commandDescription);
             public abstract Builder image(String image);
             public abstract Builder type(String type);

@@ -349,9 +349,11 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             return PartiallyResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
                     .wrapperName(commandWrapper.name())
+                    .wrapperLabel(commandWrapper.label())
                     .wrapperDescription(commandWrapper.description())
                     .commandId(command.id())
                     .commandName(command.name())
+                    .commandLabel(command.label())
                     .commandDescription(command.description())
                     .image(command.image())
                     .type(command.type())
@@ -386,6 +388,24 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             final List<ResolvedCommandMount> resolvedCommandMounts = resolveCommandMounts(resolvedInputTrees, resolvedInputValuesByReplacementKey);
             final List<ResolvedCommand> resolvedWrapupCommands = resolveWrapupCommands(resolvedCommandOutputs, resolvedCommandMounts);
 
+            // Populate setup & wrap-up commands with environment variables from parent command
+            List<ResolvedCommand> populatedSetupCommands = new ArrayList<>();
+            List<ResolvedCommand> populatedWrapupCommands = new ArrayList<>();
+            for(ResolvedCommand setup : resolvedSetupCommands){
+                populatedSetupCommands.add(
+                        setup.toBuilder()
+                             .addEnvironmentVariables(resolvedEnvironmentVariables)
+                             .commandLine(resolveCommandLine(resolvedInputTrees, setup.commandLine()))
+                             .build());
+            }
+            for(ResolvedCommand wrapup : resolvedWrapupCommands){
+                populatedWrapupCommands.add(
+                        wrapup.toBuilder()
+                              .addEnvironmentVariables(resolvedEnvironmentVariables)
+                              .commandLine(resolveCommandLine(resolvedInputTrees, wrapup.commandLine()))
+                              .build());
+            }
+
             final ResolvedCommand resolvedCommand = ResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
                     .wrapperName(commandWrapper.name())
@@ -404,8 +424,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     .workingDirectory(resolvedWorkingDirectory)
                     .ports(resolvedPorts)
                     .mounts(resolvedCommandMounts)
-                    .setupCommands(resolvedSetupCommands)
-                    .wrapupCommands(resolvedWrapupCommands)
+                    .setupCommands(populatedSetupCommands)
+                    .wrapupCommands(populatedWrapupCommands)
                     .reserveMemory(command.reserveMemory())
                     .limitMemory(command.limitMemory())
                     .limitCpu(command.limitCpu())
@@ -418,8 +438,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private ResolvedCommand resolveSpecialCommandType(final CommandType type,
                                                           final String image,
-                                                          final String inputMountPath,
-                                                          final String outputMountPath,
+                                                          final String inputMountXnatHostPath,
+                                                          final String outputMountXnatHostPath,
                                                           final String parentSourceObjectName)
                 throws CommandResolutionException {
             final String typeStringForLog;
@@ -448,7 +468,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             }
 
             log.debug("Done resolving {} command {} from image {}.", typeStringForLog, command.name(), image);
-            return ResolvedCommand.fromSpecialCommandType(command, inputMountPath, outputMountPath, parentSourceObjectName);
+
+            return ResolvedCommand.fromSpecialCommandType(command, inputMountXnatHostPath, getMountContainerHostPath(inputMountXnatHostPath),
+                    outputMountXnatHostPath, getMountContainerHostPath(outputMountXnatHostPath), parentSourceObjectName);
+        }
+
+        private String getMountContainerHostPath(final String mountXnatHostPath) {
+            return (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
+                    mountXnatHostPath.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
+                    mountXnatHostPath;
         }
 
         private void checkForIllegalInputValue(final String inputName,
@@ -1807,7 +1835,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private String resolveCommandLine(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees)
                 throws CommandResolutionException {
-            log.info("Resolving command-line string.");
+            return resolveCommandLine(resolvedInputTrees, command.commandLine());
+        }
+
+        @Nonnull
+        private String resolveCommandLine(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees, String commandLine)
+                throws CommandResolutionException {
+            log.info("Resolving command-line string: ", commandLine);
 
             // Look through the input tree, and find any command inputs that have uniquely resolved values
             final Map<String, String> resolvedInputCommandLineValuesByReplacementKey = Maps.newHashMap();
@@ -1819,7 +1853,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
             // Resolve the command-line string using the resolved command-line values
             log.debug("Using resolved command-line values to resolve command-line template string.");
-            final String resolvedCommandLine = resolveTemplate(command.commandLine(), resolvedInputCommandLineValuesByReplacementKey);
+            final String resolvedCommandLine = resolveTemplate(commandLine, resolvedInputCommandLineValuesByReplacementKey);
 
             log.info("Done resolving command-line string.");
             log.debug("Command-line string: {}", resolvedCommandLine);
@@ -2173,10 +2207,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             // TODO transporting is currently a no-op, and the code is simpler if we don't pretend that we are doing something here.
 
             // Translate paths from XNAT prefix to container host prefix
-            final String containerHostPath =
-                    (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
-                            pathToMount.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
-                            pathToMount;
+            final String containerHostPath = getMountContainerHostPath(pathToMount);
             log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, containerHostPath);
             resolvedCommandMountBuilder.containerHostPath(containerHostPath);
 

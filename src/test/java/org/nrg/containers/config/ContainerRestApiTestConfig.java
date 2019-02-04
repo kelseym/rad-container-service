@@ -2,13 +2,11 @@ package org.nrg.containers.config;
 
 import org.mockito.Mockito;
 import org.nrg.containers.api.ContainerControlApi;
-import org.nrg.containers.rest.CommandRestApi;
 import org.nrg.containers.rest.ContainerRestApi;
 import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.ContainerEntityService;
 import org.nrg.containers.services.ContainerFinalizeService;
 import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.services.ContextService;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -46,7 +44,7 @@ public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService) {
-        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService, aliasTokenService, siteConfigPreferences, containerFinalizeService);
+        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService, aliasTokenService, siteConfigPreferences, containerFinalizeService, null);
     }
 
     @Bean

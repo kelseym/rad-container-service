@@ -1,6 +1,7 @@
 package org.nrg.containers.services.impl;
 
 import com.google.common.base.Function;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputValue;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerHistory;
 import org.nrg.containers.model.container.auto.ServiceTask;
@@ -40,6 +42,7 @@ import org.nrg.xft.XFTItem;
 import org.nrg.xft.event.EventUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.nrg.containers.model.command.entity.CommandType.DOCKER;
@@ -70,6 +74,7 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SU
 @Service
 public class ContainerServiceImpl implements ContainerService {
     private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
+    private static final String MIN_XNAT_VERSION_REQUIRED = "1.7.5";
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
@@ -77,6 +82,7 @@ public class ContainerServiceImpl implements ContainerService {
     private final AliasTokenService aliasTokenService;
     private final SiteConfigPreferences siteConfigPreferences;
     private final ContainerFinalizeService containerFinalizeService;
+    private final XnatAppInfo xnatAppInfo;
 
     @Autowired
     public ContainerServiceImpl(final ContainerControlApi containerControlApi,
@@ -84,13 +90,84 @@ public class ContainerServiceImpl implements ContainerService {
                                 final CommandResolutionService commandResolutionService,
                                 final AliasTokenService aliasTokenService,
                                 final SiteConfigPreferences siteConfigPreferences,
-                                final ContainerFinalizeService containerFinalizeService) {
+                                final ContainerFinalizeService containerFinalizeService,
+                                final XnatAppInfo xnatAppInfo) {
         this.containerControlApi = containerControlApi;
         this.containerEntityService = containerEntityService;
         this.commandResolutionService = commandResolutionService;
         this.aliasTokenService = aliasTokenService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.containerFinalizeService = containerFinalizeService;
+        this.xnatAppInfo = xnatAppInfo;
+    }
+
+    @Override
+    public PluginVersionCheck checkXnatVersion(){
+        String xnatVersion = getXnatVersion();
+        Boolean compatible = isVersionCompatible(xnatVersion, MIN_XNAT_VERSION_REQUIRED);
+        return PluginVersionCheck.builder()
+                .compatible(compatible)
+                .xnatVersionDetected(xnatVersion)
+                .xnatVersionRequired(MIN_XNAT_VERSION_REQUIRED)
+                 .message(compatible ? null : "This version of Container Service requires XNAT " + MIN_XNAT_VERSION_REQUIRED + " or above. Some features may not function as expected.")
+                .build();
+
+    }
+
+    private String getXnatVersion(){
+        try{
+            return xnatAppInfo != null ? xnatAppInfo.getVersion() : null;
+        } catch (Throwable e){
+            log.error("Could not detect XNAT Version.");
+        }
+        return null;
+    }
+
+    private Boolean isVersionCompatible(String currentVersion, String minRequiredVersion){
+        try{
+            if(Strings.isNullOrEmpty(currentVersion)){
+                log.error("Unknown XNAT version.");
+                return false;
+            }
+            log.debug("XNAT Version " + currentVersion + " found.");
+            Pattern pattern = Pattern.compile("([0-9]+)[.]([0-9]+)[.]?([0-9]*)");
+            Matcher reqMatcher =        pattern.matcher(minRequiredVersion);
+            Matcher curMatcher =        pattern.matcher(currentVersion);
+            if(reqMatcher.find() && curMatcher.find()) {
+                Integer requiredMajor = Integer.valueOf(reqMatcher.group(1) != null ? reqMatcher.group(1) : "0");
+                Integer requiredFeature = Integer.valueOf(reqMatcher.group(2) != null ? reqMatcher.group(2) : "0");
+                Integer requiredBug = Integer.valueOf(reqMatcher.group(1) != null ? reqMatcher.group(3) : "0");
+
+                Integer currentMajor = Integer.valueOf(curMatcher.group(1) != null ? curMatcher.group(1) : "0");
+                Integer currentFeature = Integer.valueOf(curMatcher.group(2) != null ? curMatcher.group(2) : "0");
+                Integer currentBug = Integer.valueOf(curMatcher.group(1) != null ? curMatcher.group(3) : "0");
+
+                if (currentMajor < requiredMajor) {
+                    log.error("Required XNAT Version: " + minRequiredVersion + "+.  Found XNAT Version: " + currentVersion + ".");
+                    return false;
+                } else if (currentMajor > requiredMajor) {
+                    return true;
+                } else {
+                    if (currentFeature < requiredFeature) {
+                        log.error("Required XNAT Version: " + minRequiredVersion + "+.  Found XNAT Version: " + currentVersion + ".");
+                        return false;
+                    } else if (currentFeature > requiredFeature) {
+                        return true;
+                    } else {
+                        if (currentBug < requiredBug) {
+                            log.error("Required XNAT Version: " + minRequiredVersion + "+.  Found XNAT Version: " + currentVersion + ".");
+                            return false;
+                        } else {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable e){
+            e.printStackTrace();
+        }
+        log.error("Failed to parse current (" + currentVersion + ") or required (" + minRequiredVersion + ") version tags.");
+        return false;
     }
 
     @Override
@@ -261,7 +338,7 @@ public class ContainerServiceImpl implements ContainerService {
                                                   final Container parent)
             throws NoDockerServerException, DockerServerException, ContainerException {
         log.info("Preparing to launch resolved command.");
-        final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, userI);
+        final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, parent, userI);
 
         log.info("Creating container from resolved command.");
         final Container createdContainerOrService = containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
@@ -311,6 +388,7 @@ public class ContainerServiceImpl implements ContainerService {
         final Container toCreate = Container.containerFromResolvedCommand(resolvedCommand, null, userI.getLogin()).toBuilder()
                 .parent(parent)
                 .subtype(DOCKER_WRAPUP.getName())
+                .project(parent != null ? parent.project() : null)
                 .build();
         return toPojo(containerEntityService.create(fromPojo(toCreate)));
     }
@@ -332,9 +410,11 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Nonnull
     private ResolvedCommand prepareToLaunch(final ResolvedCommand resolvedCommand,
+                                            final Container parent,
                                             final UserI userI) {
         return resolvedCommand.toBuilder()
                 .addEnvironmentVariables(getDefaultEnvironmentVariablesForLaunch(userI))
+                .project(resolvedCommand.project() == null && parent != null ? parent.project() : resolvedCommand.project())
                 .build();
     }
 

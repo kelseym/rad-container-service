@@ -9,12 +9,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xapi.exceptions.InsufficientPrivilegesException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
+import org.nrg.xapi.rest.ProjectId;
 import org.nrg.xapi.rest.XapiRequestMapping;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
@@ -43,6 +45,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
+import static org.nrg.xdat.security.helpers.AccessLevel.Authenticated;
+import static org.nrg.xdat.security.helpers.AccessLevel.Delete;
 import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
@@ -67,6 +71,13 @@ public class ContainerRestApi extends AbstractXapiRestController {
         this.containerService = containerService;
     }
 
+    @XapiRequestMapping(value = "/containers/version", method = GET, restrictTo = Authenticated)
+    @ApiOperation(value = "Check XNAT Version compatibility.")
+    @ResponseBody
+    public PluginVersionCheck versionCheck() {
+        return containerService.checkXnatVersion();
+    }
+
     @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Admin)
     @ApiOperation(value = "Get all Containers")
     @ResponseBody
@@ -79,10 +90,10 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Delete)
     @ApiOperation(value = "Get all Containers by project")
     @ResponseBody
-    public List<Container> getAll(final @PathVariable String project,
+    public List<Container> getAll(final @PathVariable @ProjectId String project,
                                   final @RequestParam(required = false) Boolean nonfinalized) {
         return Lists.transform(containerService.getAll(nonfinalized, project), new Function<Container, Container>() {
             @Override

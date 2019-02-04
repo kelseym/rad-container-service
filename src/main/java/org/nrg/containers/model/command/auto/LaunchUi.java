@@ -1,77 +1,268 @@
 package org.nrg.containers.model.command.auto;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.auto.value.AutoValue;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.model.command.auto.Command.Input;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
-import org.nrg.containers.model.command.entity.CommandInputEntity.Type;
-import org.nrg.containers.model.configuration.CommandConfiguration;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+@Slf4j
+@SuppressWarnings("NullableProblems")
 public abstract class LaunchUi {
-    @JsonProperty("command-id") public abstract Long commandId();
-    @JsonProperty("command-name") public abstract String commandName();
-    @Nullable @JsonProperty("command-description") public abstract String commandDescription();
-    @JsonProperty("wrapper-id") public abstract Long wrapperId();
-    @JsonProperty("wrapper-name") public abstract String wrapperName();
-    @Nullable @JsonProperty("wrapper-description") public abstract String wrapperDescription();
-    @JsonProperty("image-name") public abstract String imageName();
-    @JsonProperty("image-type") public abstract String imageType();
+
+    @JsonProperty("meta") public abstract LaunchUiMeta meta();
+    @JsonProperty("input-config") public abstract List<LaunchUiInputTree> inputTrees();
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    public static abstract class SingleLaunchUi extends LaunchUi {
-        @JsonProperty("inputs") public abstract ImmutableMap<String, LaunchUiInput> inputs();
+    public static abstract class LaunchUiMeta {
+        @JsonProperty("command-id") public abstract Long commandId();
+        @JsonProperty("command-name") public abstract String commandName();
+        @Nullable @JsonProperty("command-label") public abstract String commandLabel();
+        @Nullable @JsonProperty("command-description") public abstract String commandDescription();
+        @JsonProperty("wrapper-id") public abstract Long wrapperId();
+        @JsonProperty("wrapper-name") public abstract String wrapperName();
+        @Nullable @JsonProperty("wrapper-label") public abstract String wrapperLabel();
+        @Nullable @JsonProperty("wrapper-description") public abstract String wrapperDescription();
+        @JsonProperty("image-name") public abstract String imageName();
+        @JsonProperty("image-type") public abstract String imageType();
 
-        @JsonCreator
-        public static SingleLaunchUi create(@JsonProperty("command-id") final Long commandId,
-                                            @JsonProperty("command-name") final String commandName,
-                                            @JsonProperty("command-description") final String commandDescription,
-                                            @JsonProperty("wrapper-id") final Long wrapperId,
-                                            @JsonProperty("wrapper-name") final String wrapperName,
-                                            @JsonProperty("wrapper-description") final String wrapperDescription,
-                                            @JsonProperty("image-name") final String imageName,
-                                            @JsonProperty("image-type") final String imageType,
-                                            @JsonProperty("inputs") final Map<String, LaunchUiInput> inputs) {
+        public static LaunchUiMeta create(final @Nonnull Long commandId,
+                                          final @Nonnull String commandName,
+                                          final @Nullable String commandLabel,
+                                          final @Nullable String commandDescription,
+                                          final @Nonnull Long wrapperId,
+                                          final @Nonnull String wrapperName,
+                                          final @Nullable String wrapperLabel,
+                                          final @Nullable String wrapperDescription,
+                                          final @Nonnull String imageName,
+                                          final @Nonnull String imageType) {
             return builder()
                     .commandId(commandId)
                     .commandName(commandName)
+                    .commandLabel(commandLabel)
                     .commandDescription(commandDescription)
                     .wrapperId(wrapperId)
                     .wrapperName(wrapperName)
+                    .wrapperLabel(wrapperLabel)
                     .wrapperDescription(wrapperDescription)
                     .imageName(imageName)
                     .imageType(imageType)
-                    .inputs(inputs)
                     .build();
         }
 
-        public static SingleLaunchUi create(final PartiallyResolvedCommand partiallyResolvedCommand,
-                                            final CommandConfiguration commandConfiguration) {
+        public static LaunchUiMeta create(final @Nonnull PartiallyResolvedCommand partiallyResolvedCommand) {
             return builder()
                     .commandId(partiallyResolvedCommand.commandId())
                     .commandName(partiallyResolvedCommand.commandName())
+                    .commandLabel(partiallyResolvedCommand.commandLabel())
                     .commandDescription(partiallyResolvedCommand.commandDescription())
                     .wrapperId(partiallyResolvedCommand.wrapperId())
                     .wrapperName(partiallyResolvedCommand.wrapperName())
                     .wrapperDescription(partiallyResolvedCommand.wrapperDescription())
                     .imageName(partiallyResolvedCommand.image())
                     .imageType(partiallyResolvedCommand.type())
-                    .addInputsFromInputTrees(partiallyResolvedCommand, commandConfiguration)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiMeta.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder commandId(@Nonnull Long commandId);
+            public abstract Builder commandName(@Nonnull String commandName);
+            public abstract Builder commandLabel(@Nullable String commandLabel);
+            public abstract Builder commandDescription(@Nullable String commandDescription);
+            public abstract Builder wrapperId(@Nonnull Long wrapperId);
+            public abstract Builder wrapperName(@Nonnull String wrapperName);
+            public abstract Builder wrapperLabel(@Nullable String wrapperLabel);
+            public abstract Builder wrapperDescription(@Nullable String wrapperDescription);
+            public abstract Builder imageName(@Nonnull String imageName);
+            public abstract Builder imageType(@Nonnull String imageType);
+
+            public abstract LaunchUiMeta build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class LaunchUiInputTree {
+        @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("description") public abstract String description();
+        @JsonProperty("advanced") public abstract boolean advanced();
+        @JsonProperty("required") public abstract boolean required();
+        @JsonProperty("user-settable") public abstract boolean userSettable();
+        @JsonProperty("input-type") public abstract UiInputType uiInputType();
+        @JsonProperty("children") public abstract List<LaunchUiInputTree> children();
+
+        public static LaunchUiInputTree create(final @Nonnull String name,
+                                               final @Nullable String label,
+                                               final @Nullable String description,
+                                               final boolean advanced,
+                                               final boolean required,
+                                               final boolean userSettable,
+                                               final @Nonnull UiInputType uiInputType,
+                                               final @Nonnull List<LaunchUiInputTree> children) {
+            return builder()
+                    .name(name)
+                    .label(label)
+                    .description(description)
+                    .advanced(advanced)
+                    .required(required)
+                    .userSettable(userSettable)
+                    .uiInputType(uiInputType)
+                    .children(children)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiInputTree.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder name(@Nonnull String name);
+            public abstract Builder label(@Nullable String label);
+            public abstract Builder description(@Nullable String description);
+            public abstract Builder advanced(boolean advanced);
+            public abstract Builder required(boolean required);
+            public abstract Builder userSettable(boolean userSettable);
+            public abstract Builder uiInputType(@Nonnull UiInputType uiInputType);
+
+            public abstract Builder children(@Nonnull List<LaunchUiInputTree> children);
+
+
+            public abstract LaunchUiInputTree build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class LaunchUiValueTree {
+        @JsonProperty("name") public abstract String name();
+        @JsonProperty("values") public abstract List<LaunchUiValueTreeValueAndChildren> valueAndChildrenList();
+
+        public static LaunchUiValueTree create(final @Nonnull String name,
+                                               final @Nonnull List<LaunchUiValueTreeValueAndChildren> valueAndChildrenList) {
+            return LaunchUiValueTree.builder()
+                    .name(name)
+                    .valueAndChildrenList(valueAndChildrenList)
+                    .build();
+        }
+
+        public static LaunchUiValueTree create(final @Nonnull ResolvedInputTreeNode<? extends Input> resolvedInputTree) {
+            return LaunchUiValueTree.builder()
+                    .name(resolvedInputTree.input().name())
+                    .valueAndChildrenListFromResolvedInputTreeValuesAndChildren(resolvedInputTree.valuesAndChildren())
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiValueTree.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder name(@Nonnull String name);
+
+            public abstract Builder valueAndChildrenList(@Nonnull List<LaunchUiValueTreeValueAndChildren> valueAndChildrenList);
+
+            public Builder valueAndChildrenListFromResolvedInputTreeValuesAndChildren(final @Nonnull List<ResolvedInputTreeValueAndChildren> resolvedInputTreeValueAndChildrenList) {
+                final List<LaunchUiValueTreeValueAndChildren> valueAndChildrenList = new ArrayList<>();
+                for (final ResolvedInputTreeValueAndChildren resolvedInputTreeValueAndChildren : resolvedInputTreeValueAndChildrenList) {
+                    final LaunchUiValueTreeValueAndChildren launchUiValueTreeValueAndChildren = LaunchUiValueTreeValueAndChildren.create(resolvedInputTreeValueAndChildren);
+                    if (launchUiValueTreeValueAndChildren != null) {
+                        valueAndChildrenList.add(launchUiValueTreeValueAndChildren);
+                    }
+                }
+                return this.valueAndChildrenList(valueAndChildrenList);
+            }
+
+            public abstract LaunchUiValueTree build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class LaunchUiValueTreeValueAndChildren {
+        @JsonProperty("value") public abstract String value();
+        @JsonProperty("label") public abstract String label();
+        @JsonProperty("children") public abstract List<LaunchUiValueTree> children();
+
+        public static LaunchUiValueTreeValueAndChildren create(final @Nonnull String value,
+                                                               final @Nonnull String label,
+                                                               final @Nonnull List<LaunchUiValueTree> children) {
+            return builder()
+                    .value(value)
+                    .label(label)
+                    .children(children)
+                    .build();
+        }
+
+        public static LaunchUiValueTreeValueAndChildren create(final @Nonnull ResolvedInputTreeValueAndChildren resolvedInputTreeValueAndChildren) {
+            final ResolvedInputValue resolvedInputValue = resolvedInputTreeValueAndChildren.resolvedValue();
+            final String value = resolvedInputValue.value();
+            if (value == null) {
+                return null;
+            }
+            final String valueLabel = resolvedInputValue.valueLabel();
+            return builder()
+                    .value(value)
+                    .label(valueLabel == null ? value : valueLabel)
+                    .childrenFromResolvedInputTrees(resolvedInputTreeValueAndChildren.children())
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiValueTreeValueAndChildren.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder value(@Nonnull String value);
+            public abstract Builder label(@Nullable String label);
+
+            public abstract Builder children(@Nonnull List<LaunchUiValueTree> children);
+
+            public Builder childrenFromResolvedInputTrees(@Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees) {
+                final List<LaunchUiValueTree> children = new ArrayList<>();
+                for (final ResolvedInputTreeNode<? extends Input> resolvedInputTree : resolvedInputTrees) {
+                    if (Command.CommandInput.class.isAssignableFrom(resolvedInputTree.input().getClass())) {
+                        // This is a command input which can be derived from a wrapper input.
+                        // We can safely skip it.
+                        continue;
+                    }
+                    children.add(LaunchUiValueTree.create(resolvedInputTree));
+                }
+                return this.children(children);
+            }
+
+            public abstract LaunchUiValueTreeValueAndChildren build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class SingleLaunchUi extends LaunchUi {
+        @JsonProperty("input-values") public abstract List<LaunchUiValueTree> valueTrees();
+
+        public static SingleLaunchUi create(final @Nonnull PartiallyResolvedCommand partiallyResolvedCommand,
+                                            final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
+            return builder()
+                    .meta(LaunchUiMeta.create(partiallyResolvedCommand))
+                    .populateInputTreeAndInputValueTreeFromResolvedInputTrees(partiallyResolvedCommand.resolvedInputTrees(), inputConfigurationMap)
                     .build();
         }
 
@@ -81,51 +272,44 @@ public abstract class LaunchUi {
 
         @AutoValue.Builder
         public static abstract class Builder {
+            public abstract Builder meta(@Nonnull LaunchUiMeta meta);
+            public abstract Builder inputTrees(@Nonnull List<LaunchUiInputTree> inputTrees);
 
-            public abstract Builder commandId(Long commandId);
-            public abstract Builder commandName(String commandName);
-            public abstract Builder commandDescription(String commandDescription);
-            public abstract Builder wrapperId(Long wrapperId);
-            public abstract Builder wrapperName(String wrapperName);
-            public abstract Builder wrapperDescription(String wrapperDescription);
-            public abstract Builder imageName(String imageName);
-            public abstract Builder imageType(String imageType);
-            public abstract Builder inputs(Map<String, LaunchUiInput> inputs);
-            abstract ImmutableMap.Builder<String, LaunchUiInput> inputsBuilder();
-            public Builder addInputsFromInputTrees(final PartiallyResolvedCommand partiallyResolvedCommand,
-                                                   final CommandConfiguration commandConfiguration) {
-                // We have to go through the resolved input trees and get their values into the flat structure needed by the UI.
-                final Map<String, LaunchUiInput.Builder> inputBuilderMap = Maps.newHashMap();
-                for (final ResolvedInputTreeNode<? extends Input> rootNode : partiallyResolvedCommand.resolvedInputTrees()) {
-                    addNodesToInputMap(rootNode, null, null, commandConfiguration.inputs(), inputBuilderMap);
+            public abstract Builder valueTrees(@Nonnull List<LaunchUiValueTree> valueTrees);
+
+            public Builder populateInputTreeAndInputValueTreeFromResolvedInputTrees(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees,
+                                                                                    final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
+                final List<LaunchUiInputTree> inputTrees = new ArrayList<>();
+                final List<LaunchUiValueTree> valueTrees = new ArrayList<>();
+                for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
+                    final Map<String, Integer> maxInputValues = new HashMap<>();
+                    final Map<String, Integer> minInputValues = new HashMap<>();
+                    findMaxAndMinInputValuesForTree(rootNode, maxInputValues, minInputValues);
+
+                    final String inputName = rootNode.input().name();
+                    if (log.isDebugEnabled()) {
+                        log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+                    }
+                    inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap, maxInputValues, minInputValues));
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("ROOT " + inputName + " - Populating input value tree.");
+                    }
+                    valueTrees.add(LaunchUiValueTree.create(rootNode));
                 }
-                for (final Map.Entry<String, LaunchUiInput.Builder> inputBuilderEntry : inputBuilderMap.entrySet()) {
-                    inputsBuilder().put(inputBuilderEntry.getKey(), inputBuilderEntry.getValue().build());
-                }
-                return this;
+                return this
+                        .inputTrees(inputTrees)
+                        .valueTrees(valueTrees);
             }
+
             public abstract SingleLaunchUi build();
         }
     }
 
     @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static abstract class BulkLaunchUi extends LaunchUi {
-        @JsonProperty("inputs") public abstract ImmutableList<ImmutableMap<String, LaunchUiInput>> inputs();
+        @JsonProperty("input-values") public abstract List<List<LaunchUiValueTree>> listOfValueTrees();
 
-        public static BulkLaunchUi.Builder builder(final PartiallyResolvedCommand partiallyResolvedCommand,
-                                                   final CommandConfiguration commandConfiguration) {
-            return builder()
-                    .commandId(partiallyResolvedCommand.commandId())
-                    .commandName(partiallyResolvedCommand.commandName())
-                    .commandDescription(partiallyResolvedCommand.commandDescription())
-                    .wrapperId(partiallyResolvedCommand.wrapperId())
-                    .wrapperName(partiallyResolvedCommand.wrapperName())
-                    .wrapperDescription(partiallyResolvedCommand.wrapperDescription())
-                    .imageName(partiallyResolvedCommand.image())
-                    .imageType(partiallyResolvedCommand.type())
-                    .addInputsFromInputTrees(partiallyResolvedCommand, commandConfiguration);
-        }
 
         public static Builder builder() {
             return new AutoValue_LaunchUi_BulkLaunchUi.Builder();
@@ -134,217 +318,188 @@ public abstract class LaunchUi {
         @AutoValue.Builder
         public static abstract class Builder {
 
-            public abstract Builder commandId(Long commandId);
-            public abstract Builder commandName(String commandName);
-            public abstract Builder commandDescription(String commandDescription);
-            public abstract Builder wrapperId(Long wrapperId);
-            public abstract Builder wrapperName(String wrapperName);
-            public abstract Builder wrapperDescription(String wrapperDescription);
-            public abstract Builder imageName(String imageName);
-            public abstract Builder imageType(String imageType);
-            public abstract Builder inputs(List<ImmutableMap<String, LaunchUiInput>> inputs);
-            abstract ImmutableList.Builder<ImmutableMap<String, LaunchUiInput>> inputsBuilder();
-            public Builder addInputsFromInputTrees(final PartiallyResolvedCommand partiallyResolvedCommand,
-                                                   final CommandConfiguration commandConfiguration) {
-                // We have to go through the resolved input trees and get their values into the flat structure needed by the UI.
-                final Map<String, LaunchUiInput.Builder> inputBuilderMap = Maps.newHashMap();
-                for (final ResolvedInputTreeNode<? extends Input> rootNode : partiallyResolvedCommand.resolvedInputTrees()) {
-                    addNodesToInputMap(rootNode, null, null, commandConfiguration.inputs(), inputBuilderMap);
-                }
+            public abstract Builder meta(@Nonnull LaunchUiMeta meta);
+            public abstract Builder inputTrees(@Nonnull List<LaunchUiInputTree> inputTrees);
 
-                final ImmutableMap.Builder<String, LaunchUiInput> inputBuilder = ImmutableMap.builder();
-                for (final Map.Entry<String, LaunchUiInput.Builder> inputBuilderEntry : inputBuilderMap.entrySet()) {
-                    inputBuilder.put(inputBuilderEntry.getKey(), inputBuilderEntry.getValue().build());
+            public abstract Builder listOfValueTrees(@Nonnull List<List<LaunchUiValueTree>> listOfValueTrees);
+
+            public Builder populateInputTreeAndInputValueTreeFromResolvedInputTrees(final @Nonnull List<List<ResolvedInputTreeNode<? extends Input>>> listOfResolvedInputTrees,
+                                                                                    final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
+                final List<LaunchUiInputTree> inputTrees = new ArrayList<>();
+                final List<List<LaunchUiValueTree>> listOfValueTrees = new ArrayList<>();
+                for (final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees : listOfResolvedInputTrees) {
+                    final List<LaunchUiValueTree> valueTrees = new ArrayList<>();
+                    final Map<String, Integer> maxInputValues = new HashMap<>();
+                    final Map<String, Integer> minInputValues = new HashMap<>();
+                    for (final ResolvedInputTreeNode<? extends Input> rootNode : resolvedInputTrees) {
+                        final String inputName = rootNode.input().name();
+
+                        // We only need to populate the input relationship tree once.
+                        if (listOfValueTrees.isEmpty()) {
+                            findMaxAndMinInputValuesForTree(rootNode, maxInputValues, minInputValues);
+                            if (log.isDebugEnabled()) {
+                                log.debug("ROOT " + inputName + " - Populating input relationship tree.");
+                            }
+                            inputTrees.add(convertResolvedInputTreeToLaunchUiInputTree(rootNode, inputConfigurationMap, maxInputValues, minInputValues));
+                        }
+
+                        if (log.isDebugEnabled()) {
+                            log.debug("ROOT " + inputName + " - Populating input value tree.");
+                        }
+                        valueTrees.add(LaunchUiValueTree.create(rootNode));
+                    }
+                    listOfValueTrees.add(valueTrees);
                 }
-                inputsBuilder().add(inputBuilder.build());
-                return this;
+                return this
+                        .inputTrees(inputTrees)
+                        .listOfValueTrees(listOfValueTrees);
             }
             public abstract BulkLaunchUi build();
         }
     }
 
-    private static void addNodesToInputMap(final @Nonnull ResolvedInputTreeNode<? extends Input> node,
-                                           final @Nullable String parentName,
-                                           final @Nullable String parentValue,
-                                           final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
-                                           final @Nonnull Map<String, LaunchUiInput.Builder> inputMap) {
-        final Input commandInput = node.input();
-        final String inputName = commandInput.name();
+    private static LaunchUiInputTree convertResolvedInputTreeToLaunchUiInputTree(final @Nonnull ResolvedInputTreeNode<? extends Input> node,
+                                                                                 final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
+                                                                                 final @Nonnull Map<String, Integer> maxInputValues,
+                                                                                 final @Nonnull Map<String, Integer> minInputValues) {
+
+        final List<LaunchUiInputTree> children = new ArrayList<>();
+        final Set<String> alreadyAddedChildNames = new HashSet<>();
+        for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
+            for (final ResolvedInputTreeNode<? extends Input> child : valueAndChildren.children()) {
+                if (Command.CommandInput.class.isAssignableFrom(child.input().getClass())) {
+                    // This is a command input which can be derived from a wrapper input.
+                    // We can safely skip it.
+                    continue;
+                }
+
+                if (alreadyAddedChildNames.contains(child.input().name())) {
+                    // We're flattening out the resolved input tree; we don't care about the values.
+                    // Since for each value we see the children again, we've likely already seen this child.
+                    // So skip it.
+                    continue;
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Adding " + node.input().name() + " child " + child.input().name());
+                }
+                alreadyAddedChildNames.add(child.input().name());
+                children.add(convertResolvedInputTreeToLaunchUiInputTree(child, inputConfigurationMap, maxInputValues, minInputValues));
+            }
+
+        }
+
+        final Input input = node.input();
         final CommandInputConfiguration inputConfiguration =
-                inputConfigurationMap.containsKey(inputName) && inputConfigurationMap.get(inputName) != null ?
-                        inputConfigurationMap.get(inputName) :
+                inputConfigurationMap.containsKey(input.name()) && inputConfigurationMap.get(input.name()) != null ?
+                        inputConfigurationMap.get(input.name()) :
                         CommandInputConfiguration.builder().build();
 
-        final List<LaunchUiInputValue> valueList = Lists.newArrayList();
-        final List<String> childNames = Lists.newArrayList();
-        for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
-            final ResolvedInputValue resolvedValue = valueAndChildren.resolvedValue();
-            final String value = resolvedValue.value();
+        final Boolean requiredConfig = inputConfiguration.required();
+        final boolean inputIsRequired = input.required() || (requiredConfig != null && requiredConfig);
+        final Boolean settableConfig = inputConfiguration.userSettable();
+        final boolean userSettable = settableConfig == null || settableConfig; // default: true
+        final Boolean advancedConfig = inputConfiguration.advanced();
+        final boolean advanced = advancedConfig != null && advancedConfig; // default: false
 
-            // Add all children to the map, using this node's value as their parent value
-            for (final ResolvedInputTreeNode<? extends Input> child : valueAndChildren.children()) {
-                childNames.add(child.input().name());
-                addNodesToInputMap(child, commandInput.name(), value, inputConfigurationMap, inputMap);
-            }
-
-            // Now add this node's value to the uiInput's values
-            if (value == null) {
-                valueList.add(LaunchUiInputValue.createNull());
-            } else {
-                valueList.add(LaunchUiInputValue.create(value, resolvedValue.valueLabel()));
-            }
-        }
-        // TODO figure this out from... I don't know from what
-        final UiType uiType;
-        final String inputType = commandInput.type();
-        final boolean inputIsRequired = commandInput.required() || (inputConfiguration.required() != null && inputConfiguration.required());
-        final boolean multipleValues = valueList.size() > 1;
-        final boolean noValues = !multipleValues && (valueList.size() == 0 || valueList.get(0).equals(LaunchUiInputValue.createNull()));
-        final boolean userSettable = inputConfiguration.userSettable() == null || inputConfiguration.userSettable(); // default: true
-        final boolean advanced = inputConfiguration.advanced() != null && inputConfiguration.advanced(); // default: false
+        final UiInputType uiInputType;
 
         if (!userSettable) {
-            uiType = UiType.STATIC;
+            // The user can't set this input.
+            uiInputType = UiInputType.STATIC;
+        } else if (input.type().equals(CommandInputEntity.Type.BOOLEAN.getName())) {
+            // This input is a simple boolean type. Make it a switch box.
+            uiInputType = UiInputType.BOOLEAN;
+        } else if (Command.CommandInput.class.isAssignableFrom(input.getClass())) {
+            // This input is a simple string or number. Make it editable.
+            uiInputType = UiInputType.TEXT;
         } else {
-            // The user should be able to set this input
-            if (noValues) {
-                uiType = UiType.TEXT;
-            } else if (multipleValues) {
-                uiType = UiType.SELECT;
+            // We know we have an external or derived wrapper input.
+
+            final Integer maxNumValuesObj = maxInputValues.get(input.name());
+            final int maxNumValues = maxNumValuesObj == null ? 0 : maxNumValuesObj;
+            final Integer minNumValuesObj = minInputValues.get(input.name());
+            final int minNumValues = minNumValuesObj == null ? 0 : minNumValuesObj;
+
+            if (minNumValues == 0) {
+                // This input has zero values somewhere in the tree.
+                // We need to make it a text box so the user can enter something.
+                // It is also possible we should throw an error here, because usually this means
+                //  something didn't get resolved properly. But right now we just continue on.
+                uiInputType = UiInputType.TEXT;
+            } else if (maxNumValues > 1) {
+                // This input has more than zero values everywhere in the tree, and
+                // more than one value at least somewhere in the tree.
+                // It should be a select menu.
+                uiInputType = UiInputType.SELECT;
             } else {
-                // We have a single value
-                // If it is a boolean, number, or string, apply those types.
-                if (inputType.equals(Type.BOOLEAN.getName())) {
-                    uiType = UiType.BOOLEAN;
-                } else if (inputType.equals(Type.NUMBER.getName())) {
-                    uiType = UiType.NUMBER;
-                } else if (inputType.equals(Type.STRING.getName())) {
-                    uiType = UiType.TEXT;
-                } else {
-                    // If the input is not one of the simple types above,
-                    // it is some XNAT type. But if we only have one value, that
-                    // implies either it was given to us (therefore don't change it)
-                    // or it was derived (therefore don't change it). 
-                    uiType = UiType.STATIC;
-                }
+                // The minimum number of values is > 0, and the max is <= 1.
+                // That implies we have one and only one input value everywhere in the tree.
+                // Since we already know this is a derived or external wrapper input, having
+                // one value means either it was given to us (therefore don't change it)
+                // or it was derived from something that was given to us (therefore don't change it).
+                uiInputType = UiInputType.STATIC;
             }
         }
 
-        // Get the input builder if it exists, or make a new one if it doesn't
-        final LaunchUiInput.Builder uiInputBuilder;
-        if (inputMap.containsKey(commandInput.name())) {
-            uiInputBuilder = inputMap.get(commandInput.name());
-        } else {
-            uiInputBuilder = LaunchUiInput.builder()
-                    .label(commandInput.name()) // TODO add label to commandInput (pojo, hibernate, tests, and examples)
-                    .description(commandInput.description())
-                    .required(inputIsRequired)
-                    .userSettable(userSettable)
-                    .advanced(advanced)
-                    .parent(parentName)
-                    .children(childNames);
-            inputMap.put(commandInput.name(), uiInputBuilder);
-        }
-        uiInputBuilder.addUi(parentValue == null ? "default" : parentValue,
-                LaunchUiInputValuesAndType.create(valueList, uiType));
+        return LaunchUiInputTree.builder()
+                .name(input.name())
+                .label(input.name()) // TODO add label to commandInput (pojo, hibernate, tests, and examples)
+                .description(input.description())
+                .required(inputIsRequired)
+                .userSettable(userSettable)
+                .advanced(advanced)
+                .uiInputType(uiInputType)
+                .children(children)
+                .build();
     }
 
-    @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    public static abstract class LaunchUiInput {
-        @JsonProperty("label") public abstract String label();
-        @Nullable @JsonProperty("description") public abstract String description();
-        @JsonProperty("advanced") public abstract Boolean advanced();
-        @JsonProperty("required") public abstract Boolean required();
-        @JsonProperty("user-settable") public abstract Boolean userSettable();
-        @Nullable @JsonProperty("parent") public abstract String parent();
-        @JsonProperty("children") public abstract ImmutableList<String> children();
-        @JsonProperty("ui") public abstract ImmutableMap<String, LaunchUiInputValuesAndType> ui();
-
-        public static Builder builder() {
-            return new AutoValue_LaunchUi_LaunchUiInput.Builder();
-        }
-
-        @AutoValue.Builder
-        public static abstract class Builder {
-            public abstract Builder label(String label);
-            public abstract Builder description(String description);
-            public abstract Builder advanced(Boolean advanced);
-            public abstract Builder required(Boolean required);
-            public abstract Builder userSettable(Boolean userSettable);
-            public abstract Builder parent(String parent);
-            public abstract Builder children(List<String> children);
-            abstract ImmutableList.Builder<String> childrenBuilder();
-            public Builder addChild(final String childName) {
-                childrenBuilder().add(childName);
-                return this;
+    /**
+     * Search across the entire tree of resolved values for the max number of values per input.
+     * The reason we need to know this is to figure out how a particular input should be
+     * represented in the UI.
+     * @param node A resolved input tree node
+     * @param maxNumValues A map storing the max number of values each input can have in any subtree
+     * @param minNumValues A map storing the min number of values each input can have in any subtree
+     */
+    private static void findMaxAndMinInputValuesForTree(final @Nonnull ResolvedInputTreeNode<? extends Input> node,
+                                                        final @Nonnull Map<String, Integer> maxNumValues,
+                                                        final @Nonnull Map<String, Integer> minNumValues) {
+        // Recursively check children
+        // For each value that this input can take, how many possible values can each of its descendants take?
+        // For each descendant, keep the max and min number of values it takes on any subtree.
+        for (final ResolvedInputTreeValueAndChildren valueAndChildren : node.valuesAndChildren()) {
+            for (final ResolvedInputTreeNode<? extends Input> child : valueAndChildren.children()) {
+                findMaxAndMinInputValuesForTree(child, maxNumValues, minNumValues);
             }
-            public abstract Builder ui(Map<String, LaunchUiInputValuesAndType> ui);
-            abstract ImmutableMap.Builder<String, LaunchUiInputValuesAndType> uiBuilder();
-            public Builder addUi(final @Nonnull String parentValue,
-                                 final @Nonnull LaunchUiInputValuesAndType valuesAndType) {
-                uiBuilder().put(parentValue, valuesAndType);
-                return this;
-            }
+        }
 
-            public abstract LaunchUiInput build();
+        // How many values does *this* input have?
+        final String inputName = node.input().name();
+        final int numValuesForThisInput = node.valuesAndChildren().size();
+
+        final Integer currentMaxNumValues = maxNumValues.get(inputName);
+        if (currentMaxNumValues == null || currentMaxNumValues < numValuesForThisInput) {
+            maxNumValues.put(inputName, numValuesForThisInput);
+        }
+
+        final Integer currentMinNumValues = minNumValues.get(inputName);
+        if (currentMaxNumValues == null || currentMinNumValues > numValuesForThisInput) {
+            minNumValues.put(inputName, numValuesForThisInput);
         }
     }
 
-    @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    public static abstract class LaunchUiInputValuesAndType {
-        @JsonProperty("values") public abstract ImmutableList<LaunchUiInputValue> values();
-        @JsonProperty("type") public abstract UiType type();
 
-        public static LaunchUiInputValuesAndType create(final List<LaunchUiInputValue> values,
-                                                        final UiType type) {
-            final ImmutableList<LaunchUiInputValue> valuesCopy =
-                    values == null ?
-                            ImmutableList.<LaunchUiInputValue>of() :
-                            ImmutableList.copyOf(values);
-            return new AutoValue_LaunchUi_LaunchUiInputValuesAndType(valuesCopy, type);
-        }
-    }
-
-    @AutoValue
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    public static abstract class LaunchUiInputValue {
-        private static String NULL_VALUE = "";
-        private static String NULL_LABEL = "null";
-
-        @JsonProperty("value") public abstract String value();
-        @JsonProperty("label") public abstract String label();
-
-        @JsonIgnore
-        public boolean isNull() {
-            return value().equals(NULL_VALUE) && label().equals(NULL_LABEL);
-        }
-
-        public static LaunchUiInputValue create(final @Nonnull String value,
-                                                final String label) {
-            return new AutoValue_LaunchUi_LaunchUiInputValue(
-                    value, label == null ? value : label);
-        }
-
-        public static LaunchUiInputValue createNull() {
-            return new AutoValue_LaunchUi_LaunchUiInputValue(NULL_VALUE, NULL_LABEL);
-        }
-    }
-
-    public enum UiType {
-        DEFAULT("default"),
+    public enum UiInputType {
         TEXT("text"),
-        NUMBER("number"),
         BOOLEAN("boolean"),
-        SELECT("select"),
-        HIDDEN("hidden"),
+        SELECT("select-one"),
         STATIC("static");
 
         public final String name;
 
         @JsonCreator
-        UiType(final String name) {
+        UiInputType(final String name) {
             this.name = name;
         }
 

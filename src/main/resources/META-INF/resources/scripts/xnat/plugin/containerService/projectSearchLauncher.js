@@ -29,6 +29,9 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
      */
 
     function findLabel(key){
+        // ignore false positive subject labels
+        if (key.indexOf('subjectdata_sub_project_identifier') >= 0) return false;
+
         return key.indexOf('identifier') > 0;
     }
     function errorHandler(e, title, closeAll){
@@ -70,7 +73,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
             XNAT.dialog.open({
                 title: 'Confirm Data To Run',
-                width: 500,
+                width: 600,
                 content: spawn('div.targetList.panel'),
                 beforeShow: function(obj){
                     var inputArea = obj.$modal.find('.targetList');
@@ -143,15 +146,15 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     };
 
     function selectableTable(data){
-        var tableHeader = spawn('div.data-table-wrapper.no-body',[
-            spawn('table.xnat-table.fixed-header.clean',[
+        var tableHeader = spawn('div.data-table-wrapper.no-body',{ style: { 'border':'none' }}, [
+            spawn('table.xnat-table.fixed-header.clean', { style: { 'border-bottom':'none' }}, [
                 spawn('thead',[
                     spawn('tr',[
                         spawn('th.toggle-all',{ style: { width: '45px' }},[
                             spawn('input.selectable-select-all|type=checkbox',{ title: 'Toggle All'})
                         ]),
-                        spawn('th.left',{ style: { width: '200px' }},'Label'),
-                        spawn('th.left',{ style: { width: '213px' }},'XNAT Accession ID')
+                        spawn('th.left',{ style: { width: '250px' }},'Label'),
+                        spawn('th.left',{ style: { width: '263px' }},'XNAT Accession ID')
                     ])
                 ])
             ])
@@ -159,26 +162,31 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
         var tableBodyRows = [];
         // loop over an array of data, populate the table body rows
-        // max table width in a 500-px dialog is 458px
+        // max table width in a 700-px dialog is 658px
         data.forEach(function(row){
             tableBodyRows.push(
                 spawn('tr.selectable-tr',{ id: row['accession-id'] },[
                     spawn('td.table-action-controls.table-selector.center',{ style: { width: '45px' }}, [
                         spawn('input.selectable-select-one.target|type=checkbox', { value: row['accession-id'] })
                     ]),
-                    spawn('td',{ style: { width: '200px' }},row['label']),
-                    spawn('td',{ style: { width: '213px' }},row['accession-id'])
+                    spawn('td',[
+                        spawn('span',{ style: { width: '226px', 'word-wrap':'break-word', 'display': 'inline-block' }},row['label'])
+                    ]),
+                    spawn('td',[
+                        spawn('span',{ style: { width: '239px', 'word-wrap':'break-word', 'display': 'inline-block' }},row['accession-id'])
+                    ])
                 ])
             );
         });
         
         var tableBody = spawn('div.data-table-wrapper.no-header',{
             style: {
+                'border-color': '#aaa',
                 'max-height': '300px',
                 'overflow-y': 'auto'
             }
         },[
-            spawn('table.xnat-table.clean.selectable',[
+            spawn('table.xnat-table.clean.selectable',{ style: { 'border':'none' }}, [
                 spawn('tbody', tableBodyRows )
             ])
         ]);

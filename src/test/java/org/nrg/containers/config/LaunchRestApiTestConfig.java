@@ -50,7 +50,7 @@ public class LaunchRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final ContainerFinalizeService containerFinalizeService) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                 commandResolutionService, aliasTokenService, siteConfigPreferences,
-                containerFinalizeService);
+                containerFinalizeService, null);
     }
 
     @Bean

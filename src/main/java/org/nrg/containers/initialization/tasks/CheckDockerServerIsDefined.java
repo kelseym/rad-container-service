@@ -16,10 +16,9 @@ import java.util.List;
 @Component
 public class CheckDockerServerIsDefined extends AbstractInitializingTask {
     private final DockerServerService dockerServerService;
-    @SuppressWarnings("deprecation") private final DockerServerPrefsBean dockerServerPrefsBean;
+    private final DockerServerPrefsBean dockerServerPrefsBean;
 
     @Autowired
-    @SuppressWarnings("deprecation")
     public CheckDockerServerIsDefined(final DockerServerService dockerServerService,
                                       final DockerServerPrefsBean dockerServerPrefsBean) {
         this.dockerServerService = dockerServerService;
@@ -34,15 +33,15 @@ public class CheckDockerServerIsDefined extends AbstractInitializingTask {
     @Override
     protected void callImpl() throws InitializingTaskException {
 
-        log.debug("Checking if any docker servers exist in database.");
-        final List<DockerServer> servers = dockerServerService.getServers();
-        final boolean anyServersInDb = !(servers == null || servers.isEmpty());
-        final boolean oneServerInDb = (anyServersInDb && servers.size() == 1); // This is just to make the debug message nicer
-        log.debug("{} server{} exist{} in db.", anyServersInDb ? servers.size() : "No", oneServerInDb ? "" : "s", oneServerInDb ? "s" : "");
-        if (anyServersInDb) {
-            log.debug("All is well.");
-            return;
-        }
+       log.debug("Checking if any docker servers exist in database.");
+       final List<DockerServer> servers = dockerServerService.getServers();
+       final boolean anyServersInDb = !(servers == null || servers.isEmpty());
+       final boolean oneServerInDb = (anyServersInDb && servers.size() == 1); // This is just to make the debug message nicer
+       log.debug("{} server{} exist{} in db.", anyServersInDb ? servers.size() : "No", oneServerInDb ? "" : "s", oneServerInDb ? "s" : "");
+       if (anyServersInDb) {
+           log.debug("All is well.");
+           return;
+       }
 
         // We don't have any servers in the database. Do we have one defined as an old-style prefs bean?
         log.debug("Checking if a docker server exists as an old-style prefs bean.");

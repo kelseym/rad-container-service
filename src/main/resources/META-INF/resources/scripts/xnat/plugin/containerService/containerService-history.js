@@ -101,15 +101,15 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
     function sortHistoryData(context) {
 
-
         var URL = (context === 'site') ?
             getCommandHistoryUrl() :
             getProjectHistoryUrl(context);
 
         return XNAT.xhr.getJSON(URL)
             .success(function (data) {
+
                 if (data.length) {
-                    // sort data by ID
+                    // sort data by ID.
                     data = data.sort(function (a, b) {
                         return (a.id > b.id) ? 1 : -1
                     });
@@ -128,8 +128,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         }
                     });
 
-                    // copy the history listing into an object for individual reference
+                    // copy the history listing into an object for individual reference. Add the context value.
                     data.forEach(function (historyEntry) {
+                        // data.filter(function(entry){ return entry.id === historyEntry.id })[0].context = historyTable.context;
+                        historyEntry.context = historyTable.context;
                         containerHistory[historyEntry.id] = historyEntry;
                     });
 
@@ -318,7 +320,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 command: {
                     label: 'Command',
                     filter: true,
-                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word' }},
+                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     apply: function () {
                         var wrapper = XNAT.plugin.containerService.wrapperList[this['wrapper-id']];
                         var label = (wrapper) ?
@@ -344,7 +346,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 },
                 ROOTELEMENT: {
                     label: 'Root Element',
-                    th: {style: { width: '180px' }},
+                    td: { style: { 'max-width': '145px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     filter: true,
                     apply: function(){
                         var rootElements = this.inputs.filter(function(input){ if (input.type === "wrapper-external") return input });
@@ -465,7 +467,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
 
                 // check logs and populate buttons at bottom of modal
-                if (key === 'log-paths') {
+                if (key === 'log-paths' && historyEntry.context === 'site') {
                     historyDialogButtons.push({
                         label: 'View StdOut.log',
                         close: false,
@@ -535,8 +537,14 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         }
     };
 
+    historyTable.context = 'site';
+
     historyTable.init = historyTable.refresh = function (context) {
-        context = context || 'site';
+        if (context !== undefined) {
+            historyTable.context = context;
+        }
+        else context = 'site';
+
         wrapperList = getObject(XNAT.plugin.containerService.wrapperList || {});
 
         var $manager = $('#command-history-container'),
@@ -554,9 +562,12 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     historyTable: spawnHistoryTable(data)
                 });
                 _historyTable.done(function () {
+                    function msgLength(length) {
+                        return (length > 1) ? ' Containers' : ' Container'; 
+                    }
                     var msg = (context === 'site') ?
-                        data.length + ' Containers Launched On This Site' :
-                        data.length + ' Containers Launched For '+context;
+                        data.length + msgLength(data.length) + ' Launched On This Site' :
+                        data.length + msgLength(data.length) + ' Launched For '+context;
                     $manager.empty().append(
                         spawn('h3', {style: {'margin-bottom': '1em'}}, msg)
                     );

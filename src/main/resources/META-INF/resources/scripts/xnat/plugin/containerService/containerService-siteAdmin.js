@@ -205,7 +205,14 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             onText: 'ON',
                             offText: 'OFF',
                             value: 'false'
-                        })
+                        }),
+                        spawn('p.divider', '<strong>Container User (Optional)</strong><br>System user who will own process inside container. Use this if XNAT files are on a mount restricting permissions to certain users. ' +
+                            'Value can be of the form user, user:group, uid, uid:gid, user:gid, or uid:group. ' +
+                            '<br>If no value is set, container processes are run as the value set in the image; if no value is set in the image, the default is root.'),
+                        XNAT.ui.panel.input.text({
+                            name: 'container-user',
+                            label: 'Container User'
+                        }).element
                     ])
                 );
 
@@ -384,6 +391,26 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         return chmTable.table;
     };
 
+    containerHostManager.compatibilityCheck = function(){
+        XNAT.xhr.get(XNAT.url.restUrl('/xapi/containers/version'))
+            .success(function(data){
+                if (!data.compatible){
+                    // add an error banner to the plugin settings page
+                    $('.xnat-tab-content').prepend(
+                        spawn('div.alert.container-service-version-check',
+                            {style: {'margin-bottom': '2em' }},
+                            '<strong>Plugin Compatibility Error:</strong> '+ data.message
+                        )
+                    );
+                } else {
+                    console.log('Container Service compatibility check: Passed', data);
+                }
+            })
+            .fail(function(e){
+                console.log('Failed compatibility check',e);
+            });
+    };
+
     containerHostManager.init = function(container){
 
         var $manager = $$(container||'div#container-host-manager');
@@ -408,6 +435,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         ]));
         $footer.append(spawn('div.clear.clearFix'));
 
+        containerHostManager.compatibilityCheck();
 
         return {
             element: $manager[0],
@@ -1051,9 +1079,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         var clmTable = XNAT.table({
             className: 'enabled-commands xnat-table',
             style: {
-                width: '100%',
-                marginTop: '15px',
-                marginBottom: '15px'
+                width: '100%'
             }
         });
 
@@ -1307,6 +1333,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                     newCommandButton(imageInfo)
                                 ])
                             ]),
+                            spawn('div.clearfix.clear'),
                             spawn('div.imageCommandList',{ id: imageInfo['imageSha']+'-commandlist' })
                         ]));
 

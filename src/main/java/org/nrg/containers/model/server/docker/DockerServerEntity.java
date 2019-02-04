@@ -17,6 +17,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     private String pathTranslationXnatPrefix;
     private String pathTranslationDockerPrefix;
     private Boolean pullImagesOnXnatInit;
+    private String containerUser;
 
     public static DockerServerEntity create(final DockerServer dockerServer) {
         return new DockerServerEntity().update(dockerServer);
@@ -31,6 +32,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.pathTranslationXnatPrefix = dockerServer.pathTranslationXnatPrefix();
         this.pathTranslationDockerPrefix = dockerServer.pathTranslationDockerPrefix();
         this.pullImagesOnXnatInit = dockerServer.pullImagesOnXnatInit();
+        this.containerUser = dockerServer.containerUser();
         return this;
     }
 
@@ -98,6 +100,14 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.pullImagesOnXnatInit = pullImagesOnXnatInit;
     }
 
+    public String getContainerUser() {
+        return containerUser;
+    }
+
+    public void setContainerUser(final String containerUser) {
+        this.containerUser = containerUser;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -111,13 +121,14 @@ public class DockerServerEntity extends AbstractHibernateEntity {
                 Objects.equals(this.lastEventCheckTime, that.lastEventCheckTime) &&
                 Objects.equals(this.pathTranslationXnatPrefix, that.pathTranslationXnatPrefix) &&
                 Objects.equals(this.pathTranslationDockerPrefix, that.pathTranslationDockerPrefix) &&
-                Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit);
+                Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit) &&
+                Objects.equals(this.containerUser, that.containerUser);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, host, certPath, lastEventCheckTime, swarmMode,
-                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit);
+                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser);
     }
 
 }
