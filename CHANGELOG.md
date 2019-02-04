@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-Not yet released.
+[Released 2019-04-04](https://github.com/NrgXnat/container-service/releases/tag/2.0.0).
 
 ### Features
 
