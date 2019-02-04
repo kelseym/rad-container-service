@@ -16,19 +16,30 @@ Not yet released.
 ### Bugfixes
 
 * [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
+* [CS-515][] Adds a version checker to warn users if plugin is not installed on a compatible version of XNAT. 
 * [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
 * [CS-544][] Project level setup and wrapup command statuses now appear in project level history table.
 * [CS-546][] Fixed Assessor as Command Input functionality.
+* [CS-550][] Fixed rendering of long elements in container history table.
+* [CS-554][] Prevent illegal characters from being used in command input names.
+* [CS-557][] Fix element display for command table headers in Admin UI.
+* [CS-558][] Fix labeling bug in bulk launcher from project data listing.
 
 [CS-29]: https://issues.xnat.org/browse/CS-29
 [XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
+[CS-515]: https://issues.xnat.org/browse/CS-515
 [CS-541]: https://issues.xnat.org/browse/CS-541
 [CS-542]: https://issues.xnat.org/browse/CS-542
 [CS-543]: https://issues.xnat.org/browse/CS-543
+[CS-544]: https://issues.xnat.org/browse/CS-544
 [CS-545]: https://issues.xnat.org/browse/CS-545
 [CS-546]: https://issues.xnat.org/browse/CS-546
 [CS-547]: https://issues.xnat.org/browse/CS-547
 [CS-549]: https://issues.xnat.org/browse/CS-549
+[CS-550]: https://issues.xnat.org/browse/CS-550
+[CS-554]: https://issues.xnat.org/browse/CS-554
+[CS-557]: https://issues.xnat.org/browse/CS-557
+[CS-558]: https://issues.xnat.org/browse/CS-558
 
  
 ## 1.6.0
