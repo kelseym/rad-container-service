@@ -74,6 +74,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.spotify.docker.client.DockerClient.EventsParam.since;
 import static com.spotify.docker.client.DockerClient.EventsParam.type;
@@ -662,6 +663,7 @@ public class DockerControlApi implements ContainerControlApi {
                         .endpointSpec(EndpointSpec.builder()
                                 .ports(portConfigs)
                                 .build())
+                        .name(UUID.randomUUID().toString())
                         .build();
 
         if (log.isDebugEnabled()) {
@@ -1067,6 +1069,23 @@ public class DockerControlApi implements ContainerControlApi {
         try(final DockerClient client = getClient()) {
             log.info("Killing container " + id);
             client.killContainer(id);
+        } catch (ContainerNotFoundException e) {
+            log.error(e.getMessage(), e);
+            throw new NotFoundException(e);
+        } catch (DockerException | InterruptedException e) {
+            log.error(e.getMessage(), e);
+            throw new DockerServerException(e);
+        } catch (DockerServerException e) {
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    public void killService(final String id) throws NoDockerServerException, DockerServerException, NotFoundException {
+        try(final DockerClient client = getClient()) {
+            log.info("Killing service " + id);
+            client.removeService(id);
         } catch (ContainerNotFoundException e) {
             log.error(e.getMessage(), e);
             throw new NotFoundException(e);

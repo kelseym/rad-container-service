@@ -72,4 +72,5 @@ public interface ContainerControlApi {
     void throwTaskEventForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     
     Integer getContainerFinalizationPoolLimit();
+	void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
 }

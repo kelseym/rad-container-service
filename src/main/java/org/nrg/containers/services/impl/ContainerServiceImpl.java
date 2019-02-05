@@ -759,8 +759,14 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException, NotFoundException {
         addContainerHistoryItem(container, ContainerHistory.fromUserAction("Killed", userI.getLogin()), userI);
 
-        final String containerDockerId = container.containerId();
-        containerControlApi.killContainer(containerDockerId);
+        String containerDockerId;
+        if(container.isSwarmService()){
+        	containerDockerId = container.serviceId();
+            containerControlApi.killService(containerDockerId);
+        }else{
+        	containerDockerId = container.containerId();
+            containerControlApi.killContainer(containerDockerId);
+        }
         return containerDockerId;
     }
 
