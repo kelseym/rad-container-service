@@ -42,6 +42,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
             .put("running", "Running")
             .put("kill", "Killed")
             .put("oom", "Killed (Out of Memory)")
+            .put("shutdown", "Failed (Shutdown)")
             .put("starting", "Starting")
             .build();
     private static final Set<String> TERMINAL_STATI = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
