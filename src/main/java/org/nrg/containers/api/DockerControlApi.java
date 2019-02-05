@@ -1082,6 +1082,23 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
+    public void killService(final String id) throws NoDockerServerException, DockerServerException, NotFoundException {
+        try(final DockerClient client = getClient()) {
+            log.info("Killing service " + id);
+            client.removeService(id);
+        } catch (ContainerNotFoundException e) {
+            log.error(e.getMessage(), e);
+            throw new NotFoundException(e);
+        } catch (DockerException | InterruptedException e) {
+            log.error(e.getMessage(), e);
+            throw new DockerServerException(e);
+        } catch (DockerServerException e) {
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
     @Nullable
     public ServiceTask getTaskForService(final Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException {
         return getTaskForService(getServer(), service);
