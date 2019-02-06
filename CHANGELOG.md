@@ -3,20 +3,18 @@
 
 ## 2.0.1
 
-Not yet released.
+[Released 2019-04-06](https://github.com/NrgXnat/container-service/releases/tag/2.0.1).
 
-### Features
-
-### Bugfixes
+## Bugfixes
 
 * [CS-554][] Prevent illegal characters from being used in command input names.
 * [XNAT-5876][] Prevent Container Service from overwriting bugfix for character handling in core XNAT
 
-### Other
-
 
 [CS-554]: https://issues.xnat.org/browse/CS-554
 [XNAT-5876]: https://issues.xnat.org/browse/XNAT-5876
+
+
 
 ## 2.0.0
 
