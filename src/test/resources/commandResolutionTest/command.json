@@ -97,7 +97,7 @@
             "description": "run the dummy command with a scan, from which we derive a resource and a file",
             "external-inputs": [
                 {
-                    "name": "a scan",
+                    "name": "a-scan",
                     "description": "an input that takes a scan",
                     "type": "Scan",
                     "required": true
@@ -105,31 +105,31 @@
             ],
             "derived-inputs": [
                 {
-                    "name": "a resource",
+                    "name": "a-resource",
                     "description": "an input that takes a resource",
                     "type": "Resource",
-                    "derived-from-wrapper-input": "a scan",
+                    "derived-from-wrapper-input": "a-scan",
                     "required": true
                 },
                 {
-                    "name": "a file",
+                    "name": "a-file",
                     "description": "a file",
                     "type": "File",
-                    "derived-from-wrapper-input": "a resource",
+                    "derived-from-wrapper-input": "a-resource",
                     "required": "true",
                     "provides-value-for-command-input": "file-path"
                 },
                 {
-                    "name": "a file path",
+                    "name": "a-file-path",
                     "type": "string",
-                    "derived-from-wrapper-input": "a file",
+                    "derived-from-wrapper-input": "a-file",
                     "provides-value-for-command-input": "file-path",
                     "derived-from-xnat-object-property": "path"
                 },
                 {
                     "name": "scan-id",
                     "type": "string",
-                    "derived-from-wrapper-input": "a scan",
+                    "derived-from-wrapper-input": "a-scan",
                     "derived-from-xnat-object-property": "id",
                     "provides-value-for-command-input": "whatever",
                     "required": true
