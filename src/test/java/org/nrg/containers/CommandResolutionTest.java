@@ -295,14 +295,14 @@ public class CommandResolutionTest {
         final XnatFile file = resource.getFiles().get(0);
 
         final Map<String, String> runtimeValues = Maps.newHashMap();
-        runtimeValues.put("a scan", scanRuntimeJson);
+        runtimeValues.put("a-scan", scanRuntimeJson);
 
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("a scan", scan.getExternalWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a resource", resource.getDerivedWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a file", file.getDerivedWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a file path", file.getPath()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("a-scan", scan.getExternalWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-resource", resource.getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-file", file.getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-file-path", file.getPath()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan-id", scan.getId()));
 
         // command inputs

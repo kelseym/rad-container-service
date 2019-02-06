@@ -263,7 +263,7 @@ public class CommandEntityTest {
         commitTransaction();
 
         final CommandInput inputToAdd = CommandInput.builder()
-                .name("this is new")
+                .name("this_is_new")
                 .description("A new input that didn't exist before")
                 .commandLineFlag("--flag")
                 .commandLineSeparator("=")
