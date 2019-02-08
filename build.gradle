@@ -258,6 +258,12 @@ sourceSets.main.java {
     exclude '*/AutoValue.java'
 }
 
+jar{
+    doLast {
+        throw new GradleException('ERROR:  You should run fatJar instead of jar task for this plugin')
+    }
+}
+
 task sourceJar(type: Jar, dependsOn: classes) {
     from sourceSets.main.allSource
 }
