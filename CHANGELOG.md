@@ -8,7 +8,12 @@ Not yet released
 
 ### Bugfixes
 
+* [CS-440][] Fixed an issue which caused guest users to see authentication dialog on public projects.
+
 ### Other
+
+[CS-440]: https://issues.xnat.org/browse/CS-440
+
 
 
 ## 2.0.1

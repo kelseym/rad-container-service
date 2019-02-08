@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
-import static org.nrg.xdat.security.helpers.AccessLevel.Edit;
+import static org.nrg.xdat.security.helpers.AccessLevel.Read;
 import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
@@ -206,7 +206,7 @@ public class CommandRestApi extends AbstractXapiRestController {
     /*
     AVAILABLE FOR LAUNCHING
      */
-    @XapiRequestMapping(value = {"/commands/available"}, params = {"project", "xsiType"}, method = GET, restrictTo = Edit)
+    @XapiRequestMapping(value = {"/commands/available"}, params = {"project", "xsiType"}, method = GET, restrictTo = Read)
     @ApiOperation(value = "Get Commands available in given project context and XSIType")
     @ResponseBody
     public List<CommandSummaryForContext> availableCommands(final @RequestParam @ProjectId String project,
@@ -219,7 +219,7 @@ public class CommandRestApi extends AbstractXapiRestController {
                 Collections.<CommandSummaryForContext>emptyList();
     }
 
-    @XapiRequestMapping(value = {"/projects/{project}/commands/available"}, params = {"xsiType"}, method = GET, restrictTo = Edit)
+    @XapiRequestMapping(value = {"/projects/{project}/commands/available"}, params = {"xsiType"}, method = GET, restrictTo = Read)
     @ApiOperation(value = "Get Commands available in given project context and XSIType")
     @ResponseBody
     public List<CommandSummaryForContext> availableCommands2(final @PathVariable @ProjectId String project,
