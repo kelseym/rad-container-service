@@ -127,7 +127,7 @@ public class DockerControlApi implements ContainerControlApi {
 
     private String pingSwarmMaster(final DockerServer dockerServer) throws DockerServerException {
         try (final DockerClient client = getClient(dockerServer)) {
-            client.listNodes();
+            client.inspectSwarm();
             // If we got this far without an exception, then all is well.
         } catch (DockerException | InterruptedException e) {
             log.error(e.getMessage());
@@ -1109,6 +1109,8 @@ public class DockerControlApi implements ContainerControlApi {
     public ServiceTask getTaskForService(final DockerServer dockerServer, final Container service)
             throws DockerServerException, ServiceNotFoundException {
         try (final DockerClient client = getClient(dockerServer)) {
+        	com.spotify.docker.client.messages.swarm.Service s=client.inspectService(service.serviceId());
+        	        
             Task task = null;
             log.trace("Attempting task for service:"+ service.toString());
             log.trace("Service details: SERVICE: " + service.serviceId() + " STATUS: " + service.status() + " TASK: " + service.taskId() + " NODE: " + service.nodeId() + " CONTAINER: " + service.containerId() + " DBID: " + service.databaseId() + " WOKKFLOW: " + service.workflowId() );
