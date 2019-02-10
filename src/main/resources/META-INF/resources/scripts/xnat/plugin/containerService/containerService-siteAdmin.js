@@ -2050,6 +2050,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     label: 'On Session Archive'
                 },
                 {
+                     eventId: 'Merged',
+                     context: 'xnat:imageSessionData',
+                     label: 'On Session Merged'
+                },
+                {
                     eventId: 'ScanArchived',
                     context: 'xnat:imageScanData',
                     label: 'On Scan Archive'
