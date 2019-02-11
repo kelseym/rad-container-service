@@ -78,8 +78,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class ContainerServiceImpl implements ContainerService {
-    private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
+	private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
     private static final String waiting = "Waiting";
+    private static final String finalizing = "Finalizing";
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
@@ -482,7 +483,7 @@ public class ContainerServiceImpl implements ContainerService {
                 final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
                 
                 //process new and waiting events (duplicate docker events are skipped)              
-                if (!isWaiting(service) && addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
+                if (!(isWaiting(service) || isFinalizing(service)) && addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
                     // We have already added this task and can safely skip it.
                 	if (log.isDebugEnabled()){
                 		log.debug("Skipping task status we have already seen.");
@@ -499,7 +500,7 @@ public class ContainerServiceImpl implements ContainerService {
                     	//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
                     	//Poor (wo)man's queue
                     	if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
-                            addContainerHistoryItem(service, ContainerHistory.fromSystem("Finalizing","Processing finished. Uploading files." ), userI);
+                            addContainerHistoryItem(service, ContainerHistory.fromSystem(finalizing,"Processing finished. Uploading files." ), userI);
                             if (log.isDebugEnabled()){
                             	log.debug("Service has exited. Finalizing.");
                             }
@@ -545,6 +546,10 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public boolean isWaiting(Container service){
     	return waiting.equals(service.status());
+    }
+    @Override
+    public boolean isFinalizing(Container service){
+    	return finalizing.equals(service.status());
     }
     @Override
     public void finalize(final String containerId, final UserI userI) throws NotFoundException, ContainerException, NoDockerServerException, DockerServerException {

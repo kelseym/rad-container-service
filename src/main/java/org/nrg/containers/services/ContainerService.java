@@ -86,4 +86,5 @@ public interface ContainerService {
     InputStream getLogStream(long id, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
     InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
 	boolean isWaiting(Container service);
+	boolean isFinalizing(Container service);
 }
