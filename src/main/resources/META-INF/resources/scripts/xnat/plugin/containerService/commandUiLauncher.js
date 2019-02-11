@@ -681,7 +681,7 @@ var XNAT = getObject(XNAT || {});
                     // display root elements first
                     $targetListContainer.append(spawn('p',[ spawn('strong', targets.length + ' item(s) selected to run in bulk.' )]));
 
-                    var targetList = launcher.formInputs({ name: rootElement, type: 'staticList', value: targets.toString() });
+                    var targetList = launcher.formInputs({ name: rootElement, type: 'staticList', value: targetLabels.toString() });
                     $targetListContainer.append(targetList);
                     var k=0;
                     for(var argument in inputJson) {
@@ -795,14 +795,16 @@ var XNAT = getObject(XNAT || {});
 
                                 var dataToPost = bulkData;
 
-                                xmodal.loading.open({ title: 'Launching Container(s)...' });
-
                                 XNAT.xhr.postJSON({
+                                    beforeSend: function() {
+                                        XNAT.ui.dialog.closeAll();
+                                        XNAT.ui.dialog.alert("Containers are being launched in the background. " +
+                                            "You may continue to work, refreshing the dashboard to see updated progress.");
+                                        return true;
+                                    },
                                     url: bulkLaunchUrl(wrapperId),
                                     data: JSON.stringify(dataToPost),
                                     success: function(data){
-                                        xmodal.loading.close();
-
                                         // bulk launch success returns two arrays -- containers that successfully launched, and containers that failed to launch
                                         var messageContent = [],
                                             totalLaunchAttempts = data.successes.concat(data.failures).length;
@@ -840,7 +842,6 @@ var XNAT = getObject(XNAT || {});
                                                 messageContent.push( spawn('div',prettifyJSON(failure.params)) );
                                             });
                                         }
-
                                         XNAT.ui.dialog.open({
                                             title: 'Container Launch Success',
                                             content: spawn('div', messageContent ),
@@ -855,8 +856,6 @@ var XNAT = getObject(XNAT || {});
                                         });
                                     },
                                     fail: function (e) {
-                                        xmodal.loading.close();
-
                                         if (e.responseJSON.message) {
                                             var data = e.responseJSON;
                                             var messageContent = spawn('div',[
@@ -1139,7 +1138,6 @@ var XNAT = getObject(XNAT || {});
             }
         });
     };
-
 
     launcher.noIllegalChars = function(input,exception){
         // examine the to-be-submitted value of an input against a list of disallowed characters and return false if any are found.

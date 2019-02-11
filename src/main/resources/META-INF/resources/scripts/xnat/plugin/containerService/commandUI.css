@@ -36,6 +36,10 @@
     overflow-y: auto;
 }
 
+.bulk-inputs {
+    margin-bottom:15px;
+}
+
 #containerMenu > .bd {
     border-top: none;
 }
