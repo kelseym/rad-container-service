@@ -22,6 +22,7 @@ import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.task.AbstractXnatTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -167,6 +168,11 @@ public class DockerStatusUpdater   implements Runnable {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
             } catch (ServiceNotFoundException e) {
+            	if(isWaiting(service) || isFinalizing(service)){
+            		log.debug("ignoring failed service retrieval for finalizing and waiting jobs");
+            		continue;
+            	}
+            	
                 final String msg = String.format("Service %s is in database, but not found on swarm. Setting status to \"Failed\".", service.serviceId());
                 log.error(msg, e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), msg));
@@ -198,6 +204,14 @@ public class DockerStatusUpdater   implements Runnable {
         report.successful = allTrue || allFalse ? allTrue : null;
 
         return report;
+    }
+   
+    public boolean isWaiting(Container service){
+    	return ContainerServiceImpl.waiting.equals(service.status());
+    }
+    
+    public boolean isFinalizing(Container service){
+    	return ContainerServiceImpl.finalizing.equals(service.status());
     }
 
     private static class UpdateReport {

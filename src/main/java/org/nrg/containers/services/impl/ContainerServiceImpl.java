@@ -79,8 +79,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class ContainerServiceImpl implements ContainerService {
 	private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
-    private static final String waiting = "Waiting";
-    private static final String finalizing = "Finalizing";
+    public static final String waiting = "Waiting";
+    public static final String finalizing = "Finalizing";
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
