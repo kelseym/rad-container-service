@@ -96,7 +96,9 @@ public class DockerControlApiTest {
             }
         }
 
-        final DockerServer mockDockerServer = DockerServer.create(0L, "Test server", CONTAINER_HOST, CERT_PATH, false, null, null, null, false);
+        final DockerServer mockDockerServer = DockerServer.create(0L, "Test server", CONTAINER_HOST,
+                CERT_PATH, null, false, null,
+                null, null, false);
         when(mockDockerServerService.getServer()).thenReturn(mockDockerServer);
 
         CLIENT = controlApi.getClient();

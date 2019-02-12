@@ -4,6 +4,7 @@ import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.events.DockerStatusUpdater;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -25,8 +26,9 @@ public class EventPullingIntegrationTestConfig implements SchedulingConfigurer {
     @Bean
     public DockerStatusUpdater dockerStatusUpdater(final DockerControlApi dockerControlApi,
                                                    final DockerServerService dockerServerService,
-                                                   final ContainerService containerService) {
-        return new DockerStatusUpdater(dockerControlApi, dockerServerService, containerService);
+                                                   final ContainerService containerService,
+                                                   final XnatAppInfo xnatAppInfo) {
+        return new DockerStatusUpdater(dockerControlApi, dockerServerService, containerService, xnatAppInfo);
     }
 
     @Bean

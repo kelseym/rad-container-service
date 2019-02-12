@@ -135,7 +135,7 @@ public class CommandResolutionTest {
         buildDir = folder.newFolder().getAbsolutePath();
         when(mockSiteConfigPreferences.getBuildPath()).thenReturn(buildDir);
 
-        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null, false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false));
+        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null, null, false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false));
     }
 
     @Test
