@@ -76,8 +76,8 @@ public interface ContainerService {
 
     void finalize(final String containerId, final UserI userI) throws NotFoundException, ContainerException, NoDockerServerException, DockerServerException;
     void finalize(final Container container, final UserI userI) throws ContainerException, DockerServerException, NoDockerServerException;
-    void finalize(final Container container, final UserI userI, final String exitCode) throws ContainerException, NoDockerServerException, DockerServerException;
-
+    void finalize(Container notFinalized, UserI userI, String exitCode, boolean isSuccessfulStatus)	throws ContainerException, NoDockerServerException, DockerServerException;
+    
     String kill(final String containerId, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException;
 
@@ -87,4 +87,5 @@ public interface ContainerService {
     InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
 	boolean isWaiting(Container service);
 	boolean isFinalizing(Container service);
+	void queuedFinalize(String exitCodeString, boolean isSuccessful, Container service, UserI userI);
 }

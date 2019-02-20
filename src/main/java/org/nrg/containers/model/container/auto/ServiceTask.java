@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 @AutoValue
 public abstract class ServiceTask {
     private static final Pattern exitStatusPattern = Pattern.compile("complete|shutdown|failed|rejected");
+    private static final Pattern successStatusPattern = Pattern.compile("complete");
     private static final Pattern hasNotStartedPattern = Pattern.compile("new|allocated|pending|assigned|accepted|preparing|ready|starting");
 
     public abstract String serviceId();
@@ -42,6 +43,15 @@ public abstract class ServiceTask {
     public boolean isExitStatus() {
         final String status = status();
         return status != null && exitStatusPattern.matcher(status).matches();
+    }
+    
+    public static boolean  isSuccessfulStatus(String status){
+        return status != null && successStatusPattern.matcher(status).matches();
+    }
+    
+    public boolean isSuccessfulStatus(){
+        final String status = status();
+        return isSuccessfulStatus(status);
     }
 
     public boolean hasNotStarted() {

@@ -168,8 +168,13 @@ public class DockerStatusUpdater   implements Runnable {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
             } catch (ServiceNotFoundException e) {
-            	if(isWaiting(service) || isFinalizing(service)){
+            	if(isFinalizing(service)){
             		log.debug("ignoring failed service retrieval for finalizing and waiting jobs");
+            		continue;
+            	}
+            	
+            	if (isWaiting(service)){
+            		containerService.queuedFinalize("0",true, service, AdminUtils.getAdminUser());
             		continue;
             	}
             	
