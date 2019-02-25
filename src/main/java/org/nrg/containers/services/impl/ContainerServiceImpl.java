@@ -51,6 +51,7 @@ import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.ContainerEntityService;
 import org.nrg.containers.services.ContainerFinalizeService;
 import org.nrg.containers.services.ContainerService;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -425,8 +426,6 @@ public class ContainerServiceImpl implements ContainerService {
         log.debug("Processing container event");
         final Container container = retrieve(event.containerId());
 
-
-
         // container will be null if either we aren't tracking the container
         // that this event is about, or if we have already recorded the event
         if (container != null ) {
@@ -437,7 +436,7 @@ public class ContainerServiceImpl implements ContainerService {
                 final Container containerWithAddedEvent = addContainerEventToHistory(event, userI);
                 if (event.isExitStatus()) {
                     log.debug("Container is dead. Finalizing.");
-                    finalize(containerWithAddedEvent, userI, event.exitCode());
+                    finalize(containerWithAddedEvent, userI, event.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
                 }
             } catch (UserInitException | UserNotFoundException e) {
                 log.error("Could not update container status. Could not get user details for user " + userLogin, e);
@@ -491,46 +490,17 @@ public class ContainerServiceImpl implements ContainerService {
                 } else {
                 	//Assumption is that only in Swarm mode containers would be intensive (time and space)
                 	//Hence limit the number of finalizations.
-                	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
 
                 	if (log.isDebugEnabled()){
                 		log.debug("Checking isExitStatus {} and service.status {}",task.isExitStatus(),service.status());
                 	}
                     if (task.isExitStatus() || isWaiting(service)) {
-                    	//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
-                    	//Poor (wo)man's queue
-                    	if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
-                            addContainerHistoryItem(service, ContainerHistory.fromSystem(finalizing,"Processing finished. Uploading files." ), userI);
-                            if (log.isDebugEnabled()){
-                            	log.debug("Service has exited. Finalizing.");
-                            }
-                            final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
-                            final Container serviceWithAddedEvent = retrieve(service.databaseId());
-                            //Do the finalization in its own thread. That way we dont block the DockerStatusUpdater
-                            //Dont want to deal with RejectionHandler just yet
-                            final Runnable finalizeContainer = new Runnable() {
-                                @Override
-                                public void run() {
-                                	try {
-                                		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString);
-                                    } catch (ContainerException | NoDockerServerException | DockerServerException e) {
-                                        log.error("Container finalization failed.", e);
-                                    }
-                                }
-                            };
-                            executorService.submit(finalizeContainer);
-                    	}else {
-                            addContainerHistoryItem(service, ContainerHistory.fromSystem("Waiting","Processing finished. Waiting to upload files." ), userI);
-                    		log.info("As there are " +countOfContainersBeingFinalized + "/" + containerControlApi.getContainerFinalizationPoolLimit() + " being finalized at present. Delaying service " + service.serviceId() + " Workflow: " + service.workflowId() + " finalization");
-                    	}
+            		    final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
+                    	queuedFinalize(exitCodeString, task.isSuccessfulStatus(),service, userI);
                     }else{
                     	if (log.isDebugEnabled()){
                     		log.debug("Docker event has not exited yet" + service.serviceId() + " Workflow: " + service.workflowId() + service.status());
                     	}
-                    }
-                    if (log.isInfoEnabled()){
-	                	int countOfContainersWaiting = containerEntityService.howManyContainersAreWaiting();
-	            		log.info("There are {}/{} being finalized at present with {} waiting",countOfContainersBeingFinalized,containerControlApi.getContainerFinalizationPoolLimit(),countOfContainersWaiting);
                     }
 
                 }
@@ -543,6 +513,42 @@ public class ContainerServiceImpl implements ContainerService {
             log.debug("Done processing service task event: " + event);
         }
     }
+
+    @Override
+	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
+		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
+		//Poor (wo)man's queue
+    	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
+		if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
+		    addContainerHistoryItem(service, ContainerHistory.fromSystem(finalizing,"Processing finished. Uploading files." ), userI);
+		    if (log.isDebugEnabled()){
+		    	log.debug("Service has exited. Finalizing.");
+		    }
+		    final Container serviceWithAddedEvent = retrieve(service.databaseId());
+		    //Do the finalization in its own thread. That way we dont block the DockerStatusUpdater
+		    //Dont want to deal with RejectionHandler just yet
+		    final Runnable finalizeContainer = new Runnable() {
+		        @Override
+		        public void run() {
+		        	try {
+		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessful);
+		            } catch (ContainerException | NoDockerServerException | DockerServerException e) {
+		                log.error("Container finalization failed.", e);
+		            }
+		        }
+		    };
+		    executorService.submit(finalizeContainer);
+		}else {
+		    addContainerHistoryItem(service, ContainerHistory.fromSystem("Waiting","Processing finished. Waiting to upload files." ), userI);
+			log.info("As there are " +countOfContainersBeingFinalized + "/" + containerControlApi.getContainerFinalizationPoolLimit() + " being finalized at present. Delaying service " + service.serviceId() + " Workflow: " + service.workflowId() + " finalization");
+		}
+		
+
+        if (log.isInfoEnabled()){
+        	int countOfContainersWaiting = containerEntityService.howManyContainersAreWaiting();
+    		log.info("There are {}/{} being finalized at present with {} waiting",countOfContainersBeingFinalized,containerControlApi.getContainerFinalizationPoolLimit(),countOfContainersWaiting);
+        }
+	}
     @Override
     public boolean isWaiting(Container service){
     	return waiting.equals(service.status());
@@ -558,11 +564,11 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public void finalize(final Container container, final UserI userI) throws ContainerException, DockerServerException, NoDockerServerException {
-        finalize(container, userI, container.exitCode());
+        finalize(container, userI, container.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
     }
 
     @Override
-    public void finalize(final Container notFinalized, final UserI userI, final String exitCode) throws ContainerException, NoDockerServerException, DockerServerException {
+    public void finalize(final Container notFinalized, final UserI userI, final String exitCode, boolean isSuccessfulStatus) throws ContainerException, NoDockerServerException, DockerServerException {
         final long databaseId = notFinalized.databaseId();
         log.debug("Beginning finalization for container {}.", databaseId);
 
@@ -598,7 +604,7 @@ public class ContainerServiceImpl implements ContainerService {
         final String serviceOrContainerId = notFinalized.isSwarmService() ? notFinalized.serviceId() : notFinalized.containerId();
         log.info("Finalizing Container {}, {} id {}.", databaseId, serviceOrContainer, serviceOrContainerId);
 
-        final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI, exitCodeIsFailed(exitCode), wrapupContainers);
+        final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI, exitCodeIsFailed(exitCode) || !isSuccessfulStatus, wrapupContainers);
 
         log.debug("Done uploading for Container {}. Now saving information about created outputs.", databaseId);
 
@@ -1082,6 +1088,8 @@ public class ContainerServiceImpl implements ContainerService {
 
             isFailed = exitCodeNumber != null && exitCodeNumber > 0;
         }
+        
+        
         return isFailed;
     }
 
