@@ -1,40 +1,8 @@
 package org.nrg.containers.services.impl;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.nrg.action.ClientException;
-import org.nrg.action.ServerException;
-import org.nrg.containers.api.ContainerControlApi;
-import org.nrg.containers.exceptions.ContainerException;
-import org.nrg.containers.exceptions.DockerServerException;
-import org.nrg.containers.exceptions.NoDockerServerException;
-import org.nrg.containers.exceptions.UnauthorizedException;
-import org.nrg.containers.model.container.auto.Container;
-import org.nrg.containers.model.container.auto.Container.ContainerMount;
-import org.nrg.containers.model.container.auto.Container.ContainerOutput;
-import org.nrg.containers.services.ContainerFinalizeService;
-import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.utils.ContainerUtils;
-import org.nrg.xdat.om.XnatResourcecatalog;
-import org.nrg.xdat.preferences.SiteConfigPreferences;
-import org.nrg.xdat.security.helpers.Permissions;
-import org.nrg.xft.XFTItem;
-import org.nrg.xft.event.persist.PersistentWorkflowUtils;
-import org.nrg.xft.security.UserI;
-import org.nrg.xft.utils.FileUtils;
-import org.nrg.xnat.helpers.uri.URIManager;
-import org.nrg.xnat.helpers.uri.UriParserUtils;
-import org.nrg.xnat.restlet.util.XNATRestConstants;
-import org.nrg.xnat.services.archive.CatalogService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
+import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -50,8 +18,47 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
-import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
+import javax.annotation.Nullable;
+
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.nrg.action.ClientException;
+import org.nrg.containers.api.ContainerControlApi;
+import org.nrg.containers.exceptions.ContainerException;
+import org.nrg.containers.exceptions.DockerServerException;
+import org.nrg.containers.exceptions.NoDockerServerException;
+import org.nrg.containers.exceptions.UnauthorizedException;
+import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.model.container.auto.Container.ContainerMount;
+import org.nrg.containers.model.container.auto.Container.ContainerOutput;
+import org.nrg.containers.services.ContainerFinalizeService;
+import org.nrg.containers.services.ContainerService;
+import org.nrg.containers.utils.ContainerUtils;
+import org.nrg.mail.services.MailService;
+import org.nrg.xdat.om.XnatExperimentdata;
+import org.nrg.xdat.om.XnatResourcecatalog;
+import org.nrg.xdat.om.XnatSubjectdata;
+import org.nrg.xdat.preferences.SiteConfigPreferences;
+import org.nrg.xdat.security.helpers.Permissions;
+import org.nrg.xft.XFTItem;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
+import org.nrg.xft.security.UserI;
+import org.nrg.xft.utils.FileUtils;
+import org.nrg.xnat.helpers.uri.URIManager;
+import org.nrg.xnat.helpers.uri.UriParserUtils;
+import org.nrg.xnat.restlet.util.XNATRestConstants;
+import org.nrg.xnat.services.archive.CatalogService;
+import org.nrg.xnat.utils.WorkflowUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -60,16 +67,19 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
     private final CatalogService catalogService;
+    private final MailService      mailService;
 
     private final Pattern experimentUri = Pattern.compile("^(/archive)?/experiments/([^/]+)$");
 
     @Autowired
     public ContainerFinalizeServiceImpl(final ContainerControlApi containerControlApi,
                                         final SiteConfigPreferences siteConfigPreferences,
-                                        final CatalogService catalogService) {
+                                        final CatalogService catalogService,
+                                        final MailService mailService) {
         this.containerControlApi = containerControlApi;
         this.siteConfigPreferences = siteConfigPreferences;
         this.catalogService = catalogService;
+        this.mailService = mailService;
     }
 
     @Override
@@ -122,7 +132,32 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
         private Container finalizeContainer() {
             final Container.Builder finalizedContainerBuilder = toFinalize.toBuilder();
-            finalizedContainerBuilder.logPaths(uploadLogs());
+            List<String> logPaths = uploadLogs();
+            finalizedContainerBuilder.logPaths(logPaths);
+            String workFlowId = toFinalize.workflowId();
+            PersistentWorkflowI wrkFlow = WorkflowUtils.getUniqueWorkflow(userI, workFlowId);
+            String xnatLabel = null;
+            String xnatId = null;
+            String project = null;
+            String pipeline_name = null;
+            if (wrkFlow != null) {
+                xnatId = wrkFlow.getId();
+                project   = wrkFlow.getExternalid();
+                pipeline_name = wrkFlow.getPipelineName();
+                try {
+                	XnatExperimentdata exp = XnatExperimentdata.getXnatExperimentdatasById(xnatId, userI, false);
+                	if (exp != null){
+                		xnatLabel = exp.getLabel();
+                	}else {
+                    	XnatSubjectdata subject = XnatSubjectdata.getXnatSubjectdatasById(xnatId, userI, false);
+                    	if (subject != null) {
+                    		xnatLabel = subject.getLabel();
+                    	}
+                	}
+                }catch(Exception e) {
+                	log.error("Unable to get the XNAT Label for " + xnatId);
+                }
+            }
 
             if (!isFailed) {
                 // Do not try to upload outputs if we know the container failed.
@@ -151,15 +186,75 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 }
 
                 ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), PersistentWorkflowUtils.COMPLETE, userI);
+                sendContainerStatusUpdateEmail( true, pipeline_name,xnatId,xnatLabel, project, logPaths);
+                
             } else {
-                // TODO We know the container has failed. Should we send an email?
                 ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), PersistentWorkflowUtils.FAILED, userI);
                 finalizedContainerBuilder.status("Failed")
                         .addHistoryItem(Container.ContainerHistory.fromSystem("Failed", ""))
                         .statusTime(new Date());
+                sendContainerStatusUpdateEmail( false, pipeline_name,xnatId,xnatLabel, project, logPaths);
             }
-
             return finalizedContainerBuilder.build();
+        }
+
+        public  void sendContainerStatusUpdateEmail( boolean completionStatus, String pipeline_name,String xnatId, String xnatLabel, String project, List<String> filePaths) {
+        	String admin = siteConfigPreferences.getAdminEmail();
+        	String status = completionStatus ? "Completed" : "Failed";
+        	String subject = pipeline_name + " update: "+ status + " processing of " + (xnatLabel !=null?xnatLabel:xnatId) + " in project " + project;
+            Map<String, File> attachments = new HashMap<String, File>();
+            for (String fPath : filePaths) {
+            	File f = new File(fPath);
+            	if (f != null && f.exists() && f.isFile()) {
+            		attachments.put(f.getName(), f);
+            	}
+            }
+            boolean hasAttachments = false;
+            if (attachments.size() > 0) {
+            	hasAttachments = true;
+            }
+            String emailHTMLBody = composeHTMLBody(pipeline_name, status, xnatId, xnatLabel, project, hasAttachments);
+            String emailText = composeEmailText(pipeline_name, status, xnatId, xnatLabel, project, hasAttachments);
+
+            try {
+    			mailService.sendHtmlMessage(admin, new String[]{userI.getEmail()}, new String[]{admin},null, subject, emailHTMLBody, emailText, attachments);
+    		} catch (Exception exception) {
+    			log.error("Send failed. Retrying by sending each email individually.", exception);
+    			int successfulSends = 0;
+				try {
+					mailService.sendHtmlMessage(admin, new String[]{admin}, null, null, subject, emailHTMLBody, emailText, attachments);
+					successfulSends++;
+				} catch (Exception e) {
+					log.error("Unable to send mail to " + admin + ".", e);
+				}
+    			if (successfulSends == 0) {
+    				log.error("Unable to send mail", exception);
+    			}
+    		}
+
+        }
+        
+
+        private String composeHTMLBody(String pipeline_name,String status,String xnatId, String xnatLabel, String project, boolean hasAttachments) {
+        	String htmlTxt  = "";
+        	StringBuilder sb = new StringBuilder();
+			sb.append("<html>");
+	        sb.append("<body>");
+	        sb.append(pipeline_name + " processing for " + (xnatLabel==null?xnatId:xnatLabel) +" in project " + project + " has " + status.toLowerCase());
+	        if (hasAttachments) 
+	        	sb.append("<br/> Log files generated by the processing are attached.");
+	        sb.append("</body>");
+            sb.append("</html>");
+            htmlTxt = sb.toString();
+            return htmlTxt;
+        }
+
+        private String composeEmailText(String pipeline_name,String status,String xnatId, String xnatLabel, String project, boolean hasAttachments) {
+        	String txt  = "";
+	        txt = pipeline_name + " processing for " + (xnatLabel==null?xnatId:xnatLabel) +" has " + status.toLowerCase();
+	        if (hasAttachments) 
+	        	txt += "Log files generated by the processing are attached.";
+            return txt;
         }
 
         private List<String> uploadLogs() {
@@ -339,13 +434,13 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     log.error(message);
                     throw new ContainerException(message, e);
                 }
-
-                try {
-                    catalogService.refreshResourceCatalog(userI, createdUri);
-                } catch (ServerException | ClientException e) {
-                    final String message = String.format(prefix + "Could not refresh catalog for resource %s.", createdUri);
-                    log.error(message, e);
-                }
+                //Insert Resources does a refresh catalog action.
+                //try {
+                //    catalogService.refreshResourceCatalog(userI, createdUri);
+                //} catch (ServerException | ClientException e) {
+                //    final String message = String.format(prefix + "Could not refresh catalog for resource %s.", createdUri);
+                //    log.error(message, e);
+                //}
             } else if (type.equals(ASSESSOR.getName())) {
 
                 final ContainerMount mount = getMount(output.mount());
@@ -435,9 +530,14 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         private Container getWrapupContainer(final String parentSourceObjectName) {
             return wrapupContainerMap.get(parentSourceObjectName);
         }
-
+//quick fix for demo. revisit
         private List<File> matchGlob(final String rootPath, final String glob) {
             final File rootDir = new File(rootPath);
+            if(StringUtils.isBlank(glob)){
+            	List<File> files =Lists.<File>newArrayList();
+            	files.add(rootDir);
+            	return files;
+            }
             final File[] files = rootDir.listFiles();
             return files == null ? Lists.<File>newArrayList() : Arrays.asList(files);
         }

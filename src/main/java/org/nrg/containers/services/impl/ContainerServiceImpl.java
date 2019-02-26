@@ -1,10 +1,32 @@
 package org.nrg.containers.services.impl;
 
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import lombok.extern.slf4j.Slf4j;
+
+import static org.nrg.containers.model.command.entity.CommandType.DOCKER;
+import static org.nrg.containers.model.command.entity.CommandType.DOCKER_SETUP;
+import static org.nrg.containers.model.command.entity.CommandType.DOCKER_WRAPUP;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.ASSESSOR;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.PROJECT;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.RESOURCE;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SCAN;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SESSION;
+import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
+
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.events.model.ContainerEvent;
@@ -41,40 +63,29 @@ import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.XFTItem;
 import org.nrg.xft.event.EventUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
-import static org.nrg.containers.model.command.entity.CommandType.DOCKER;
-import static org.nrg.containers.model.command.entity.CommandType.DOCKER_SETUP;
-import static org.nrg.containers.model.command.entity.CommandType.DOCKER_WRAPUP;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.ASSESSOR;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.PROJECT;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.RESOURCE;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SCAN;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SESSION;
-import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class ContainerServiceImpl implements ContainerService {
     private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
     private static final String MIN_XNAT_VERSION_REQUIRED = "1.7.5";
+	public static final String waiting = "Waiting";
+    public static final String finalizing = "Finalizing";
+
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
@@ -83,6 +94,7 @@ public class ContainerServiceImpl implements ContainerService {
     private final SiteConfigPreferences siteConfigPreferences;
     private final ContainerFinalizeService containerFinalizeService;
     private final XnatAppInfo xnatAppInfo;
+    private final ExecutorService	executorService;
 
     @Autowired
     public ContainerServiceImpl(final ContainerControlApi containerControlApi,
@@ -91,6 +103,7 @@ public class ContainerServiceImpl implements ContainerService {
                                 final AliasTokenService aliasTokenService,
                                 final SiteConfigPreferences siteConfigPreferences,
                                 final ContainerFinalizeService containerFinalizeService,
+                                final ThreadPoolExecutorFactoryBean executorFactoryBean,
                                 final XnatAppInfo xnatAppInfo) {
         this.containerControlApi = containerControlApi;
         this.containerEntityService = containerEntityService;
@@ -98,6 +111,7 @@ public class ContainerServiceImpl implements ContainerService {
         this.aliasTokenService = aliasTokenService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.containerFinalizeService = containerFinalizeService;
+        this.executorService = executorFactoryBean.getObject();
         this.xnatAppInfo = xnatAppInfo;
     }
 
@@ -245,6 +259,41 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     @Nonnull
+    public void resetFinalizingStatusToWaitingOrFailed() {
+    	List<ContainerEntity> finalizingContainerEntities =  containerEntityService.retrieveServicesInFinalizingState();
+    	if (finalizingContainerEntities == null || finalizingContainerEntities.size() == 0) {
+    		log.info("Appears that no containers are in orphaned finalizing state");
+    		return;
+    	}else {
+	    		List<Container> finalizingContainers  = toPojo(finalizingContainerEntities);
+	    		//Now update the finalizing state to Waiting or Failed
+	            for (final Container s : finalizingContainers) {
+		            	Container service = retrieve(s.databaseId()); 
+		                if (service != null) {
+		                	log.info("Found Service " + service.serviceId() + " Task: " + service.taskId() + " Workflow: " + service.workflowId() + " in possibly abandoned finalizing state");
+		                    final String userLogin = service.userId();
+			                try {    
+			                    final UserI userI = Users.getUser(userLogin);
+			                    Date now = new Date();
+			                    Date lastStatusTime = service.statusTime();
+			                    long diffHours = (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
+			                    if (diffHours < 72) {
+				                    addContainerHistoryItem(service, ContainerHistory.fromSystem("Waiting","Reset status from Finalizing to Waiting." ), userI);
+				                	log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() + " Workflow: " + service.workflowId() + " to Waiting state");
+			                    }else {
+				                    addContainerHistoryItem(service, ContainerHistory.fromSystem("Failed","Reset status from Finalizing to Failed. Has been finalizing for more than 72 Hours" ), userI);
+				                	log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() + " Workflow: " + service.workflowId() + " to FAILED state");
+			                    }
+			                }catch(UserNotFoundException | UserInitException e) {
+			                    log.error("Could not update container status. Could not get user details for user " + userLogin, e);
+			        		}
+		                }
+	            }
+    	}
+    }
+
+    @Override
+    @Nonnull
     public List<Container> retrieveSetupContainersForParent(final long parentId) {
         return toPojo(containerEntityService.retrieveSetupContainersForParent(parentId));
     }
@@ -339,37 +388,45 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException, ContainerException {
         log.info("Preparing to launch resolved command.");
         final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, parent, userI);
+        final PersistentWorkflowI workflow = makeWorkflowIfAppropriate(resolvedCommand, userI);
 
         log.info("Creating container from resolved command.");
-        final Container createdContainerOrService = containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
+		try {
+        	final Container createdContainerOrService = containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
 
-        log.info("Recording container launch.");
-        final String workflowId = makeWorkflowIfAppropriate(resolvedCommand, createdContainerOrService, userI);
-        final Container savedContainerOrService = toPojo(containerEntityService.save(fromPojo(
-                createdContainerOrService.toBuilder()
-                        .workflowId(workflowId)
-                        .parent(parent)
-                        .build()
-        ), userI));
-
-        if (resolvedCommand.wrapupCommands().size() > 0) {
-            log.info("Creating wrapup container objects in database (not creating docker containers).");
-            for (final ResolvedCommand resolvedWrapupCommand : resolvedCommand.wrapupCommands()) {
-                final Container wrapupContainer = createWrapupContainerInDbFromResolvedCommand(resolvedWrapupCommand, savedContainerOrService, userI);
-                log.debug("Created wrapup container {} for parent container {}.", wrapupContainer.databaseId(), savedContainerOrService.databaseId());
-            }
+	        //Update workflow with container information
+            addContainerInformationToWorkflow(workflow,createdContainerOrService);
+            log.info("Recording container launch.");
+	        
+			final Container savedContainerOrService = toPojo(containerEntityService.save(fromPojo(
+	                createdContainerOrService.toBuilder()
+	                        .workflowId(workflow.getWorkflowId().toString())
+	                        .parent(parent)
+	                        .build()
+	        ), userI));
+	
+	        if (resolvedCommand.wrapupCommands().size() > 0) {
+	            log.info("Creating wrapup container objects in database (not creating docker containers).");
+	            for (final ResolvedCommand resolvedWrapupCommand : resolvedCommand.wrapupCommands()) {
+	                final Container wrapupContainer = createWrapupContainerInDbFromResolvedCommand(resolvedWrapupCommand, savedContainerOrService, userI);
+	                log.debug("Created wrapup container {} for parent container {}.", wrapupContainer.databaseId(), savedContainerOrService.databaseId());
+	            }
+	        }
+	
+	        if (resolvedCommand.setupCommands().size() > 0) {
+	            log.info("Launching setup containers.");
+	            for (final ResolvedCommand resolvedSetupCommand : resolvedCommand.setupCommands()) {
+	                launchResolvedCommand(resolvedSetupCommand, userI, savedContainerOrService);
+	            }
+	        } else {
+	            startContainer(userI, savedContainerOrService);
+	        }
+	
+	        return savedContainerOrService;
+        }catch(Exception e) {
+        	handleFailure(workflow,e);
         }
-
-        if (resolvedCommand.setupCommands().size() > 0) {
-            log.info("Launching setup containers.");
-            for (final ResolvedCommand resolvedSetupCommand : resolvedCommand.setupCommands()) {
-                launchResolvedCommand(resolvedSetupCommand, userI, savedContainerOrService);
-            }
-        } else {
-            startContainer(userI, savedContainerOrService);
-        }
-
-        return savedContainerOrService;
+        return null;
     }
 
     private void startContainer(final UserI userI, final Container savedContainerOrService) throws NoDockerServerException, ContainerException {
@@ -378,7 +435,7 @@ public class ContainerServiceImpl implements ContainerService {
             containerControlApi.startContainer(savedContainerOrService);
         } catch (DockerServerException e) {
             addContainerHistoryItem(savedContainerOrService, ContainerHistory.fromSystem("Failed", "Did not start." + e.getMessage()), userI);
-            handleFailure(savedContainerOrService);
+            handleFailure(userI,savedContainerOrService);
             throw new ContainerException("Failed to start");
         }
     }
@@ -456,7 +513,7 @@ public class ContainerServiceImpl implements ContainerService {
                 final Container containerWithAddedEvent = addContainerEventToHistory(event, userI);
                 if (event.isExitStatus()) {
                     log.debug("Container is dead. Finalizing.");
-                    finalize(containerWithAddedEvent, userI, event.exitCode());
+                    finalize(containerWithAddedEvent, userI, event.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
                 }
             } catch (UserInitException | UserNotFoundException e) {
                 log.error("Could not update container status. Could not get user details for user " + userLogin, e);
@@ -474,13 +531,17 @@ public class ContainerServiceImpl implements ContainerService {
     public void processEvent(final ServiceTaskEvent event) {
         final ServiceTask task = event.task();
         final Container service;
-        log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
-                task.taskId(), task.serviceId());
 
+        if (log.isDebugEnabled()){
+	        log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
+	           task.taskId(), task.serviceId());
+		}
         // When we create the service, we don't know all the IDs. If this is the first time we
         // have seen a task for this service, we can set those IDs now.
         if (StringUtils.isBlank(event.service().taskId())) {
-            log.debug("Service \"{}\" has no task information yet. Setting it now.", task.serviceId());
+        	if (log.isDebugEnabled()){
+            	log.debug("Service \"{}\" has no task information yet. Setting it now.", task.serviceId());
+			}
             final Container serviceToUpdate = event.service().toBuilder()
                     .taskId(task.taskId())
                     .containerId(task.containerId())
@@ -497,23 +558,32 @@ public class ContainerServiceImpl implements ContainerService {
             try {
                 final UserI userI = Users.getUser(userLogin);
                 final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
-                final ContainerHistory createdTaskHistoryItem = addContainerHistoryItem(service, taskHistoryItem, userI);
-                if (createdTaskHistoryItem == null) {
+                
+                //process new and waiting events (duplicate docker events are skipped)              
+                if (!(isWaiting(service) || isFinalizing(service)) && addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
                     // We have already added this task and can safely skip it.
-                    log.debug("Skipping task status we have already seen.");
+                	if (log.isDebugEnabled()){
+                		log.debug("Skipping task status we have already seen.");
+                	}
                 } else {
-                    if (task.isExitStatus()) {
-                        addContainerHistoryItem(service, ContainerHistory.fromSystem("Finalizing","Processing finished. Uploading files." ), userI);
-                        log.debug("Service has exited. Finalizing.");
-                        final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
-                        final Container serviceWithAddedEvent = retrieve(service.databaseId());
-                        finalize(serviceWithAddedEvent, userI, exitCodeString);
+                	//Assumption is that only in Swarm mode containers would be intensive (time and space)
+                	//Hence limit the number of finalizations.
+
+                	if (log.isDebugEnabled()){
+                		log.debug("Checking isExitStatus {} and service.status {}",task.isExitStatus(),service.status());
+                	}
+                    if (task.isExitStatus() || isWaiting(service)) {
+            		    final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
+                    	queuedFinalize(exitCodeString, task.isSuccessfulStatus(),service, userI);
+                    }else{
+                    	if (log.isDebugEnabled()){
+                    		log.debug("Docker event has not exited yet" + service.serviceId() + " Workflow: " + service.workflowId() + service.status());
+                    	}
                     }
+
                 }
             } catch (UserInitException | UserNotFoundException e) {
                 log.error("Could not update container status. Could not get user details for user " + userLogin, e);
-            } catch (ContainerException | NoDockerServerException | DockerServerException e) {
-                log.error("Container finalization failed.", e);
             }
         }
 
@@ -523,17 +593,61 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
+	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
+		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
+		//Poor (wo)man's queue
+    	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
+		if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
+		    addContainerHistoryItem(service, ContainerHistory.fromSystem(finalizing,"Processing finished. Uploading files." ), userI);
+		    if (log.isDebugEnabled()){
+		    	log.debug("Service has exited. Finalizing.");
+		    }
+		    final Container serviceWithAddedEvent = retrieve(service.databaseId());
+		    //Do the finalization in its own thread. That way we dont block the DockerStatusUpdater
+		    //Dont want to deal with RejectionHandler just yet
+		    final Runnable finalizeContainer = new Runnable() {
+		        @Override
+		        public void run() {
+		        	try {
+		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessful);
+		            } catch (ContainerException | NoDockerServerException | DockerServerException e) {
+		                log.error("Container finalization failed.", e);
+		            }
+		        }
+		    };
+		    executorService.submit(finalizeContainer);
+		}else {
+		    addContainerHistoryItem(service, ContainerHistory.fromSystem("Waiting","Processing finished. Waiting to upload files." ), userI);
+			log.info("As there are " +countOfContainersBeingFinalized + "/" + containerControlApi.getContainerFinalizationPoolLimit() + " being finalized at present. Delaying service " + service.serviceId() + " Workflow: " + service.workflowId() + " finalization");
+		}
+		
+
+        if (log.isInfoEnabled()){
+        	int countOfContainersWaiting = containerEntityService.howManyContainersAreWaiting();
+    		log.info("There are {}/{} being finalized at present with {} waiting",countOfContainersBeingFinalized,containerControlApi.getContainerFinalizationPoolLimit(),countOfContainersWaiting);
+        }
+	}
+    @Override
+    public boolean isWaiting(Container service){
+    	return waiting.equals(service.status());
+    }
+    @Override
+    public boolean isFinalizing(Container service){
+    	return finalizing.equals(service.status());
+    }
+
+    @Override
     public void finalize(final String containerId, final UserI userI) throws NotFoundException, ContainerException, NoDockerServerException, DockerServerException {
         finalize(get(containerId), userI);
     }
 
     @Override
     public void finalize(final Container container, final UserI userI) throws ContainerException, DockerServerException, NoDockerServerException {
-        finalize(container, userI, container.exitCode());
+        finalize(container, userI, container.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
     }
 
     @Override
-    public void finalize(final Container notFinalized, final UserI userI, final String exitCode) throws ContainerException, NoDockerServerException, DockerServerException {
+    public void finalize(final Container notFinalized, final UserI userI, final String exitCode, boolean isSuccessfulStatus) throws ContainerException, NoDockerServerException, DockerServerException {
         final long databaseId = notFinalized.databaseId();
         log.debug("Beginning finalization for container {}.", databaseId);
 
@@ -569,7 +683,7 @@ public class ContainerServiceImpl implements ContainerService {
         final String serviceOrContainerId = notFinalized.isSwarmService() ? notFinalized.serviceId() : notFinalized.containerId();
         log.info("Finalizing Container {}, {} id {}.", databaseId, serviceOrContainer, serviceOrContainerId);
 
-        final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI, exitCodeIsFailed(exitCode), wrapupContainers);
+        final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI, exitCodeIsFailed(exitCode) || !isSuccessfulStatus, wrapupContainers);
 
         log.debug("Done uploading for Container {}. Now saving information about created outputs.", databaseId);
 
@@ -735,8 +849,14 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException, NotFoundException {
         addContainerHistoryItem(container, ContainerHistory.fromUserAction("Killed", userI.getLogin()), userI);
 
-        final String containerDockerId = container.containerId();
+        String containerDockerId;
+        if(container.isSwarmService()){
+        	containerDockerId = container.serviceId();
+            containerControlApi.killService(containerDockerId);
+        }else{
+        	containerDockerId = container.containerId();
         containerControlApi.killContainer(containerDockerId);
+        }
         return containerDockerId;
     }
 
@@ -788,9 +908,17 @@ public class ContainerServiceImpl implements ContainerService {
         if (StringUtils.isBlank(logPath)) {
             // If log path is blank, that means we have not yet saved the logs from docker. Go fetch them now.
             if (ContainerService.STDOUT_LOG_NAME.contains(logFileName)) {
-                return new ByteArrayInputStream(containerControlApi.getStdoutLog(container).getBytes());
+            	if(container.isSwarmService()){
+                    return new ByteArrayInputStream(containerControlApi.getServiceStdoutLog(container.serviceId()).getBytes());
+            	}else{
+                    return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId()).getBytes());
+            	}
             } else if (ContainerService.STDERR_LOG_NAME.contains(logFileName)) {
-                return new ByteArrayInputStream(containerControlApi.getStderrLog(container).getBytes());
+            	if(container.isSwarmService()){
+            		return new ByteArrayInputStream(containerControlApi.getServiceStderrLog(container.serviceId()).getBytes());
+            	}else{
+                    return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId()).getBytes());
+            	}
             } else {
                 return null;
             }
@@ -806,12 +934,43 @@ public class ContainerServiceImpl implements ContainerService {
         return null;
     }
 
-    private void handleFailure(final Container container) {
-        // TODO handle failure
+    private void handleFailure(UserI userI,final Container container) {
+       try {
+    	   String workFlowId = container.workflowId();
+    	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI,workFlowId);
+    	   handleFailure(workflow);
+    	}catch(Exception e) {
+        	log.error("Unable to update workflow and set it to FAILED status for container", e);
+    	}
+    }
+    
+    private void handleFailure(PersistentWorkflowI workflow) {
+        try {
+        	workflow.setStatus(PersistentWorkflowUtils.FAILED);
+        	WorkflowUtils.save(workflow, workflow.buildEvent());
+        }catch(Exception e) {
+        	log.error("Unable to update workflow and set it to FAILED status", e);
+        }
+    }
+    
+    private void handleFailure(PersistentWorkflowI workflow, final Exception source) {
+        try {
+        	workflow.setDetails(source.getMessage());
+        	if(source instanceof DockerServerException){
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Service)");
+        	}else if(source instanceof ContainerException){
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Container)");
+        	}else{
+            	workflow.setStatus(PersistentWorkflowUtils.FAILED);
+        	}
+        	WorkflowUtils.save(workflow, workflow.buildEvent());
+        }catch(Exception e) {
+        	log.error("Unable to update workflow and set it to FAILED status", e);
+        }
     }
 
     /**
-     * Creates a workflow if possible and returns its ID.
+     * Creates a workflow if possible and returns it.
      *
      * This is a way for us to show the
      * the container execution in the history table and as a workflow alert banner
@@ -827,10 +986,10 @@ public class ContainerServiceImpl implements ContainerService {
      * @param containerOrService The Container object which refers to either a container launched on
      *                           a single docker machine or a service created on a swarm
      * @param userI The user launching the container
-     * @return ID of the created workflow, or null if no workflow was created
+     * @return created workflow, or null if no workflow was created
      */
     @Nullable
-    private String makeWorkflowIfAppropriate(final ResolvedCommand resolvedCommand, final Container containerOrService, final UserI userI) {
+    private PersistentWorkflowI makeWorkflowIfAppropriate(final ResolvedCommand resolvedCommand, final UserI userI) {
         log.debug("Preparing to make workflow.");
         final XFTItem rootInputObject = findRootInputObject(resolvedCommand, userI);
         if (rootInputObject == null) {
@@ -846,17 +1005,33 @@ public class ContainerServiceImpl implements ContainerService {
                     EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
                             resolvedCommand.wrapperName(),
                             "Container launch",
-                            StringUtils.isNotBlank(containerOrService.serviceId()) ?
-                                    containerOrService.serviceId() :
-                                    containerOrService.containerId()));
+                            ""));
+            workflow.setStatus(PersistentWorkflowUtils.QUEUED);
             WorkflowUtils.save(workflow, workflow.buildEvent());
             log.debug("Created workflow {}.", workflow.getWorkflowId());
-            return String.valueOf(workflow.getWorkflowId());
+            return workflow;
         } catch (Exception e) {
             log.error("Could not create workflow.", e);
         }
-
         return null;
+      }
+
+    private void addContainerInformationToWorkflow(PersistentWorkflowI wrk, Container containerOrService) {
+    	if (wrk == null) {
+            log.debug("Cannot update workflow with container information.");
+            return;
+    	}
+    	try {
+            String wrkFlowComment = StringUtils.isNotBlank(containerOrService.serviceId()) ?
+                                					containerOrService.serviceId() :
+                                					containerOrService.containerId();
+            wrk.setComments(wrkFlowComment);
+            wrk.setStatus(PersistentWorkflowUtils.IN_PROGRESS);
+            WorkflowUtils.save(wrk, wrk.buildEvent());
+            log.debug("updated workflow {}.", wrk.getWorkflowId());
+        } catch (Exception e) {
+            log.error("Could not create workflow.", e);
+        }
     }
 
     @Nullable
@@ -994,6 +1169,13 @@ public class ContainerServiceImpl implements ContainerService {
 
             isFailed = exitCodeNumber != null && exitCodeNumber > 0;
         }
+        
+        
         return isFailed;
     }
+
+	@Override
+	public List<Container> retrieveServicesInWaitingState() {
+        return toPojo(containerEntityService.retrieveServicesInWaitingState());
+	}
 }

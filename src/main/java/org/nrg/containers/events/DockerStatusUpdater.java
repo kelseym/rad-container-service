@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.spotify.docker.client.exceptions.ServiceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.api.ContainerControlApi;
+import org.nrg.containers.config.ContainersConfig;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.container.auto.Container;
@@ -12,11 +13,16 @@ import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.framework.task.XnatTask;
+import org.nrg.framework.task.services.XnatTaskService;
 import org.nrg.xdat.turbine.utils.AdminUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
+import org.nrg.xnat.services.XnatAppInfo;
+import org.nrg.xnat.task.AbstractXnatTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -25,12 +31,13 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class DockerStatusUpdater implements Runnable {
+public class DockerStatusUpdater   implements Runnable {
 
     private ContainerControlApi controlApi;
     private DockerServerService dockerServerService;
     private ContainerService containerService;
-
+    final XnatAppInfo xnatAppInfo;
+    
     private boolean haveLoggedDockerConnectFailure = false;
     private boolean haveLoggedNoServerInDb = false;
     private boolean haveLoggedXftInitFailure = false;
@@ -39,14 +46,20 @@ public class DockerStatusUpdater implements Runnable {
     @SuppressWarnings("SpringJavaAutowiringInspection")
     public DockerStatusUpdater(final ContainerControlApi controlApi,
                                final DockerServerService dockerServerService,
-                               final ContainerService containerService) {
+                               final ContainerService containerService,
+                               final XnatAppInfo xnatAppInfo) {
         this.controlApi = controlApi;
         this.dockerServerService = dockerServerService;
         this.containerService = containerService;
+        this.xnatAppInfo=xnatAppInfo;
     }
 
     @Override
     public void run() {
+		if(!xnatAppInfo.isPrimaryNode()) {
+			log.trace("Not the Primary node: skipping update status with docker.");
+	        return;
+    	}
         log.trace("Attempting to update status with docker.");
 
         final String skipMessage = "Skipping attempt to update status.";
@@ -102,6 +115,9 @@ public class DockerStatusUpdater implements Runnable {
             haveLoggedXftInitFailure = false;
             haveLoggedNoServerInDb = false;
         } else if (updateReport.successful) {
+            if (updateReport.updateReports.size() > 0) {
+                log.debug("Updated status successfully.");
+            }
             // Reset failure flags
             haveLoggedDockerConnectFailure = false;
             haveLoggedXftInitFailure = false;
@@ -109,6 +125,10 @@ public class DockerStatusUpdater implements Runnable {
         } else {
             log.info("Did not update status successfully.");
         }
+    	log.trace("-----------------------------------------------------------------------------");
+        log.trace("DOCKERSTATUSUPDATER: RUN COMPLETE");
+    	log.trace("-----------------------------------------------------------------------------");
+   
     }
 
     @Nonnull
@@ -134,12 +154,24 @@ public class DockerStatusUpdater implements Runnable {
     @Nonnull
     private UpdateReport updateServices(final DockerServer dockerServer) {
         final UpdateReport report = UpdateReport.create();
+        //TODO : Optimize this code so that waiting ones are handled first
         for (final Container service : containerService.retrieveNonfinalizedServices()) {
-            // log.debug("Getting Task info for Service {}.", service.serviceId());
+            log.debug("Getting Task info for Service {}.", service.serviceId());
+            log.debug("DIAGNOSTICS:"+service.toString());
             try {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
             } catch (ServiceNotFoundException e) {
+            	if(isFinalizing(service)){
+            		log.debug("ignoring failed service retrieval for finalizing and waiting jobs");
+            		continue;
+            	}
+            	
+            	if (isWaiting(service)){
+            		containerService.queuedFinalize("0",true, service, AdminUtils.getAdminUser());
+            		continue;
+            	}
+            	
                 final String msg = String.format("Service %s is in database, but not found on swarm. Setting status to \"Failed\".", service.serviceId());
                 log.error(msg, e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), msg));
@@ -171,6 +203,14 @@ public class DockerStatusUpdater implements Runnable {
         report.successful = allTrue || allFalse ? allTrue : null;
 
         return report;
+    }
+   
+    public boolean isWaiting(Container service){
+    	return ContainerServiceImpl.waiting.equals(service.status());
+    }
+    
+    public boolean isFinalizing(Container service){
+    	return ContainerServiceImpl.finalizing.equals(service.status());
     }
 
     private static class UpdateReport {
@@ -228,4 +268,6 @@ public class DockerStatusUpdater implements Runnable {
             return updateReportEntry;
         }
     }
+
+	
 }

@@ -2,6 +2,9 @@ package org.nrg.containers.model.container.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.base.MoreObjects;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.hibernate.envers.Audited;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
@@ -15,8 +18,8 @@ import javax.persistence.ManyToOne;
 import java.util.Date;
 import java.util.Objects;
 
+@Slf4j
 @Entity
-@Audited
 public class ContainerEntityHistory {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;
@@ -158,14 +161,22 @@ public class ContainerEntityHistory {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ContainerEntityHistory that = (ContainerEntityHistory) o;
-        return Objects.equals(this.containerEntity, that.containerEntity) &&
+        
+        boolean match=Objects.equals(this.containerEntity, that.containerEntity) &&
                 Objects.equals(this.status, that.status) &&
                 Objects.equals(this.externalTimestamp, that.externalTimestamp);
+        if(match){
+        	if(log.isTraceEnabled()){
+        		log.trace("containerEntity {}={},status {}={}, externalTimestamp{}={}",this.containerEntity.getId(),this.containerEntity.getId(),this.status,this.status,this.externalTimestamp,this.externalTimestamp);
+        	}
+        }
+
+        return match;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(containerEntity, status, externalTimestamp);
+        return Objects.hash(containerEntity, status,externalTimestamp);
     }
 
     @Override

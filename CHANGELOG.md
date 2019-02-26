@@ -66,6 +66,7 @@
 * [CS-80][] Allow command wrapper output handlers to create new objects as children of objects created by previous output handlers. The previous behavior allowed outputs to be handled only by wrapper inputs.
 * [CS-457][] Add `label` field to command wrapper. This will be used to represent the command wrapper in the "Run Container" menu going forward.
 * [CS-458][] `GET /commands/available` includes command and wrapper labels
+
 * Manually refresh resource catalog when uploading resources. (We used to rely on the Catalog Service to do this, but it doesn't anymore.)
 * [CS-407][] Add docker host setting to translate mount paths. If xnat sees a path at /data/xnat/x/y/z but your docker host sees the same path at /my/path/x/y/z, you can include these path prefixes in your docker server settings. If you're using REST, set the properties "path-translation-xnat-prefix" and "path-translation-docker-prefix" respectively. If you're using the Plugin Settings UI, the fields will be there.
 * [CS-494][] Add docker host setting for whether to check on server startup if all the images referenced by commands are present, and pull them if not.
@@ -110,7 +111,6 @@
 * [CS-537][] References to the dummy TransportService removed, as it was a placeholder for functionality implemented elsewhere.
 * [CS-480][] Deprecate `Container.ContainerMount.inputFiles`. Having a list of input files for a mount is nice during command resolution, but it doesn't make much sense to store that list. As of now no new containers will have anything in their mounts' `inputFiles`. Old containers will still report their values for `inputFiles` for now, but this may change in the future.
 * Remove the constant log entries for event polling. We get it. You're checking for events.
-
 
 [CS-80]: https://issues.xnat.org/browse/CS-80
 [CS-407]: https://issues.xnat.org/browse/CS-407
@@ -526,7 +526,7 @@
 [CS-242]: https://issues.xnat.org/browse/CS-242
 
 ### Bugfixes
-* [CS-257][] Hide “Create Automation” button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
+* [CS-257][] Hide “Create Automation�? button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
 * Fix: container -> container entity should use existing entity in db if it exists
 * Fix: Initialize container entity when retrieving by container id
 

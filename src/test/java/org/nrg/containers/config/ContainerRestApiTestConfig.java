@@ -19,6 +19,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.security.authentication.TestingAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -43,8 +44,9 @@ public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final CommandResolutionService commandResolutionService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
-                                             final ContainerFinalizeService containerFinalizeService) {
-        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService, aliasTokenService, siteConfigPreferences, containerFinalizeService, null);
+                                             final ContainerFinalizeService containerFinalizeService,
+                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService, aliasTokenService, siteConfigPreferences, containerFinalizeService, executorFactoryBean, null);
     }
 
     @Bean

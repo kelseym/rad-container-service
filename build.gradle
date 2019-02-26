@@ -45,6 +45,8 @@ apply plugin: "com.github.zhurlik.swagger"
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
+def vXnat = '1.7.5'
+def vXnatDev = '1.7.5'
 def vMockito = '1.10.19'
 def vJavassist = '3.21.0-GA'
 def vAwaitility = '2.0.0'
@@ -64,7 +66,10 @@ repositories {
         url 'https://nrgxnat.jfrog.io/nrgxnat/ext-release'
         name 'XNAT External Release Repository'
     }
+    
 }
+
+
 
 dependencyManagement {
     imports {
@@ -108,6 +113,8 @@ configurations.all {
 //    }
 //}
 
+
+
 dependencies {
     compileAndInclude (group: 'com.spotify', name: 'docker-client', version: vDockerClient) {
         exclude group: "ch.qos.logback"
@@ -116,7 +123,7 @@ dependencies {
     }
     compileAndInclude "com.jayway.jsonpath:json-path:${vJsonPath}"
 
-    compile ("org.nrg.xnat:web") {
+    compile ("org.nrg.xnat:web:${vXnatDev}") {
         transitive = false
     }
     compile "org.nrg:framework"

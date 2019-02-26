@@ -5,11 +5,12 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.hibernate.envers.Audited;
 import org.nrg.containers.model.container.ContainerInputType;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
-
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
@@ -17,6 +18,7 @@ import javax.persistence.Entity;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Transient;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -28,18 +30,21 @@ import java.util.Objects;
 import java.util.Set;
 
 @Entity
-@Audited
+@Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
             .put("complete", "Complete")
             .put("created", "Created")
-            .put("rejected", "Failed")
-            .put("failed", "Failed")
+            .put("rejected", "Failed (Rejected)")
+            .put("failed", "Failed (Task)")
             .put("start", "Running")
             .put("started", "Running")
             .put("running", "Running")
-            .put("kill", "Killed")
-            .put("oom", "Killed (Out of Memory)")
+            .put("remove", "Failed (Remove)")
+            .put("orphaned", "Failed (Orphaned)")
+            .put("kill", "Failed (Killed)")
+            .put("oom", "Failed (Memory)")
+            .put("shutdown", "Failed (Shutdown)")
             .put("starting", "Starting")
             .build();
     private static final Set<String> TERMINAL_STATI = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -433,15 +438,25 @@ public class ContainerEntity extends AbstractHibernateEntity {
     }
 
     @Transient
+    /*
+     * Does this item have a different status that the most recent event. 
+     * 
+     */
     public boolean isItemInHistory(final ContainerEntityHistory historyItem) {
-        if (this.history == null) {
-            return false;
-        }
-        historyItem.setContainerEntity(this);
-        return this.history.contains(historyItem);
-
+    	if (this.history == null){
+    		return false;
+    	}    	
+    	
+    	historyItem.setContainerEntity(this);
+    	
+    	
+    	return this.history.contains(historyItem);
+    	 
     }
 
+   
+    
+    
     @ElementCollection
     public List<String> getLogPaths() {
         return logPaths;

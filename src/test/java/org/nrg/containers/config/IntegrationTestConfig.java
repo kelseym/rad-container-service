@@ -48,6 +48,7 @@ import org.nrg.containers.services.impl.HibernateContainerEntityService;
 import org.nrg.containers.services.impl.HibernateDockerServerEntityService;
 import org.nrg.framework.services.ContextService;
 import org.nrg.framework.services.NrgEventService;
+import org.nrg.mail.services.MailService;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.services.AliasTokenService;
@@ -59,6 +60,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.orm.hibernate4.HibernateTransactionManager;
 import org.springframework.orm.hibernate4.LocalSessionFactoryBean;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.ResourceTransactionManager;
 import reactor.Environment;
@@ -142,10 +144,11 @@ public class IntegrationTestConfig {
                                              final CommandResolutionService commandResolutionService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
-                                             final ContainerFinalizeService containerFinalizeService) {
+                                             final ContainerFinalizeService containerFinalizeService,
+                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                         commandResolutionService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, null);
+                        containerFinalizeService, executorFactoryBean, null);
     }
 
     @Bean
@@ -174,8 +177,9 @@ public class IntegrationTestConfig {
     @Bean
     public ContainerFinalizeService containerFinalizeService(final ContainerControlApi containerControlApi,
                                                              final SiteConfigPreferences siteConfigPreferences,
-                                                             final CatalogService catalogService) {
-        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService);
+                                                             final CatalogService catalogService,
+                                                             final MailService mailService) {
+        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService,mailService);
     }
 
 

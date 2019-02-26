@@ -29,6 +29,7 @@ import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.Placement;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ReplicatedService;
 import com.spotify.docker.client.messages.swarm.RestartPolicy;
@@ -53,6 +54,7 @@ import org.nrg.containers.model.container.auto.ContainerMessage;
 import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.dockerhub.DockerHubBase.DockerHub;
 import org.nrg.containers.model.image.docker.DockerImage;
+import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.CommandLabelService;
 import org.nrg.containers.services.DockerServerService;
@@ -72,6 +74,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.spotify.docker.client.DockerClient.EventsParam.since;
 import static com.spotify.docker.client.DockerClient.EventsParam.type;
@@ -124,7 +127,7 @@ public class DockerControlApi implements ContainerControlApi {
 
     private String pingSwarmMaster(final DockerServer dockerServer) throws DockerServerException {
         try (final DockerClient client = getClient(dockerServer)) {
-            client.listNodes();
+            client.inspectSwarm();
             // If we got this far without an exception, then all is well.
         } catch (DockerException | InterruptedException e) {
             log.error(e.getMessage());
@@ -304,7 +307,7 @@ public class DockerControlApi implements ContainerControlApi {
         final String workingDirectory = StringUtils.isNotBlank(resolvedCommand.workingDirectory()) ?
                 resolvedCommand.workingDirectory() :
                 null;
-
+       //reserve 1000L for now
         // let resource constraints default to 0, so they're ignored by Docker
         final Long reserveMemory = resolvedCommand.reserveMemory() == null ?
                 0L :
@@ -636,9 +639,14 @@ public class DockerControlApi implements ContainerControlApi {
         } else {
             containerSpecBuilder.args(ShellSplitter.shellSplit(runCommand));
         }
+       //add constraints to the container command and pass all the way here. hard code for today.
+        List<String> constraints =new ArrayList<String>();
+        constraints.add("node.role == worker");
+
 
         final TaskSpec taskSpec = TaskSpec.builder()
                 .containerSpec(containerSpecBuilder.build())
+                .placement(Placement.create(constraints))
                 .restartPolicy(RestartPolicy.builder()
                         .condition("none")
                         .build())
@@ -663,6 +671,7 @@ public class DockerControlApi implements ContainerControlApi {
                         .endpointSpec(EndpointSpec.builder()
                                 .ports(portConfigs)
                                 .build())
+                        .name(UUID.randomUUID().toString())
                         .build();
 
         if (log.isDebugEnabled()) {
@@ -925,6 +934,48 @@ public class DockerControlApi implements ContainerControlApi {
                 getClient(server).logs(container.containerId(), logType);
     }
 
+    @Override
+    public String getContainerStdoutLog(final String containerId) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(containerId, LogsParam.stdout());
+    }
+
+    @Override
+    public String getContainerStderrLog(final String containerId) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(containerId, LogsParam.stderr());
+    }
+
+    private String getContainerLog(final String containerId, final LogsParam logType) throws NoDockerServerException, DockerServerException {
+        try (final LogStream logStream = getClient().logs(containerId, logType)) {
+            return logStream.readFully();
+        } catch (NoDockerServerException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new DockerServerException(e);
+        }
+    }
+
+    @Override
+    public String getServiceStdoutLog(final String serviceId) throws NoDockerServerException, DockerServerException {
+        return getServiceLog(serviceId, LogsParam.stdout());
+    }
+
+    @Override
+    public String getServiceStderrLog(final String serviceId) throws NoDockerServerException, DockerServerException {
+        return getServiceLog(serviceId, LogsParam.stderr());
+    }
+
+    private String getServiceLog(final String serviceId, final LogsParam logType) throws DockerServerException, NoDockerServerException {
+        try (final LogStream logStream = getClient().serviceLogs(serviceId, logType)) {
+            return logStream.readFully();
+        } catch (NoDockerServerException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new DockerServerException(e);
+        }
+    }    
+    
     @VisibleForTesting
     @Nonnull
     public DockerClient getClient() throws NoDockerServerException, DockerServerException {
@@ -949,7 +1000,9 @@ public class DockerControlApi implements ContainerControlApi {
         }
 
         try {
-            return clientBuilder.build();
+            log.trace("DOCKER CLIENT URI IS: " + clientBuilder.uri().toString());
+
+        	return clientBuilder.build();
         } catch (Throwable e) {
             log.error("Could not create DockerClient instance. Reason: " + e.getMessage());
             throw new DockerServerException(e);
@@ -1038,6 +1091,23 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
+    public void killService(final String id) throws NoDockerServerException, DockerServerException, NotFoundException {
+        try(final DockerClient client = getClient()) {
+            log.info("Killing service " + id);
+            client.removeService(id);
+        } catch (ContainerNotFoundException e) {
+            log.error(e.getMessage(), e);
+            throw new NotFoundException(e);
+        } catch (DockerException | InterruptedException e) {
+            log.error(e.getMessage(), e);
+            throw new DockerServerException(e);
+        } catch (DockerServerException e) {
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
     @Nullable
     public ServiceTask getTaskForService(final Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException {
         return getTaskForService(getServer(), service);
@@ -1048,12 +1118,16 @@ public class DockerControlApi implements ContainerControlApi {
     public ServiceTask getTaskForService(final DockerServer dockerServer, final Container service)
             throws DockerServerException, ServiceNotFoundException {
         try (final DockerClient client = getClient(dockerServer)) {
+        	com.spotify.docker.client.messages.swarm.Service s=client.inspectService(service.serviceId());
+        	        
             Task task = null;
-
+            log.trace("Attempting task for service:"+ service.toString());
+            log.trace("Service details: SERVICE: " + service.serviceId() + " STATUS: " + service.status() + " TASK: " + service.taskId() + " NODE: " + service.nodeId() + " CONTAINER: " + service.containerId() + " DBID: " + service.databaseId() + " WOKKFLOW: " + service.workflowId() );
             if (service.taskId() == null) {
                 log.trace("Service {} does not have task information yet.", service.serviceId());
                 final com.spotify.docker.client.messages.swarm.Service serviceResponse = client.inspectService(service.serviceId());
-                log.trace("Service {} has name {}. Finding tasks by service name.", service.serviceId(), serviceResponse.spec().name());
+                log.trace("Service {} has name {}. Finding tasks by service name.", service.serviceId(), serviceResponse.spec().name() );
+                log.trace(" SERVICERESPONSE: " + serviceResponse.toString());
                 final List<Task> tasks = client.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
 
                 if (tasks.size() == 1) {
@@ -1095,6 +1169,7 @@ public class DockerControlApi implements ContainerControlApi {
             log.error(e.getMessage());
             throw e;
         } catch (DockerException | InterruptedException e) {
+        	log.trace("INTERRUPTED: " + e.getMessage());
             log.error(e.getMessage(), e);
             throw new DockerServerException(e);
         } catch (DockerServerException e) {
@@ -1116,6 +1191,8 @@ public class DockerControlApi implements ContainerControlApi {
             final ServiceTaskEvent serviceTaskEvent = ServiceTaskEvent.create(task, service);
             log.trace("Throwing service task event for service {}.", serviceTaskEvent.service().serviceId());
             eventService.triggerEvent(serviceTaskEvent);
+        }else {
+        	log.debug("Appears that the task has not been assigned for " + service.serviceId() + " : " + service.status());
         }
     }
 
@@ -1176,4 +1253,13 @@ public class DockerControlApi implements ContainerControlApi {
                         null
         );
     }
+    
+    public Integer getContainerFinalizationPoolLimit() {
+    	try{
+    		return this.getServer().containerFinalizationPoolLimit();
+    	}catch(NoDockerServerException ex){
+    		return DockerServerBase.getContainerFinalizationPoolLimitDefault();
+    	}
+    }
+
 }

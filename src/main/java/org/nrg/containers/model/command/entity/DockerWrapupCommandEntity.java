@@ -9,7 +9,6 @@ import javax.persistence.Transient;
 
 @Entity
 @DiscriminatorValue("docker-wrapup")
-@Audited
 public class DockerWrapupCommandEntity extends CommandEntity {
     public static final CommandType type = CommandType.DOCKER_WRAPUP;
 

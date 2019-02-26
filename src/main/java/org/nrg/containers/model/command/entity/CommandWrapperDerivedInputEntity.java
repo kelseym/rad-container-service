@@ -14,7 +14,6 @@ import javax.persistence.ManyToOne;
 import java.util.Objects;
 
 @Entity
-@Audited
 public class CommandWrapperDerivedInputEntity {
     public static final CommandWrapperInputType DEFAULT_TYPE = CommandWrapperInputType.STRING;
 

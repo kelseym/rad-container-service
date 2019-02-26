@@ -37,8 +37,12 @@ public interface ContainerService {
     List<Container> getAll(String project);
     List<Container> getAll(Boolean nonfinalized);
 
+
     List<Container> retrieveServices();
     List<Container> retrieveNonfinalizedServices();
+    List<Container> retrieveServicesInWaitingState();
+    
+    void resetFinalizingStatusToWaitingOrFailed();
 
     List<Container> retrieveSetupContainersForParent(long parentId);
     List<Container> retrieveWrapupContainersForParent(long parentId);
@@ -75,8 +79,8 @@ public interface ContainerService {
 
     void finalize(final String containerId, final UserI userI) throws NotFoundException, ContainerException, NoDockerServerException, DockerServerException;
     void finalize(final Container container, final UserI userI) throws ContainerException, DockerServerException, NoDockerServerException;
-    void finalize(final Container container, final UserI userI, final String exitCode) throws ContainerException, NoDockerServerException, DockerServerException;
-
+    void finalize(Container notFinalized, UserI userI, String exitCode, boolean isSuccessfulStatus)	throws ContainerException, NoDockerServerException, DockerServerException;
+    
     String kill(final String containerId, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException;
 
@@ -84,4 +88,7 @@ public interface ContainerService {
     Map<String, InputStream> getLogStreams(String containerId) throws NotFoundException, NoDockerServerException, DockerServerException;
     InputStream getLogStream(long id, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
     InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
+	boolean isWaiting(Container service);
+	boolean isFinalizing(Container service);
+	void queuedFinalize(String exitCodeString, boolean isSuccessful, Container service, UserI userI);
 }

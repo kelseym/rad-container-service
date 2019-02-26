@@ -139,7 +139,7 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
 
         this.setDefaultValue("showReload", true);
         this.setDefaultValue("showOptionsDropdown", true);
-        this.setDefaultValue("showRcMenu", true);
+        this.setDefaultValue("showRcMenu", false);
         this.setDefaultValue("showFilterDisplay", true);
 
         this.setDefaultValue("allowInTableMods", true);
@@ -280,7 +280,7 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
                 "<td align='right'><div id='" + this.div_table_id + "_sv'></div></td>" +
                 "<td align='right' id='" + this.div_table_id + "_xT_pT3'><input type='button' id='" + this.div_table_id + "_reload' value='Reload'/></td>" +
                 "<td width='82' align='right'><div id='" + this.div_table_id + "_options' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "ot'>Options</a></li></ul></div></div></td>" +
-                "<td width='130' align='right' class='hidden'><div id='" + this.div_table_id + "_run' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "_rc'>Run Container</a></li></ul></div></div></td>" +
+              //  "<td width='130' align='right' class='hidden'><div id='" + this.div_table_id + "_run' class='yuimenubar yuimenubarnav'><div class='bd'><ul class='first-of-type'><li class='yuimenubaritem first-of-type'><a class='yuimenubaritemlabel' href='#" + this.div_table_id + "_rc'>Run Container</a></li></ul></div></div></td>" +
                 "</tr>" +
                 "<tr><td style='line-height:11px;font-size:11px' id='" + this.div_table_id + "_flt' colspan='4'></td></tr></table>";
         }
@@ -614,6 +614,12 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
         return true;
     };
 
+    this.openProcessingLauncherClick = function(name, eventObj, menuItem){
+        this.openProcessingLauncher(serverRoot + "/app/action/BulkLaunchAction", this.getXML(), document.getElementById(this.div_table_id));
+        return true;
+    };
+
+
     this.loadSearchManager = function(){
         //if(this.sm==undefined){
         dynamicJSLoad('SearchXMLManager', 'search/searchManager.js');
@@ -875,13 +881,15 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
                                     if (availableCommand['wrapper-label']) if (availableCommand['wrapper-label'].length) label=availableCommand['wrapper-label'];
 
                                     submenuitems.push({
-                                        text: label,
+                                        text: availableCommand['wrapper-description'],
                                         classname: 'projectContainerLauncher',
                                         onclick: {
                                             fn: XNAT.plugin.containerService.projectSearchLauncher.open,
                                             obj: {
                                                 'root-element-name': availableCommand['root-element-name'],
                                                 'wrapper-id': availableCommand['wrapper-id'],
+                                                'command-id': availableCommand['command-id'],
+                                                'project-id': XNAT.data.context.projectID,
                                                 'search-id': that.initResults.ResultSet.ID
                                             },
                                             scope: this.search
@@ -923,6 +931,35 @@ function DataTableSearch(_div_table_id, obj, _config, _options){
     this.getXML = function(){
         return this.xml;
     }
+
+    this.openProcessingLauncher = function(_url, _searchXML, divContent){
+        var tempForm = document.createElement("FORM");
+        tempForm.method = "POST";
+        tempForm.action = _url;
+
+        var tempInput = document.createElement("INPUT");
+
+        tempInput.type = "hidden";
+        tempInput.name = "search_xml";
+        tempInput.value = _searchXML;
+
+        tempForm.appendChild(tempInput);
+
+
+        var cs = document.createElement("input");
+        cs.type = "hidden";
+        cs.name = "XNAT_CSRF";
+        cs.value = csrfToken;
+        tempForm.appendChild(cs);
+
+
+        if (divContent != undefined) {
+            divContent.appendChild(tempForm);
+        }
+        tempForm.submit();
+    };
+
+
     this.sendSearch = function(_url, _searchXML, divContent){
         var tempForm = document.createElement("FORM");
         tempForm.method = "POST";

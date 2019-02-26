@@ -11,6 +11,7 @@ import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.model.container.auto.Container.ContainerInput;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -78,7 +80,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         return containerService.checkXnatVersion();
     }
 
-    @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Authenticated)
     @ApiOperation(value = "Get all Containers")
     @ResponseBody
     public List<Container> getAll(final @RequestParam(required = false) Boolean nonfinalized) {
@@ -90,7 +92,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Delete)
+    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Authenticated)
     @ApiOperation(value = "Get all Containers by project")
     @ResponseBody
     public List<Container> getAll(final @PathVariable @ProjectId String project,
@@ -103,14 +105,14 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/containers/{id}", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}", method = GET)
     @ApiOperation(value = "Get Containers by database ID")
     @ResponseBody
     public Container get(final @PathVariable String id) throws NotFoundException {
         return scrubPasswordEnv(containerService.get(id));
     }
 
-    @XapiRequestMapping(value = "/containers/{id}", method = DELETE, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}", method = DELETE)
     @ApiOperation(value = "Get Container by container server ID")
     public ResponseEntity<Void> delete(final @PathVariable String id) {
         containerService.delete(id);
@@ -124,7 +126,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         containerService.finalize(id, userI);
     }
 
-    @XapiRequestMapping(value = "/containers/{id}/kill", method = POST, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{id}/kill", method = POST)
     @ApiOperation(value = "Kill Container")
     @ResponseBody
     public String kill(final @PathVariable String id)
@@ -142,7 +144,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
         return container.toBuilder().environmentVariables(scrubbedEnvironmentVariables).build();
     }
 
-    @XapiRequestMapping(value = "/containers/{containerId}/logs", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{containerId}/logs", method = GET)
     @ApiOperation(value = "Get Container logs",
             notes = "Return stdout and stderr logs as a zip")
     public void getLogs(final @PathVariable String containerId,
@@ -180,14 +182,13 @@ public class ContainerRestApi extends AbstractXapiRestController {
         response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
     }
 
-    @XapiRequestMapping(value = "/containers/{containerId}/logs/{file}", method = GET, restrictTo = Admin)
+    @XapiRequestMapping(value = "/containers/{containerId}/logs/{file}", method = GET)
     @ApiOperation(value = "Get Container logs", notes = "Return either stdout or stderr logs")
     @ResponseBody
     public ResponseEntity<String> getLog(final @PathVariable String containerId,
                                          final @PathVariable @ApiParam(allowableValues = "stdout, stderr") String file)
             throws NoDockerServerException, DockerServerException, NotFoundException {
         UserI userI = XDAT.getUserDetails();
-
         final InputStream logStream = containerService.getLogStream(containerId, file);
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         byte[] buffer = new byte[1024];

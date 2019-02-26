@@ -201,7 +201,7 @@ public class CommandLaunchIntegrationTest {
             }
         }
 
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, false, null, null, null, false, null));
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, null, false, null, null, null, false, null));
 
         // Mock the userI
         mockUser = mock(UserI.class);

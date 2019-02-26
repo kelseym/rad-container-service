@@ -54,6 +54,11 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
         return containerEntity;
     }
 
+   @Nullable
+    public ContainerEntity retrieveByServiceId(final @Nonnull String serviceId) {
+        return findByUniqueProperty("serviceId", serviceId);
+    }
+
     public void addHistoryItem(final @Nonnull ContainerEntity containerEntity,
                                final @Nonnull ContainerEntityHistory containerEntityHistory) {
         containerEntity.addToHistory(containerEntityHistory);
@@ -96,12 +101,75 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                                 .add(Restrictions.like("status", "Done"))
                                 .add(Restrictions.like("status", "Failed"))
                                 .add(Restrictions.like("status", "Killed"))
+                                .add(Restrictions.like("status", "Finalizing"))
                         ))
                 )
                 .list();
-        return initializeAndReturnList(servicesResult);
+        List<ContainerEntity> ces = initializeAndReturnList(servicesResult);
+        log.trace("FOLLOWING SERVICES ARE NOT FINAL: ");
+        for (ContainerEntity ce:ces) {
+        	log.trace("NONFINALIZED: " + ce.getServiceId() + " STATUS: " + ce.getStatus() + " " + " TASK: " + ce.getTaskId() + " WORKFLOW: " + ce.getWorkflowId() );
+        }
+        return ces;
+    }
+    
+    @Nonnull
+    public int howManyContainersAreWaiting() {
+        int countOfContainersBeingWaiting = 0;
+        List<ContainerEntity> ces = retrieveServicesInWaitingState();
+        if (ces != null) {
+        	countOfContainersBeingWaiting = ces.size();
+        }if(log.isTraceEnabled()){
+            log.trace("At present " + countOfContainersBeingWaiting + " are waiting");
+        }
+        return countOfContainersBeingWaiting;
     }
 
+    @Nonnull
+    public List<ContainerEntity> retrieveServicesInWaitingState() {
+    	final List finalizingResult = getSession()
+                .createCriteria(ContainerEntity.class)
+                .add(Restrictions.conjunction()
+                        .add(Restrictions.isNotNull("serviceId"))
+                        .add(Restrictions.like("status", "Waiting"))
+                )
+                .list();
+        List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
+        for (ContainerEntity ce:ces) {
+        	if(log.isTraceEnabled()){
+            	log.trace("WAITING STATE: " + ce.getServiceId() + " STATUS: " + ce.getStatus() + " " + " TASK: " + ce.getTaskId() + " WORKFLOW: " + ce.getWorkflowId() );
+        	}
+        }
+        return ces;
+    }
+    @Nonnull
+    public int howManyContainersAreBeingFinalized() {
+        int countOfContainersBeingFinalized = 0;
+        List<ContainerEntity> ces = retrieveServicesInFinalizingState();
+        if (ces != null) {
+        	countOfContainersBeingFinalized = ces.size();
+        }
+        log.trace("At present " + countOfContainersBeingFinalized + " are being finalized");
+        return countOfContainersBeingFinalized;
+    }
+
+    @Nonnull
+    public List<ContainerEntity> retrieveServicesInFinalizingState() {
+    	final List finalizingResult = getSession()
+                .createCriteria(ContainerEntity.class)
+                .add(Restrictions.conjunction()
+                        .add(Restrictions.isNotNull("serviceId"))
+                        .add(Restrictions.like("status", "Finalizing"))
+                )
+                .list();
+        List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
+        for (ContainerEntity ce:ces) {
+        	log.trace("FINALIZING STATE: " + ce.getServiceId() + " STATUS: " + ce.getStatus() + " " + " TASK: " + ce.getTaskId() + " WORKFLOW: " + ce.getWorkflowId() );
+        }
+        return ces;
+    }
+
+    
     @Nonnull
     public List<ContainerEntity> retrieveContainersForParentWithSubtype(final long parentId,
                                                                         final String subtype) {
@@ -129,6 +197,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                                 .add(Restrictions.like("status", "Done"))
                                 .add(Restrictions.like("status", "Failed"))
                                 .add(Restrictions.like("status", "Killed"))
+                                .add(Restrictions.like("status", "Finalizing"))
                         ))
                 )
                 .list();

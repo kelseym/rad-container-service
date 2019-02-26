@@ -21,6 +21,21 @@ import org.nrg.containers.model.container.entity.ContainerEntityInput;
 import org.nrg.containers.model.container.entity.ContainerEntityMount;
 import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
+import org.nrg.containers.utils.JsonDateSerializer;
+import org.nrg.containers.utils.JsonStringToDateSerializer;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.google.auto.value.AutoValue;
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
@@ -36,6 +51,7 @@ public abstract class Container {
     @JsonProperty("id") public abstract long databaseId();
     @JsonProperty("command-id") public abstract long commandId();
     @Nullable @JsonProperty("status") public abstract String status();
+    @JsonSerialize(using=JsonDateSerializer.class)
     @Nullable @JsonProperty("status-time") public abstract Date statusTime();
     @JsonProperty("wrapper-id") public abstract long wrapperId();
     @Nullable @JsonProperty("container-id") public abstract String containerId();
@@ -282,6 +298,8 @@ public abstract class Container {
         return inputs;
     }
 
+   
+    
     @JsonIgnore
     public Map<String, String> getCommandInputs() {
         return getInputs(ContainerInputType.COMMAND);
@@ -365,8 +383,12 @@ public abstract class Container {
 
     @JsonIgnore
     public String getLogPath(final String filename) {
+		String fullFileName = filename;
+		if (!filename.endsWith(".log")) {
+			fullFileName += ".log";
+		}
         for (final String path : logPaths()) {
-            if (path.endsWith(filename)) {
+            if (path.endsWith(fullFileName)) {
                 return path;
             }
         }
@@ -774,7 +796,9 @@ public abstract class Container {
         @JsonProperty("status") public abstract String status();
         @JsonProperty("entity-type") public abstract String entityType();
         @Nullable @JsonProperty("entity-id") public abstract String entityId();
+        @JsonSerialize(using=JsonDateSerializer.class)
         @JsonProperty("time-recorded") public abstract Date timeRecorded();
+        @JsonSerialize(using=JsonStringToDateSerializer.class)
         @Nullable @JsonProperty("external-timestamp") public abstract String externalTimestamp();
         @Nullable @JsonProperty("message") public abstract String message();
         @Nullable @JsonProperty("exitCode") public abstract String exitCode();
@@ -832,7 +856,6 @@ public abstract class Container {
                     .entityId(null)
                     .timeRecorded(new Date())
                     .externalTimestamp(null)
-                    .message(message)
                     .build();
         }
 

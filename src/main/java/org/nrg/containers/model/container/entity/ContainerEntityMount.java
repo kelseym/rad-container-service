@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Audited
 public class ContainerEntityMount implements Serializable {
     private long id;
     @JsonIgnore private ContainerEntity containerEntity;

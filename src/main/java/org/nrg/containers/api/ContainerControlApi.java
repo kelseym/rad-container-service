@@ -52,9 +52,15 @@ public interface ContainerControlApi {
     List<ContainerMessage> getContainers(final Map<String, String> params) throws NoDockerServerException, DockerServerException;
     ContainerMessage getContainer(final String id) throws NotFoundException, NoDockerServerException, DockerServerException;
     String getContainerStatus(final String id) throws NotFoundException, NoDockerServerException, DockerServerException;
+
     String getStdoutLog(Container container) throws NoDockerServerException, DockerServerException;
     String getStderrLog(Container container) throws NoDockerServerException, DockerServerException;
 
+    String getContainerStdoutLog(String containerId) throws NoDockerServerException, DockerServerException;
+    String getContainerStderrLog(String containerId) throws NoDockerServerException, DockerServerException;
+    String getServiceStdoutLog(String serviceId) throws NoDockerServerException, DockerServerException;
+    String getServiceStderrLog(String serviceId) throws NoDockerServerException, DockerServerException;
+    
     List<DockerContainerEvent> getContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
     void throwContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
 
@@ -64,4 +70,7 @@ public interface ContainerControlApi {
     ServiceTask getTaskForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
+    
+    Integer getContainerFinalizationPoolLimit();
+	void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
 }

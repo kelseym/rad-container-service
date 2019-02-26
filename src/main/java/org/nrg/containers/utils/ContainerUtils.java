@@ -15,8 +15,8 @@ public class ContainerUtils {
             if (workflow != null) {
                 log.debug("Found workflow {}.", workflow.getWorkflowId());
 
-                if (workflow.getStatus() == null || !workflow.getStatus().equals(status)) {
-                    log.debug("Updating workflow {} status to \"{}\".", workflow.getWorkflowId(), status);
+                if (workflow.getStatus() == null || !workflow.getStatus().equals(status) || !StringUtils.contains(workflow.getStatus().toLowerCase(), status.toLowerCase())) {
+                    log.info("Updating workflow {} pipeline \"{}\" from \"{}\" to \"{}\".", workflow.getWorkflowId(),workflow.getPipelineName(),workflow.getStatus(), status);
 
                     workflow.setStatus(status);
                     try {
@@ -34,4 +34,5 @@ public class ContainerUtils {
             log.debug("Container has no workflow ID. Not attempting to update workflow.");
         }
     }
+ 
 }

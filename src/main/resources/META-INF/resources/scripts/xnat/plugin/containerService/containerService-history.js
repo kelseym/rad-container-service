@@ -143,15 +143,30 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     function getProjectIdFromMounts(entry) {
         var mounts = entry.mounts;
         // assume that the first mount of a container is an input from a project. Parse the URI for that mount and return the project ID.
-        if (mounts.length) {
-            var inputMount = mounts[0]['xnat-host-path'];
-            if (inputMount === undefined) return false;
-
-            inputMount = inputMount.replace('/data/xnat/archive/', '');
-            inputMount = inputMount.replace('/data/archive/', '');
-            inputMount = inputMount.replace('/REST/archive/', '');
-            var inputMountEls = inputMount.split('/');
-            return inputMountEls[0];
+        //This does not work all the time - so traverse all the array elements to get the host-path
+        var	mLen = mounts.length;
+        var i,found = 0;
+        var project = "Unknown";
+        if (mLen) {
+            for (i = 0; i < mLen; i++) {
+                var inputMount = mounts[i]['xnat-host-path'];
+                if (inputMount === undefined) continue;
+                var ind = inputMount.indexOf("/data/archive/");
+                if (ind == -1) {
+                    continue;
+                } else {
+                    inputMount = inputMount.substr(ind+14);
+                }
+                var inputMountEls = inputMount.split('/');
+                project = inputMountEls[0];
+                found = 1;
+                break;
+            }
+            if (found) {
+                return project;
+            } else {
+                return false;
+            }
         } else {
             return false;
         }
@@ -197,8 +212,13 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 tr.id = data.id;
                 addDataAttrs(tr, {filter: '0'});
             },
+<<<<<<< HEAD
             sortable: 'id, command, user, DATE, ROOTELEMENT, status',
             filter: 'id, command, user, DATE, ROOTELEMENT, status',
+=======
+            sortable: 'command, status, user, DATE, ROOTELEMENT',
+            filter: 'command, user, DATE, ROOTELEMENT',
+>>>>>>> rad/rad-develop
             items: {
                 // by convention, name 'custom' columns with ALL CAPS
                 // 'custom' columns do not correspond directly with
@@ -317,22 +337,43 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     }
                 },
+<<<<<<< HEAD
+=======
+                // image: {
+                //     label: 'Image',
+                //     filter: true, // add filter: true to individual items to add a filter,
+                //     apply: function () {
+                //         return this['docker-image'];
+                //     }
+                // },
+                status: {
+                    label: 'Status',
+                    filter: true,
+                    apply: function () {
+                        return this['status']
+                    }
+                },
+>>>>>>> rad/rad-develop
                 command: {
                     label: 'Command',
                     filter: true,
                     td: { style: { 'max-width': '200px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     apply: function () {
-                        var wrapper = XNAT.plugin.containerService.wrapperList[this['wrapper-id']];
-                        var label = (wrapper) ?
-                            (wrapper.description) ?
+                        var label, wrapper;
+                        if (wrapperList && wrapperList.hasOwnProperty(this['wrapper-id'])) {
+                            wrapper = wrapperList[this['wrapper-id']];
+                            label = (wrapper.description) ?
                                 wrapper.description :
-                                wrapper.name
-                            : this['command-line'];
+                                wrapper.name;
+                        } else {
+                            label = this['command-line'];
+                        }
 
                         return spawn('a.view-container-history', {
                             href: '#!',
-                            title: 'From image: '+this['docker-image'],
+                            title: 'View command history and logs',
                             data: {'id': this.id},
+                            style: { wordWrap: 'break-word' },
                             html: label
                         });
                     }
@@ -398,6 +439,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 XNAT.dialog.open({
                     title: 'View ' + logFile,
                     width: 850,
+                    header: true,
+                    maxBtn: true,
                     content: null,
                     beforeShow: function (obj) {
                         data.forEach(function (newLine) {
@@ -419,49 +462,26 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         })
     };
 
-    historyTable.viewHistory = function (id) {
-        if (containerHistory[id]) {
-            var historyEntry = XNAT.plugin.containerService.containerHistory[id];
-            var historyDialogButtons = [
-                {
-                    label: 'OK',
-                    isDefault: true,
-                    close: true
-                }
-            ];
+    historyTable.viewHistoryEntry = function(historyEntry) {
+        var historyDialogButtons = [
+            {
+                label: 'OK',
+                isDefault: true,
+                close: true
+            }
+        ];
 
-            // build nice-looking history entry table
-            var pheTable = XNAT.table({
-                className: 'xnat-table compact',
-                style: {
-                    width: '100%',
-                    marginTop: '15px',
-                    marginBottom: '15px'
-                }
-            });
+        // build nice-looking history entry table
+        var pheTable = XNAT.table({
+            className: 'xnat-table compact',
+            style: {
+                width: '100%',
+                marginTop: '15px',
+                marginBottom: '15px'
+            }
+        });
 
-            // add table header row
-            pheTable.tr()
-                .th({addClass: 'left', html: '<b>Key</b>'})
-                .th({addClass: 'left', html: '<b>Value</b>'});
-
-            for (var key in historyEntry) {
-                var val = historyEntry[key], formattedVal = '';
-                if (Array.isArray(val)) {
-                    var items = [];
-                    val.forEach(function (item) {
-                        if (typeof item === 'object') item = JSON.stringify(item);
-                        items.push(spawn('li', [spawn('code', item)]));
-                    });
-                    formattedVal = spawn('ul', {style: {'list-style-type': 'none', 'padding-left': '0'}}, items);
-                } else if (typeof val === 'object') {
-                    formattedVal = spawn('code', JSON.stringify(val));
-                } else if (!val) {
-                    formattedVal = spawn('code', 'false');
-                } else {
-                    formattedVal = spawn('code', val);
-                }
-
+<<<<<<< HEAD
                 pheTable.tr()
                     .td('<b>' + key + '</b>')
                     .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
@@ -479,49 +499,95 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             historyTable.viewLog(jobid,'stdout')
                         }
                     });
+=======
+        // add table header row
+        pheTable.tr()
+            .th({addClass: 'left', html: '<b>Key</b>'})
+            .th({addClass: 'left', html: '<b>Value</b>'});
 
-                    historyDialogButtons.push({
-                        label: 'View StdErr.log',
-                        close: false,
-                        action: function(){
-                            var jobid = historyEntry['container-id'];
-                            if (!jobid || jobid === "") {
-                                jobid = historyEntry['service-id'];
-                            }
-                            historyTable.viewLog(jobid,'stderr')
-                        }
-                    })
-                }
-                if (key === 'setup-container-id') {
-                    historyDialogButtons.push({
-                        label: 'View Setup Container',
-                        close: true,
-                        action: function () {
-                            historyTable.viewHistory(historyEntry[key]);
-                        }
-                    })
-                }
-                if (key === 'parent-database-id' && historyEntry[key]) {
-                    var parentId = historyEntry[key];
-                    historyDialogButtons.push({
-                        label: 'View Parent Container',
-                        close: true,
-                        action: function () {
-                            historyTable.viewHistory(parentId);
-                        }
-                    })
-                }
+        for (var key in historyEntry) {
+            var val = historyEntry[key], formattedVal = '';
+            if (Array.isArray(val)) {
+                var items = [];
+                val.forEach(function (item) {
+                    if (typeof item === 'object') item = JSON.stringify(item);
+                    items.push(spawn('li', [spawn('code', item)]));
+                });
+                formattedVal = spawn('ul', {style: {'list-style-type': 'none', 'padding-left': '0'}}, items);
+            } else if (typeof val === 'object') {
+                formattedVal = spawn('code', JSON.stringify(val));
+            } else if (!val) {
+                formattedVal = spawn('code', 'false');
+            } else {
+                formattedVal = spawn('code', val);
+            }
+>>>>>>> rad/rad-develop
 
+            pheTable.tr()
+                .td('<b>' + key + '</b>')
+                .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
+
+            // check logs and populate buttons at bottom of modal
+            if (key === 'log-paths') {
+                historyDialogButtons.push({
+                    label: 'View StdOut.log',
+                    close: false,
+                    action: function(){
+                        var jobid = historyEntry['container-id'];
+                        if (!jobid || jobid === "") {
+                            jobid = historyEntry['service-id'];
+                        }
+                        historyTable.viewLog(jobid,'stdout')
+                    }
+                });
+
+                historyDialogButtons.push({
+                    label: 'View StdErr.log',
+                    close: false,
+                    action: function(){
+                        var jobid = historyEntry['container-id'];
+                        if (!jobid || jobid === "") {
+                            jobid = historyEntry['service-id'];
+                        }
+                        historyTable.viewLog(jobid,'stderr')
+                    }
+                })
+            }
+            if (key === 'setup-container-id') {
+                historyDialogButtons.push({
+                    label: 'View Setup Container',
+                    close: true,
+                    action: function () {
+                        historyTable.viewHistory(historyEntry[key]);
+                    }
+                })
+            }
+            if (key === 'parent-database-id' && historyEntry[key]) {
+                var parentId = historyEntry[key];
+                historyDialogButtons.push({
+                    label: 'View Parent Container',
+                    close: true,
+                    action: function () {
+                        historyTable.viewHistory(parentId);
+                    }
+                })
             }
 
-            // display history
-            XNAT.ui.dialog.open({
-                title: historyEntry['wrapper-name'],
-                width: 800,
-                scroll: true,
-                content: pheTable.table,
-                buttons: historyDialogButtons
-            });
+        }
+
+        // display history
+        XNAT.ui.dialog.open({
+            title: historyEntry['wrapper-name'],
+            width: 800,
+            scroll: true,
+            content: pheTable.table,
+            buttons: historyDialogButtons
+        });
+    };
+
+    historyTable.viewHistory = function (id) {
+        if (XNAT.plugin.containerService.containerHistory.hasOwnProperty(id)) {
+            historyTable.viewHistoryEntry(XNAT.plugin.containerService.containerHistory[id]);
         } else {
             console.log(id);
             XNAT.ui.dialog.open({
@@ -550,6 +616,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         var $manager = $('#command-history-container'),
             _historyTable;
 
+        XNAT.ui.dialog.loading.open();
+
         sortHistoryData(context).done(function (data) {
             if (data.length) {
                 // sort list of container launches by execution time, descending
@@ -557,6 +625,26 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     return (a.id < b.id) ? 1 : -1
                     // return (a.history[0]['time-recorded'] < b.history[0]['time-recorded']) ? 1 : -1
                 });
+
+                // Collect status summary info
+                var containerStatuses = {};
+                var statusCountMsg = "";
+                data.forEach(function (a) {
+                    if (a.status in containerStatuses) {
+                        var cnt = containerStatuses[a.status];
+                        containerStatuses[a.status] = ++cnt;
+                    } else {
+                        containerStatuses[a.status] = 1;
+                    }
+                });
+                for (var k in containerStatuses) {
+                    if (containerStatuses.hasOwnProperty(k)) {
+                        statusCountMsg += k + ":" + containerStatuses[k] + ", ";
+                    }
+                }
+                if (statusCountMsg) {
+                    statusCountMsg = ' (' + statusCountMsg.replace(/, $/,'') + ')';
+                }
 
                 _historyTable = XNAT.spawner.spawn({
                     historyTable: spawnHistoryTable(data)
@@ -566,16 +654,30 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         return (length > 1) ? ' Containers' : ' Container'; 
                     }
                     var msg = (context === 'site') ?
+<<<<<<< HEAD
                         data.length + msgLength(data.length) + ' Launched On This Site' :
                         data.length + msgLength(data.length) + ' Launched For '+context;
+=======
+                        data.length + ' Containers Launched on this Site' :
+                        data.length + ' Containers Launched on '+context;
+
+                    msg += statusCountMsg;
+
+>>>>>>> rad/rad-develop
                     $manager.empty().append(
-                        spawn('h3', {style: {'margin-bottom': '1em'}}, msg)
+                        spawn('div.data-table-actionsrow', {}, [
+                            spawn('strong', {class: "textlink-sm data-table-action"}, msg),
+                            "&nbsp;&nbsp;",
+                            spawn('button|onclick="XNAT.plugin.containerService.historyTable.refresh(\''+context+'\')"', {class: "btn btn-sm data-table-action"}, "Reload")
+                        ])
                     );
                     this.render($manager, 20);
+                    XNAT.ui.dialog.loading.close();
                 });
             }
             else {
                 $manager.empty().append('No history entries to display')
+                XNAT.ui.dialog.loading.close();
             }
         });
     };
