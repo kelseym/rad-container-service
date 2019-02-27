@@ -150,13 +150,9 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         if (mLen) {
             for (i = 0; i < mLen; i++) {
                 var inputMount = mounts[i]['xnat-host-path'];
-                if (inputMount === undefined) continue;
-                var ind = inputMount.indexOf("/data/archive/");
-                if (ind == -1) {
-                    continue;
-                } else {
-                    inputMount = inputMount.substr(ind+14);
-                }
+				// TODO this is bad - assumes that archive dir is always "archive" (used to assume /data/archive)
+                if (inputMount === undefined || !inputMount.includes("/archive/")) continue;
+				inputMount = inputMount.replace(/.*\/archive\//,'');
                 var inputMountEls = inputMount.split('/');
                 project = inputMountEls[0];
                 found = 1;
@@ -212,13 +208,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 tr.id = data.id;
                 addDataAttrs(tr, {filter: '0'});
             },
-<<<<<<< HEAD
             sortable: 'id, command, user, DATE, ROOTELEMENT, status',
             filter: 'id, command, user, DATE, ROOTELEMENT, status',
-=======
-            sortable: 'command, status, user, DATE, ROOTELEMENT',
-            filter: 'command, user, DATE, ROOTELEMENT',
->>>>>>> rad/rad-develop
             items: {
                 // by convention, name 'custom' columns with ALL CAPS
                 // 'custom' columns do not correspond directly with
@@ -337,23 +328,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     }
                 },
-<<<<<<< HEAD
-=======
-                // image: {
-                //     label: 'Image',
-                //     filter: true, // add filter: true to individual items to add a filter,
-                //     apply: function () {
-                //         return this['docker-image'];
-                //     }
-                // },
-                status: {
-                    label: 'Status',
-                    filter: true,
-                    apply: function () {
-                        return this['status']
-                    }
-                },
->>>>>>> rad/rad-develop
                 command: {
                     label: 'Command',
                     filter: true,
@@ -481,25 +455,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         });
 
-<<<<<<< HEAD
-                pheTable.tr()
-                    .td('<b>' + key + '</b>')
-                    .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
-
-                // check logs and populate buttons at bottom of modal
-                if (key === 'log-paths' && historyEntry.context === 'site') {
-                    historyDialogButtons.push({
-                        label: 'View StdOut.log',
-                        close: false,
-                        action: function(){
-                            var jobid = historyEntry['container-id'];
-                            if (!jobid || jobid === "") {
-                                jobid = historyEntry['service-id'];
-                            }
-                            historyTable.viewLog(jobid,'stdout')
-                        }
-                    });
-=======
         // add table header row
         pheTable.tr()
             .th({addClass: 'left', html: '<b>Key</b>'})
@@ -521,56 +476,55 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             } else {
                 formattedVal = spawn('code', val);
             }
->>>>>>> rad/rad-develop
 
             pheTable.tr()
                 .td('<b>' + key + '</b>')
                 .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
 
-            // check logs and populate buttons at bottom of modal
-            if (key === 'log-paths') {
-                historyDialogButtons.push({
-                    label: 'View StdOut.log',
-                    close: false,
-                    action: function(){
-                        var jobid = historyEntry['container-id'];
-                        if (!jobid || jobid === "") {
-                            jobid = historyEntry['service-id'];
+                // check logs and populate buttons at bottom of modal
+                if (key === 'log-paths') {
+                    historyDialogButtons.push({
+                        label: 'View StdOut.log',
+                        close: false,
+                        action: function(){
+                            var jobid = historyEntry['container-id'];
+                            if (!jobid || jobid === "") {
+                                jobid = historyEntry['service-id'];
+                            }
+                            historyTable.viewLog(jobid,'stdout')
                         }
-                        historyTable.viewLog(jobid,'stdout')
-                    }
-                });
+                    });
 
-                historyDialogButtons.push({
-                    label: 'View StdErr.log',
-                    close: false,
-                    action: function(){
-                        var jobid = historyEntry['container-id'];
-                        if (!jobid || jobid === "") {
-                            jobid = historyEntry['service-id'];
+                    historyDialogButtons.push({
+                        label: 'View StdErr.log',
+                        close: false,
+                        action: function(){
+                            var jobid = historyEntry['container-id'];
+                            if (!jobid || jobid === "") {
+                                jobid = historyEntry['service-id'];
+                            }
+                            historyTable.viewLog(jobid,'stderr')
                         }
-                        historyTable.viewLog(jobid,'stderr')
-                    }
-                })
-            }
-            if (key === 'setup-container-id') {
-                historyDialogButtons.push({
-                    label: 'View Setup Container',
-                    close: true,
-                    action: function () {
-                        historyTable.viewHistory(historyEntry[key]);
-                    }
-                })
-            }
-            if (key === 'parent-database-id' && historyEntry[key]) {
-                var parentId = historyEntry[key];
-                historyDialogButtons.push({
-                    label: 'View Parent Container',
-                    close: true,
-                    action: function () {
-                        historyTable.viewHistory(parentId);
-                    }
-                })
+                    })
+                }
+                if (key === 'setup-container-id') {
+                    historyDialogButtons.push({
+                        label: 'View Setup Container',
+                        close: true,
+                        action: function () {
+                            historyTable.viewHistory(historyEntry[key]);
+                        }
+                    })
+                }
+                if (key === 'parent-database-id' && historyEntry[key]) {
+                    var parentId = historyEntry[key];
+                    historyDialogButtons.push({
+                        label: 'View Parent Container',
+                        close: true,
+                        action: function () {
+                            historyTable.viewHistory(parentId);
+                        }
+                    })
             }
 
         }
@@ -654,16 +608,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         return (length > 1) ? ' Containers' : ' Container'; 
                     }
                     var msg = (context === 'site') ?
-<<<<<<< HEAD
                         data.length + msgLength(data.length) + ' Launched On This Site' :
                         data.length + msgLength(data.length) + ' Launched For '+context;
-=======
-                        data.length + ' Containers Launched on this Site' :
-                        data.length + ' Containers Launched on '+context;
 
                     msg += statusCountMsg;
 
->>>>>>> rad/rad-develop
                     $manager.empty().append(
                         spawn('div.data-table-actionsrow', {}, [
                             spawn('strong', {class: "textlink-sm data-table-action"}, msg),
