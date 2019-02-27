@@ -8,7 +8,7 @@
  */
 
 /*!
- * Flexible script to be used in the UI to launch
+ * Flexible script to be used in the UI to launch 
  */
 
 console.log('commandUiLauncher.js');
@@ -39,7 +39,7 @@ var XNAT = getObject(XNAT || {});
     XNAT.plugin =
         getObject(XNAT.plugin || {});
 
-    XNAT.plugin.containerService =
+    XNAT.plugin.containerService = 
         getObject(XNAT.plugin.containerService || {});
 
     XNAT.plugin.containerService.launcher = launcher =
@@ -70,9 +70,10 @@ var XNAT = getObject(XNAT || {});
         return rootUrl('/xapi/commands/'+commandId+'/wrappers/'+wrapperName+appended);
     }
 
-    function getProjectCommandConfigUrl(commandId,wrapperName){
-        if (!projectId || !commandId || !wrapperName) return false;
-        return rootUrl('/xapi/projects/'+projectId+'/commands/'+commandId+'/wrapper/'+wrapperName+'/config');
+    function getCommandConfigUrl(wrapperName,commandId,project){
+        var projectStr = (project) ? '/projects/' + project : '';
+        var commandStr = (commandId) ? '/commands/'+commandId : '';
+        return rootUrl('/xapi' + projectStr + commandStr + '/wrappers/' + wrapperName + '/config');
     }
     function getLauncherUI(wrapperId,rootElementName,rootElementValue){
         return rootUrl('/xapi/wrappers/'+wrapperId+'/launch?'+rootElementName+'='+rootElementValue);
@@ -823,12 +824,7 @@ var XNAT = getObject(XNAT || {});
         }
     }
 
-<<<<<<< HEAD
-    function launchManyContainers(configData,rootElement,wrapperId,targets,project){
-=======
-    
-    function launchManyContainers(inputJson,rootElement,wrapperId,targets, targetLabels){
->>>>>>> rad/rad-develop
+    function launchManyContainers(configData,rootElement,wrapperId,targets,targetLabels,project){
         /* In a bulk launcher, a list of input objects will be passed to the launcher.
          * The launcher should consider the target elements to be static
          * (i.e. once selected and sent to the bulk launcher, the user shouldn't be re-selecting them)
@@ -838,29 +834,17 @@ var XNAT = getObject(XNAT || {});
          * After the user makes their selections, a bulk object is assembled from the inputs and sent to the bulk launcher
          */
 
-<<<<<<< HEAD
-        project = project || false;
-
         var workList = configData['input-config'];
         launcher.inputList = configData['input-config'];
 
-=======
-    	//inputJson contains elements like
-    	//"session":{"description":"Input session","type":"Session","default-value":null,"matcher":null,"user-settable":null,"advanced":false,"required":null}
- 
->>>>>>> rad/rad-develop
         var launcherContent = spawn('div.panel',[
             spawn('p','Please specify settings for this container.'),
             spawn('div.target-list')
         ]);
 
-<<<<<<< HEAD
         if ( jsonPath(workList, "$..name").indexOf(rootElement) >=0 ) { // if the specified root element matches an input parameter, we can proceed
 
             XNAT.ui.dialog.open({
-=======
-        XNAT.ui.dialog.open({
->>>>>>> rad/rad-develop
                 title: 'Set Container Launch Values',
                 content: launcherContent,
                 width: 550,
@@ -876,7 +860,6 @@ var XNAT = getObject(XNAT || {});
 
                     var targetList = launcher.formInputs({ name: rootElement, type: 'staticList', value: targetLabels.toString() });
                     $targetListContainer.append(targetList);
-<<<<<<< HEAD
 
                     // loop through each input and determine how to display it
                     // root element -- create hidden inputs
@@ -923,61 +906,6 @@ var XNAT = getObject(XNAT || {});
 
                     });
 
-=======
-                    var k=0;
-                    for(var argument in inputJson) {
-              		  if (inputJson.hasOwnProperty(argument)) {
-              		        var argumentDefinition = inputJson[argument];
-              		        if (argumentDefinition['user-settable']) {
-                                $panel.append(spawn('div',{ className: 'bulk-controls bulk-inputs inputs-'+k }));
-                                var $bulkInputContainer = $panel.find('.inputs-'+k);
-
-                  		        var input = {};	
-                  		            input.name = argument;
-                                	input.label = argument;
-                                    for(var property in argumentDefinition) {
-                                		  if (argumentDefinition.hasOwnProperty(property)) {
-                                		    var propertyValue = argumentDefinition[property];
-                                		    input[property] = propertyValue; 
-                                		  }
-                                    }
-                                	input.type = argumentDefinition.type;
-                                    input.value =  argumentDefinition['default-value'];
-                                        if (input.advanced === undefined || input.advanced !== true) {
-                                            var inputElement = launcher.formInputs(input);
-                                            $bulkInputContainer.append(inputElement);
-                                         }
-                                        else if (input.advanced) {
-                                            var advancedInput = launcher.formInputs(input);
-                                            $bulkInputContainer.append(advancedInput);
-                                           // $bulkInputContainer.parents('.advanced-settings-container').removeClass('hidden');
-                                        }
-                              ++k;          
-              		        }else {
-              		        	if (argument === rootElement) {
-                                    $panel.append(spawn('div',{ className: 'bulk-controls bulk-inputs inputs-'+k }));
-                                    var $bulkInputContainer = $panel.find('.inputs-'+k);
-              		        		var input = {};	
-                  		            input.name = argument;
-                                	input.label = argument;
-                                    for(var property in argumentDefinition) {
-                                		  if (argumentDefinition.hasOwnProperty(property)) {
-                                		    var propertyValue = argumentDefinition[property];
-                                		    input[property] = propertyValue; 
-                                		  }
-                                    }
-                                	input.type =  'hidden' ;
-                                    input.value =  targets.toString();
-                                    if (input.advanced === undefined || input.advanced !== true) {
-                                        var inputElement = launcher.formInputs(input);
-                                        $bulkInputContainer.append(inputElement);
-                                     }
-                                    ++k;
-              		        	}
-              		        }
-              		  }
-                    }
->>>>>>> rad/rad-develop
                 },
                 afterShow: function(obj){
                     xmodal.loading.close();
@@ -1009,12 +937,13 @@ var XNAT = getObject(XNAT || {});
                             });
 
                             if (runContainer) {
-                       		    var csvRootElementValues = $panel.find('input[name='+rootElement+']').val();
-                       		    var rootElementArray = csvRootElementValues.split(',');
-                       		    var targetData = {};
-                       		    $panel.find('.bulk-inputs').each(function(){
+                                $panel.find('.bulk-inputs').each(function(){
                                     // iterate over each set of inputs and add an object of inputs and values to the bulkData array
-                       		    	var $thisPanel = $(this);
+                                    var targetData = {},
+                                        $thisPanel = $(this);
+
+                                    // gather form input values
+                                    targetData[rootElement] = $thisPanel.find('input[name='+rootElement+']').val();
 
                                     $thisPanel.find('input').not(':disabled').not('[type=checkbox]').not('[type=radio]').not('[name='+rootElement+']').each(function(){
                                         // get the name and value from each text element and add it to our data to post
@@ -1034,17 +963,13 @@ var XNAT = getObject(XNAT || {});
                                         targetData[key] = val;
                                     });
 
+                                    bulkData.push(targetData);
                                 });
-                       		    rootElementArray.forEach(function(item,i){
-                           		    var launchData = {};
-                           		    launchData[rootElement] = item;	
-                           		    Object.keys(targetData).forEach(function(key) {
-                           		      launchData[key] = targetData[key];
-                           		    });	
-                           		    bulkData.push(launchData);
-                       		    }); 	
 
                                 var dataToPost = bulkData;
+                                var launchUrl = (project) ?
+                                    bulkProjectLaunchUrl(project,wrapperId) :
+                                    bulkLaunchUrl(wrapperId);
 
                                 XNAT.xhr.postJSON({
                                     beforeSend: function() {
@@ -1053,7 +978,7 @@ var XNAT = getObject(XNAT || {});
                                             "You may continue to work, refreshing the dashboard to see updated progress.");
                                         return true;
                                     },
-                                    url: bulkLaunchUrl(wrapperId),
+                                    url: launchUrl,
                                     data: JSON.stringify(dataToPost),
                                     success: function(data){
                                         // bulk launch success returns two arrays -- containers that successfully launched, and containers that failed to launch
@@ -1073,7 +998,6 @@ var XNAT = getObject(XNAT || {});
                                             messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Successful Container Launches') );
 
                                             data.successes.forEach(function(success){
-<<<<<<< HEAD
                                                 if (success['type'] === 'service') {
                                                     messageContent.push( spawn('p',[spawn('strong','Service ID: '),spawn('span',success['service-id']) ]));
                                                 } else {
@@ -1082,16 +1006,6 @@ var XNAT = getObject(XNAT || {});
                                                         spawn('span',success['container-id'])
                                                     ]) );
                                                 }
-=======
-												if (success['type'] === 'service') {
-													messageContent.push( spawn('p',[spawn('strong','Service ID: '),spawn('span',success['service-id']) ]));
-												}else {
-													messageContent.push( spawn('p',[
-														spawn('strong','Container ID: '),
-														spawn('span',success['container-id'])
-													]) );
-												}
->>>>>>> rad/rad-develop
                                                 messageContent.push( spawn('div',prettifyJSON(success.params)) );
                                             });
                                         }
@@ -1104,6 +1018,7 @@ var XNAT = getObject(XNAT || {});
                                                 messageContent.push( spawn('div',prettifyJSON(failure.params)) );
                                             });
                                         }
+
                                         XNAT.ui.dialog.open({
                                             title: 'Container Launch Success',
                                             content: spawn('div', messageContent ),
@@ -1169,10 +1084,15 @@ var XNAT = getObject(XNAT || {});
                     }
                 ]
             });
+
+
+        } else {
+            errorHandler({
+                statusText: 'Root element mismatch',
+                responseText: 'No instance of '+rootElement+' was found in the list of inputs for this command'
+            });
+        }
     }
-
-
-
 
     // for bulk launching, apply any user-updated value to all matching inputs
     $(document).on('change','.bulk-master input',function(){
@@ -1231,17 +1151,23 @@ var XNAT = getObject(XNAT || {});
             }
         });
     };
-    
 
-    launcher.bulkLaunchDialog = function(project,commandId,wrapperId,rootElement,targets, targetLabels){
+    launcher.bulkLaunchDialog = function(wrapperId,rootElement,targets,targetLabels,project,commandId){
         // 'targets' should be formatted as a one-dimensional array of XNAT data values (i.e. scan IDs) that a container will run on in series.
         // the 'root element' should match one of the inputs in the command config object, and overwrite it with the values provided in the 'targets' array
 
-        if (!targets || targets.length === 0) return false;
-        var targetObj = rootElement + '=' + targets.toString();
+        if (projectId.length && !project) project = projectId;
 
-        var launchUrl = rootUrl('/xapi/projects/'+project+'/commands/'+commandId+'/wrappers/'+wrapperId+'/config');
-            
+        if (!targets || targets.length === 0) return false;
+        if (!targetLabels || targetLabels.length !== targets.length) targetLabels = targets;
+
+        //TODO speed up the serialization of XNAT objects during command preresolution so we can use the bulklaunch UI generator
+        // var targetObj = rootElement + '=' + targets.toString();
+        // var launchUrl = (project) ?
+        //     rootUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/bulklaunch?'+targetObj) :
+        //     rootUrl('/xapi/wrappers/'+wrapperId+'/bulklaunch?'+targetObj);
+        var launchUrl = getCommandConfigUrl(wrapperId,commandId,project);
+
         xmodal.loading.open({ title: 'Configuring Container Launcher' });
         XNAT.xhr.getJSON({
             url: launchUrl,
@@ -1254,14 +1180,49 @@ var XNAT = getObject(XNAT || {});
             },
             success: function(data){
                 xmodal.loading.close();
-<<<<<<< HEAD
-                launchManyContainers(data,rootElement,wrapperId,targets,project);
-=======
-                var inputs = data.inputs;
-                launchManyContainers(inputs,rootElement,wrapperId,targets,targetLabels);
->>>>>>> rad/rad-develop
+                var configData = convertInputstoConfigData(data.inputs, targets, targetLabels, rootElement);
+                launchManyContainers(configData,rootElement,wrapperId,targets,targetLabels,project);
             }
         });
+    };
+
+    var convertInputstoConfigData = function(inputs, targets, targetLabels, rootElement) {
+        // TODO, speed up command pre-resolution to get rid of this nasty method
+        //inputs = {"inputs":{"session":{"description":"Input session","type":"Session","default-value":null,"matcher":null,"user-settable":null,"advanced":false,"required":null},"command":{"description":"The command to run","type":"string","default-value":"echo hello world","matcher":null,"user-settable":true,"advanced":false,"required":true},"output-file":{"description":"Name of the file to collect stdout","type":"string","default-value":"out.txt","matcher":null,"user-settable":true,"advanced":false,"required":false}},"outputs":{"output-resource":{"type":"Resource","label":"DEBUG_OUTPUT"}}}
+        //configData = "{"meta":{"command-id":12,"command-name":"debug","command-label":"debug","command-description":"Runs a user-provided command","wrapper-id":47,"wrapper-name":"debug-session","wrapper-description":"Run the debug container with a session mounted","image-name":"xnat/debug-command:latest","image-type":"docker"},"input-config":[{"name":"session","label":"session","advanced":false,"required":true,"user-settable":true,"input-type":"static","children":[]},{"name":"command","label":"command","description":"The command to run","advanced":false,"required":true,"user-settable":true,"input-type":"text","children":[]},{"name":"output-file","label":"output-file","description":"Name of the file to collect stdout","advanced":false,"required":false,"user-settable":true,"input-type":"text","children":[]}],"input-values":[[{"name":"session","values":[{"value":"/archive/experiments/LOCAL02_E00001","label":"ses-0","children":[]}]},{"name":"command","values":[{"value":"echo hello world","label":"echo hello world","children":[]}]},{"name":"output-file","values":[{"value":"out.txt","label":"out.txt","children":[]}]}],[{"name":"session","values":[{"value":"/archive/experiments/LOCAL02_E00002","label":"ses-1","children":[]}]},{"name":"command","values":[{"value":"echo hello world","label":"echo hello world","children":[]}]},{"name":"output-file","values":[{"value":"out.txt","label":"out.txt","children":[]}]}]]}"
+
+        var configData = {'input-config': [], 'input-values': []};
+        var defaults = [];
+        var i = 0;
+        var rootInd = -1;
+        configData['input-config'] = $.map(inputs, function(value, key){
+            value['name'] = key;
+            value['children'] = [];
+            // See LaunchUi.java > convertResolvedInputTreeToLaunchUiInputTree
+            // We don't handle select (seems to only occur for derived inputs?)
+            if (!value['user-settable']) {
+                value['input-type'] = 'static';
+            } else if (value['type'] === 'boolean') {
+                value['input-type'] = 'boolean';
+            } else {
+                value['input-type'] = 'text';
+            }
+            defaults.push({'name': key, 'values': [{'value': value['default-value'],
+                    'label': value['default-value'], 'children':[]}]});
+            if (key === rootElement) {
+                rootInd = i;
+            }
+            i++;
+            return value;
+        });
+
+        //Expects one array of defaults per target
+        for (i = 0; i < targets.length; i++) {
+            defaults[rootInd]['values'][0]['value'] = targets[i];
+            defaults[rootInd]['values'][0]['label'] = targetLabels[i];
+            configData['input-values'].push(defaults);
+        }
+        return configData;
     };
 
     launcher.noIllegalChars = function(input,exception){
@@ -1299,9 +1260,9 @@ var XNAT = getObject(XNAT || {});
 
     launcher.addMenuItem = function(command,commandSet){
         commandSet = commandSet || [];
-        var label = (command['wrapper-description'].length) ?
-            command['wrapper-description'] :
-            command['wrapper-name'];
+        var label = command['wrapper-name'];
+        if (command['wrapper-description']) if (command['wrapper-description'].length) label = command['wrapper-description'];
+        if (command['wrapper-label']) if (command['wrapper-label'].length) label = command['wrapper-label'];
 
         if (command.enabled){
             commandSet.push(
@@ -1336,14 +1297,10 @@ var XNAT = getObject(XNAT || {});
     /* to be replaced when we kill YUI */
     launcher.addYUIMenuItem = function(command){
         if (command.enabled) {
-           // var launcher = command.launcher || "default";
-           // var label = command['wrapper-name'];
-           // if (command['wrapper-description'].length) label = command['wrapper-description'];
-           // if (command['wrapper-label'].length) label = command['wrapper-label'];
             var launcher = command.launcher || "default";
-            var label = (command['wrapper-description'].length) ?
-                command['wrapper-description'] :
-                command['wrapper-name'];
+            var label = command['wrapper-name'];
+            if (command['wrapper-description']) if (command['wrapper-description'].length) label = command['wrapper-description'];
+            if (command['wrapper-label']) if (command['wrapper-label'].length) label = command['wrapper-label'];
 
             containerMenuItems[0].submenu.itemdata.push({
                 text: label,
@@ -1385,7 +1342,7 @@ var XNAT = getObject(XNAT || {});
         });
 
         // Special case: If this is a session, run a second context check for scans
-        // only support scan-level actions if the new scan table is found.
+        // only support scan-level actions if the new scan table is found. 
         if (XNAT.data.context.isImageSession && document.getElementById('selectable-table-scans')) {
             var xsiScanType = xsiType.replace('Session','Scan');
 
@@ -1435,7 +1392,7 @@ var XNAT = getObject(XNAT || {});
                 }
             });
         }
-
+        
     };
 
     launcher.open = window.openCommandLauncher = function(obj){
