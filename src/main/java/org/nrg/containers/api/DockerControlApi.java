@@ -117,7 +117,7 @@ public class DockerControlApi implements ContainerControlApi {
         try (final DockerClient client = getClient(dockerServer)) {
             return client.ping();
         } catch (DockerException | InterruptedException e) {
-            log.error(e.getMessage());
+            log.error("Unable to connect with Docker server:\n" + (dockerServer == null ? "" : dockerServer.toString()), e.getMessage());
             throw new DockerServerException(e);
         }
     }
