@@ -37,6 +37,8 @@ import org.nrg.containers.exceptions.ContainerFinalizationException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.exceptions.UnauthorizedException;
+import org.nrg.containers.jms.requests.ContainerFinalizeRequest;
+import org.nrg.containers.jms.utils.QueueUtils;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
@@ -54,6 +56,7 @@ import org.nrg.containers.services.ContainerEntityService;
 import org.nrg.containers.services.ContainerFinalizeService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Users;
@@ -574,7 +577,8 @@ public class ContainerServiceImpl implements ContainerService {
                 	}
                     if (task.isExitStatus() || isWaiting(service)) {
             		    final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
-                    	queuedFinalize(exitCodeString, task.isSuccessfulStatus(),service, userI);
+                    	final Container serviceWithAddedEvent = retrieve(service.databaseId());
+                    	queuedFinalize(exitCodeString, task.isSuccessfulStatus(),serviceWithAddedEvent, userI);
                     }else{
                     	if (log.isDebugEnabled()){
                     		log.debug("Docker event has not exited yet" + service.serviceId() + " Workflow: " + service.workflowId() + service.status());
@@ -594,6 +598,26 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
 	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
+		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString,isSuccessful,service.serviceId(),userI.getLogin(),service.workflowId());
+		int count=QueueUtils.count(request.getDestination());
+		
+		if(!StringUtils.startsWith("_",this.getWorkflowStatus(userI, service))) {
+			log.info("adding to finalizing queue, count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",count,request.getExitCodeString(),request.isSuccessful(),request.getId(),request.getUsername(),service.status());
+			addContainerHistoryItem(service, ContainerHistory.fromSystem("_"+service.status(),"Processing finished. Uploading files." ), userI);
+			try{
+				XDAT.sendJmsRequest(request);
+			}  catch (Exception e) { 
+				addContainerHistoryItem(service, ContainerHistory.fromSystem(waiting,"Finalizing Message queue failed. Throw back into waiting and try again later." ), userI);
+				log.error("Finalizing Message queue failed. Throw back into waiting and try again later.", e);
+			}
+		}else {
+			log.info("skip finalizing queue, count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",count,request.getExitCodeString(),request.isSuccessful(),request.getId(),request.getUsername(),service.status());
+		}
+		
+	}
+	
+    @Override
+	public void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
 		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
 		//Poor (wo)man's queue
     	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
@@ -934,7 +958,14 @@ public class ContainerServiceImpl implements ContainerService {
         return null;
     }
 
-    private void handleFailure(UserI userI,final Container container) {
+	 private String getWorkflowStatus(UserI userI,final Container container) {
+        
+     	   String workFlowId = container.workflowId();
+     	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI,workFlowId);
+     	   return workflow.getStatus();
+     	
+     }    
+	private void handleFailure(UserI userI,final Container container) {
        try {
     	   String workFlowId = container.workflowId();
     	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI,workFlowId);
