@@ -1191,6 +1191,17 @@ var XNAT = getObject(XNAT || {});
         //inputs = {"inputs":{"session":{"description":"Input session","type":"Session","default-value":null,"matcher":null,"user-settable":null,"advanced":false,"required":null},"command":{"description":"The command to run","type":"string","default-value":"echo hello world","matcher":null,"user-settable":true,"advanced":false,"required":true},"output-file":{"description":"Name of the file to collect stdout","type":"string","default-value":"out.txt","matcher":null,"user-settable":true,"advanced":false,"required":false}},"outputs":{"output-resource":{"type":"Resource","label":"DEBUG_OUTPUT"}}}
         //configData = "{"meta":{"command-id":12,"command-name":"debug","command-label":"debug","command-description":"Runs a user-provided command","wrapper-id":47,"wrapper-name":"debug-session","wrapper-description":"Run the debug container with a session mounted","image-name":"xnat/debug-command:latest","image-type":"docker"},"input-config":[{"name":"session","label":"session","advanced":false,"required":true,"user-settable":true,"input-type":"static","children":[]},{"name":"command","label":"command","description":"The command to run","advanced":false,"required":true,"user-settable":true,"input-type":"text","children":[]},{"name":"output-file","label":"output-file","description":"Name of the file to collect stdout","advanced":false,"required":false,"user-settable":true,"input-type":"text","children":[]}],"input-values":[[{"name":"session","values":[{"value":"/archive/experiments/LOCAL02_E00001","label":"ses-0","children":[]}]},{"name":"command","values":[{"value":"echo hello world","label":"echo hello world","children":[]}]},{"name":"output-file","values":[{"value":"out.txt","label":"out.txt","children":[]}]}],[{"name":"session","values":[{"value":"/archive/experiments/LOCAL02_E00002","label":"ses-1","children":[]}]},{"name":"command","values":[{"value":"echo hello world","label":"echo hello world","children":[]}]},{"name":"output-file","values":[{"value":"out.txt","label":"out.txt","children":[]}]}]]}"
 
+        function deepCopy(o) {
+            //https://www.codementor.io/avijitgupta/deep-copying-in-js-7x6q8vh5d
+            var output, v, key;
+            output = Array.isArray(o) ? [] : {};
+            for (key in o) {
+                v = o[key];
+                output[key] = (typeof v === "object") ? deepCopy(v) : v;
+            }
+            return output;
+        }
+
         var configData = {'input-config': [], 'input-values': []};
         var defaults = [];
         var i = 0;
@@ -1218,9 +1229,10 @@ var XNAT = getObject(XNAT || {});
 
         //Expects one array of defaults per target
         for (i = 0; i < targets.length; i++) {
-            defaults[rootInd]['values'][0]['value'] = targets[i];
-            defaults[rootInd]['values'][0]['label'] = targetLabels[i];
-            configData['input-values'].push(defaults);
+            var d = deepCopy(defaults);
+            d[rootInd]['values'][0]['value'] = targets[i];
+            d[rootInd]['values'][0]['label'] = targetLabels[i];
+            configData['input-values'].push(d);
         }
         return configData;
     };
