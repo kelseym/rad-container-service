@@ -530,14 +530,9 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
         private Container getWrapupContainer(final String parentSourceObjectName) {
             return wrapupContainerMap.get(parentSourceObjectName);
         }
-//quick fix for demo. revisit
+
         private List<File> matchGlob(final String rootPath, final String glob) {
             final File rootDir = new File(rootPath);
-            if(StringUtils.isBlank(glob)){
-            	List<File> files =Lists.<File>newArrayList();
-            	files.add(rootDir);
-            	return files;
-            }
             final File[] files = rootDir.listFiles();
             return files == null ? Lists.<File>newArrayList() : Arrays.asList(files);
         }
