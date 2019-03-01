@@ -1258,12 +1258,14 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             });
         }
 
-        function deleteImage(image,force) {
+        function deleteImage(image,force,retries) {
             var content;
+            retries = retries || 0;
+            var retryStr = (retries > 0) ? 'RE-ATTEMPT to ' : '';
             force = force || false;
             if (!force) {
                 content = spawn('div',[
-                    spawn('p','Are you sure you\'d like to delete the '+image.tags[0]+' image?'),
+                    spawn('p','Are you sure you\'d like to ' + retryStr + 'delete the '+image.tags[0]+' image?'),
                     spawn('p', [ spawn('strong', 'This action cannot be undone.' )])
                 ]);
             } else {
@@ -1290,7 +1292,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                 fail: function(e){
                                     if (e.status === 500) {
                                         XNAT.dialog.closeAll();
-                                        deleteImage(image,true);
+                                        if (retries < 3) {
+                                            deleteImage(image,true, ++retries);
+                                        } else {
+                                            errorHandler(e, 'Could not delete image, likely there are running containers using it');
+                                        }
                                     } else {
                                         errorHandler(e, 'Could Not Delete Image');
                                     }
