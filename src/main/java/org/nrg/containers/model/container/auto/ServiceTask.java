@@ -45,7 +45,7 @@ public abstract class ServiceTask {
         return status != null && exitStatusPattern.matcher(status).matches();
     }
     
-    public static boolean  isSuccessfulStatus(String status){
+    public static boolean isSuccessfulStatus(String status){
         return status != null && successStatusPattern.matcher(status).matches();
     }
     

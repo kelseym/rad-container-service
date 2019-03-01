@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.events.model.ContainerEvent;
+import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
 import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerException;
@@ -84,7 +85,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class ContainerServiceImpl implements ContainerService {
-    private static final Pattern exitCodePattern = Pattern.compile("kill|die|oom\\((\\d+|x)\\)");
     private static final String MIN_XNAT_VERSION_REQUIRED = "1.7.5";
 	public static final String waiting = "Waiting";
     public static final String finalizing = "Finalizing";
@@ -516,7 +516,8 @@ public class ContainerServiceImpl implements ContainerService {
                 final Container containerWithAddedEvent = addContainerEventToHistory(event, userI);
                 if (event.isExitStatus()) {
                     log.debug("Container is dead. Finalizing.");
-                    finalize(containerWithAddedEvent, userI, event.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
+                    finalize(containerWithAddedEvent, userI, event.exitCode(),
+                            DockerContainerEvent.isSuccessfulStatus(containerWithAddedEvent.status()));
                 }
             } catch (UserInitException | UserNotFoundException e) {
                 log.error("Could not update container status. Could not get user details for user " + userLogin, e);
@@ -667,7 +668,12 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public void finalize(final Container container, final UserI userI) throws ContainerException, DockerServerException, NoDockerServerException {
-        finalize(container, userI, container.exitCode(), ServiceTask.isSuccessfulStatus(container.status()));
+        String status = container.status();
+        // Seems that container status doesn't remain in these states, but perhaps it would if it still needed to be finalized?
+        boolean isSuccessfulStatus = container.isSwarmService() ?
+                ServiceTask.isSuccessfulStatus(status) :
+                DockerContainerEvent.isSuccessfulStatus(status);
+        finalize(container, userI, container.exitCode(), isSuccessfulStatus);
     }
 
     @Override
@@ -1014,8 +1020,6 @@ public class ContainerServiceImpl implements ContainerService {
      * workflow, so we don't make one.
      *
      * @param resolvedCommand A resolved command that will be used to launch a container
-     * @param containerOrService The Container object which refers to either a container launched on
-     *                           a single docker machine or a service created on a swarm
      * @param userI The user launching the container
      * @return created workflow, or null if no workflow was created
      */
