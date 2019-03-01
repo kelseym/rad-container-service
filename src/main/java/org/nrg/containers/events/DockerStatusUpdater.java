@@ -60,7 +60,7 @@ public class DockerStatusUpdater   implements Runnable {
 			log.trace("Not the Primary node: skipping update status with docker.");
 	        return;
     	}
-        log.trace("Attempting to update status with docker.");
+        log.trace("Primary node: Attempting to update status with docker.");
 
         final String skipMessage = "Skipping attempt to update status.";
 
@@ -78,6 +78,7 @@ public class DockerStatusUpdater   implements Runnable {
             dockerServer = dockerServerService.getServer();
         } catch (NotFoundException e) {
             // ignored
+ 			log.error("Docker server not found");
         }
         if (dockerServer == null) {
             if (!haveLoggedNoServerInDb) {

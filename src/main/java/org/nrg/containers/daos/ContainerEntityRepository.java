@@ -2,6 +2,7 @@ package org.nrg.containers.daos;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
+import org.hibernate.criterion.MatchMode;
 import org.hibernate.criterion.Restrictions;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
@@ -99,7 +100,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                         .add(Restrictions.not(Restrictions.disjunction()
                                 .add(Restrictions.like("status", "Complete"))
                                 .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed"))
+                                .add(Restrictions.like("status", "Failed",MatchMode.START))
                                 .add(Restrictions.like("status", "Killed"))
                                 .add(Restrictions.like("status", "Finalizing"))
                         ))
@@ -195,7 +196,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                         .add(Restrictions.not(Restrictions.disjunction()
                                 .add(Restrictions.like("status", "Complete"))
                                 .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed"))
+                                .add(Restrictions.like("status", "Failed",MatchMode.START))
                                 .add(Restrictions.like("status", "Killed"))
                                 .add(Restrictions.like("status", "Finalizing"))
                         ))
@@ -213,7 +214,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                         .add(Restrictions.not(Restrictions.disjunction()
                                 .add(Restrictions.like("status", "Complete"))
                                 .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed"))
+                                .add(Restrictions.like("status", "Failed",MatchMode.START))
                                 .add(Restrictions.like("status", "Killed"))
                         ))
                 )
