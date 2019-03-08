@@ -14,12 +14,11 @@ public class ContainerFinalizeRequest extends ContainerRequest implements Serial
 	private String id;
 	private String username;
 	
-	public ContainerFinalizeRequest(String exitCodeString, boolean isSuccessful, String id, String username,String workflowid) {
+	public ContainerFinalizeRequest(String exitCodeString, boolean isSuccessful, String id, String username) {
 		 this.setExitCodeString(exitCodeString);
 		 this.setSuccessful(isSuccessful); 
 		 this.setId(id);
 		 this.setUsername(username);
-		 this.setWorkflowid(workflowid);
 	}
 
 	public String getExitCodeString() {

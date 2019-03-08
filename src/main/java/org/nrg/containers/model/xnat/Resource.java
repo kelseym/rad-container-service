@@ -71,7 +71,7 @@ public class Resource extends XnatModelObject {
         this.label = xnatResourcecatalog.getLabel();
         this.xsiType = xnatResourcecatalog.getXSIType();
 
-        final CatCatalogBean cat = xnatResourcecatalog.getCleanCatalog(rootArchivePath, true, null, null);
+        final CatCatalogBean cat = xnatResourcecatalog.getCatalog(rootArchivePath);
         this.directory = xnatResourcecatalog.getCatalogFile(rootArchivePath).getParent();
 
         final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null, xnatResourcecatalog, true, null, null, "absolutePath");

@@ -3,10 +3,7 @@ package org.nrg.containers.config;
 import org.mockito.Mockito;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.rest.ContainerRestApi;
-import org.nrg.containers.services.CommandResolutionService;
-import org.nrg.containers.services.ContainerEntityService;
-import org.nrg.containers.services.ContainerFinalizeService;
-import org.nrg.containers.services.ContainerService;
+import org.nrg.containers.services.*;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.services.ContextService;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -29,7 +26,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ContainerEntityTestConfig.class, RestApiTestConfig.class})
+@Import({ContainerEntityTestConfig.class, RestApiTestConfig.class, CommandConfig.class})
 public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public ContainerRestApi containerRestApi(final ContainerService containerService,
@@ -42,11 +39,14 @@ public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
     public ContainerService containerService(final ContainerControlApi containerControlApi,
                                              final ContainerEntityService containerEntityService,
                                              final CommandResolutionService commandResolutionService,
+                                             final CommandService commandService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
                                              final ThreadPoolExecutorFactoryBean executorFactoryBean) {
-        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService, aliasTokenService, siteConfigPreferences, containerFinalizeService, executorFactoryBean, null);
+        return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService,
+                commandService, aliasTokenService, siteConfigPreferences, containerFinalizeService, executorFactoryBean,
+                null);
     }
 
     @Bean

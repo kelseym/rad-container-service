@@ -14,7 +14,6 @@ import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.LoggingBuildHandler;
 import com.spotify.docker.client.exceptions.ContainerNotFoundException;
-import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.Task;
@@ -24,42 +23,44 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
+import org.nrg.containers.jms.listeners.ContainerStagingRequestListener;
+import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerMount;
 import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
-import org.nrg.containers.model.xnat.Project;
-import org.nrg.containers.model.xnat.Resource;
-import org.nrg.containers.model.xnat.Scan;
-import org.nrg.containers.model.xnat.Session;
-import org.nrg.containers.services.CommandService;
-import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.services.DockerServerService;
-import org.nrg.containers.services.DockerService;
+import org.nrg.containers.model.xnat.*;
+import org.nrg.containers.services.*;
+import org.nrg.containers.utils.TestingUtils;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
+import org.nrg.xdat.security.helpers.Permissions;
 import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.ItemI;
+import org.nrg.xft.event.EventMetaI;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
 import org.nrg.xnat.helpers.uri.archive.impl.ProjURI;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
+import org.nrg.xnat.utils.WorkflowUtils;
+import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -72,17 +73,15 @@ import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Nullable;
+import javax.jms.ConnectionFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -101,15 +100,15 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
-import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.mock;
-import static org.powermock.api.mockito.PowerMockito.mockStatic;
-import static org.powermock.api.mockito.PowerMockito.when;
+import static org.mockito.Mockito.when;
+import static org.powermock.api.mockito.PowerMockito.*;
 
 @Slf4j
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
-@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class})
+@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Transactional
@@ -122,6 +121,8 @@ public class CommandLaunchIntegrationTest {
     private final String FAKE_ALIAS = "alias";
     private final String FAKE_SECRET = "secret";
     private final String FAKE_HOST = "mock://url";
+    private FakeWorkflow fakeWorkflow = new FakeWorkflow();
+
     private final boolean swarmMode = false;
 
     private boolean testIsOnCircleCi;
@@ -234,16 +235,24 @@ public class CommandLaunchIntegrationTest {
         when(mockSiteConfigPreferences.getArchivePath()).thenReturn(archiveDir); // container logs get stored under archive
         when(mockSiteConfigPreferences.getProperty("processingUrl", FAKE_HOST)).thenReturn(FAKE_HOST);
 
+        CLIENT = controlApi.getClient();
+        CLIENT.pull("busybox:latest");
+
         // Use powermock to mock out the static method XFTManager.isInitialized()
         mockStatic(XFTManager.class);
         when(XFTManager.isInitialized()).thenReturn(true);
 
-        CLIENT = controlApi.getClient();
-        CLIENT.pull("busybox:latest");
+        // Also mock out workflow operations to return our fake workflow object
+        mockStatic(WorkflowUtils.class);
+        when(WorkflowUtils.getUniqueWorkflow(mockUser, fakeWorkflow.getWorkflowId().toString()))
+                .thenReturn(fakeWorkflow);
+        doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
+
     }
 
     @After
     public void cleanup() throws Exception {
+        fakeWorkflow = new FakeWorkflow();
         for (final String containerToCleanUp : containersToCleanUp) {
             if (swarmMode) {
                 CLIENT.removeService(containerToCleanUp);
@@ -261,20 +270,11 @@ public class CommandLaunchIntegrationTest {
         CLIENT.close();
     }
 
-    private boolean canConnectToDocker() {
-        try {
-            return CLIENT.ping().equals("OK");
-        } catch (InterruptedException | DockerException e) {
-            log.warn("Could not connect to docker.", e);
-        }
-        return false;
-    }
-
     @Test
     @DirtiesContext
     public void testFakeReconAll() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -312,7 +312,9 @@ public class CommandLaunchIntegrationTest {
         runtimeValues.put("session", sessionJson);
         runtimeValues.put("T1-scantype", t1Scantype);
 
-        final Container execution = containerService.resolveCommandAndLaunchContainer(commandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container execution = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
         await().until(containerIsRunning(execution), is(false));
 
@@ -401,7 +403,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testProjectMount() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         final String dir = Paths.get(ClassLoader.getSystemResource("commandLaunchTest").toURI()).toString().replace("%20", " ");
         final String commandJsonFile = dir + "/project-mount-command.json";
@@ -427,7 +429,9 @@ public class CommandLaunchIntegrationTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("project", projectJson);
 
-        final Container execution = containerService.resolveCommandAndLaunchContainer(commandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container execution = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
         await().until(containerIsRunning(execution), is(false));
 
@@ -517,7 +521,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testLaunchCommandWithSetupCommand() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         // This test fails on Circle CI because we cannot mount local directories into containers
         assumeThat(testIsOnCircleCi, is(false));
@@ -576,7 +580,9 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockProjectItem);
 
         // Time to launch this thing
-        final Container mainContainerRightAfterLaunch = containerService.resolveCommandAndLaunchContainer(commandWithSetupCommandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithSetupCommandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container mainContainerRightAfterLaunch = getContainerFromWorkflow(fakeWorkflow);
         TestTransaction.flagForCommit();
         TestTransaction.end();
         TestTransaction.start();
@@ -616,7 +622,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testLaunchCommandWithWrapupCommand() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         // This test fails on Circle CI because we cannot mount local directories into containers
         assumeThat(testIsOnCircleCi, is(false));
@@ -686,7 +692,9 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockSessionItem);
 
         // Time to launch this thing
-        final Container mainContainerRightAfterLaunch = containerService.resolveCommandAndLaunchContainer(commandWithWrapupCommandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container mainContainerRightAfterLaunch = getContainerFromWorkflow(fakeWorkflow);
         TestTransaction.flagForCommit();
         TestTransaction.end();
         TestTransaction.start();
@@ -738,7 +746,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testFailedContainer() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -757,7 +765,10 @@ public class CommandLaunchIntegrationTest {
         TestTransaction.end();
         TestTransaction.start();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(willFailWrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, willFailWrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
         TestTransaction.flagForCommit();
@@ -780,7 +791,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testEntrypointIsPreserved() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -800,7 +811,10 @@ public class CommandLaunchIntegrationTest {
         TestTransaction.end();
         TestTransaction.start();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
         TestTransaction.flagForCommit();
@@ -819,7 +833,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testEntrypointIsRemoved() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -839,7 +853,10 @@ public class CommandLaunchIntegrationTest {
         TestTransaction.end();
         TestTransaction.start();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
         TestTransaction.flagForCommit();
@@ -859,7 +876,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testContainerWorkingDirectory() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -880,7 +897,10 @@ public class CommandLaunchIntegrationTest {
         TestTransaction.end();
         TestTransaction.start();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
         TestTransaction.flagForCommit();
@@ -897,7 +917,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testDeleteCommandWhenDeleteImageAfterLaunchingContainer() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         final String imageName = "xnat/testy-test";
         final String resourceDir = Paths.get(ClassLoader.getSystemResource("commandLaunchTest").toURI()).toString().replace("%20", " ");
@@ -914,7 +934,10 @@ public class CommandLaunchIntegrationTest {
         final Command command = commands.get(0);
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = getContainerFromWorkflow(fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
         TestTransaction.flagForCommit();
@@ -1020,6 +1043,15 @@ public class CommandLaunchIntegrationTest {
                 }
             }
         };
+    }
+
+    private Container getContainerFromWorkflow(final PersistentWorkflowI workflow) throws NotFoundException {
+        await().until(new Callable<String>(){
+            public String call() {
+                return workflow.getComments();
+            }
+        }, is(not(isEmptyOrNullString())));
+        return containerService.get(workflow.getComments());
     }
 
     private Callable<Boolean> containerIsRunning(final Container container) {

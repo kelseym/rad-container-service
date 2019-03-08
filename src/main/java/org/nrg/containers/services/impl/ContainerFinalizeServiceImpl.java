@@ -135,7 +135,8 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             List<String> logPaths = uploadLogs();
             finalizedContainerBuilder.logPaths(logPaths);
             String workFlowId = toFinalize.workflowId();
-            PersistentWorkflowI wrkFlow = WorkflowUtils.getUniqueWorkflow(userI, workFlowId);
+            PersistentWorkflowI wrkFlow = (StringUtils.isNotBlank(workFlowId)) ?
+                    WorkflowUtils.getUniqueWorkflow(userI, workFlowId) : null;
             String xnatLabel = null;
             String xnatId = null;
             String project = null;
