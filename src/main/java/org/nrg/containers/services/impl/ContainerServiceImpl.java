@@ -384,7 +384,6 @@ public class ContainerServiceImpl implements ContainerService {
         }
     }
 
-    @Nonnull
     private Container launchResolvedDockerCommand(final ResolvedCommand resolvedCommand,
                                                   final UserI userI,
                                                   final Container parent)
@@ -392,6 +391,7 @@ public class ContainerServiceImpl implements ContainerService {
         log.info("Preparing to launch resolved command.");
         final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, parent, userI);
         final PersistentWorkflowI workflow = makeWorkflowIfAppropriate(resolvedCommand, userI);
+        String wfid = (workflow == null) ? "" : workflow.getWorkflowId().toString();
 
         log.info("Creating container from resolved command.");
 		try {
@@ -403,7 +403,7 @@ public class ContainerServiceImpl implements ContainerService {
 	        
 			final Container savedContainerOrService = toPojo(containerEntityService.save(fromPojo(
 	                createdContainerOrService.toBuilder()
-	                        .workflowId(workflow.getWorkflowId().toString())
+	                        .workflowId(wfid)
 	                        .parent(parent)
 	                        .build()
 	        ), userI));

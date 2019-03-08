@@ -49,9 +49,11 @@ import org.nrg.containers.services.impl.HibernateDockerServerEntityService;
 import org.nrg.framework.services.ContextService;
 import org.nrg.framework.services.NrgEventService;
 import org.nrg.mail.services.MailService;
+import org.nrg.mail.services.impl.SpringBasedMailServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.services.AliasTokenService;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.services.archive.CatalogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
@@ -145,10 +147,11 @@ public class IntegrationTestConfig {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+                                             final ThreadPoolExecutorFactoryBean executorFactoryBean,
+                                             @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                         commandResolutionService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, executorFactoryBean, null);
+                        containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
     }
 
     @Bean
@@ -172,6 +175,11 @@ public class IntegrationTestConfig {
     @Bean
     public DockerHubService mockDockerHubService() {
         return Mockito.mock(DockerHubService.class);
+    }
+
+    @Bean
+    public MailService mailService() {
+        return new SpringBasedMailServiceImpl(null);
     }
 
     @Bean
