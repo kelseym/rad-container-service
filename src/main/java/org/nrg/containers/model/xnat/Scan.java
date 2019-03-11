@@ -45,23 +45,23 @@ public class Scan extends XnatModelObject {
 
     public Scan() {}
 
-    public Scan(final ScanURII scanURII) {
+    public Scan(final ScanURII scanURII, final boolean loadFiles) {
         this.xnatImagescandataI = scanURII.getScan();
         this.uri = ((URIManager.ArchiveItemURI)scanURII).getUri();
-        populateProperties(null);
+        populateProperties(null, loadFiles);
     }
 
-    public Scan(final XnatImagescandataI xnatImagescandataI, final String parentUri, final String rootArchivePath) {
+    public Scan(final XnatImagescandataI xnatImagescandataI, final boolean loadFiles, final String parentUri, final String rootArchivePath) {
         this.xnatImagescandataI = xnatImagescandataI;
         if (parentUri == null) {
             this.uri = UriParserUtils.getArchiveUri(xnatImagescandataI);
         } else {
             this.uri = parentUri + "/scans/" + xnatImagescandataI.getId();
         }
-        populateProperties(rootArchivePath);
+        populateProperties(rootArchivePath, loadFiles);
     }
 
-    private void populateProperties(final String rootArchivePath) {
+    private void populateProperties(final String rootArchivePath, final boolean loadFiles) {
         this.integerId = xnatImagescandataI.getXnatImagescandataId();
         this.id = xnatImagescandataI.getId();
         this.xsiType = xnatImagescandataI.getXSIType();
@@ -87,20 +87,20 @@ public class Scan extends XnatModelObject {
         this.resources = Lists.newArrayList();
         for (final XnatAbstractresourceI xnatAbstractresourceI : this.xnatImagescandataI.getFile()) {
             if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, this.uri, rootArchivePath));
+                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, this.uri, rootArchivePath));
             }
         }
 
     }
 
-    public static Function<URIManager.ArchiveItemURI, Scan> uriToModelObject() {
+    public static Function<URIManager.ArchiveItemURI, Scan> uriToModelObject(final boolean loadFiles) {
         return new Function<URIManager.ArchiveItemURI, Scan>() {
             @Nullable
             @Override
             public Scan apply(@Nullable URIManager.ArchiveItemURI uri) {
                 if (uri != null &&
                         ScanURII.class.isAssignableFrom(uri.getClass())) {
-                    return new Scan((ScanURII) uri);
+                    return new Scan((ScanURII) uri, loadFiles);
                 }
 
                 return null;
@@ -108,18 +108,18 @@ public class Scan extends XnatModelObject {
         };
     }
 
-    public static Function<String, Scan> idToModelObject(final UserI userI) {
+    public static Function<String, Scan> idToModelObject(final UserI userI, final boolean loadFiles) {
         return null;
     }
 
-    public Project getProject(final UserI userI) {
+    public Project getProject(final UserI userI, final boolean loadFiles) {
         loadXnatImagescandataI(userI);
-        return new Project(xnatImagescandataI.getProject(), userI);
+        return new Project(xnatImagescandataI.getProject(), userI, loadFiles);
     }
 
-    public Session getSession(final UserI userI) {
+    public Session getSession(final UserI userI, final boolean loadFiles) {
         loadXnatImagescandataI(userI);
-        return new Session(xnatImagescandataI.getImageSessionId(), userI);
+        return new Session(xnatImagescandataI.getImageSessionId(), userI, loadFiles);
     }
 
     public void loadXnatImagescandataI(final UserI userI) {

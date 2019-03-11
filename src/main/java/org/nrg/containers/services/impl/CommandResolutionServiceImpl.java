@@ -267,13 +267,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         }
 
         @Nonnull
-        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees()
+        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees(boolean loadFiles)
                 throws CommandResolutionException, UnauthorizedException {
-            return resolveInputTrees(Maps.<String, String>newHashMap());
+            return resolveInputTrees(loadFiles, Maps.<String, String>newHashMap());
         }
 
         @Nonnull
-        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees(final Map<String, String> resolvedValuesByReplacementKey)
+        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees(boolean loadFiles, final Map<String, String> resolvedValuesByReplacementKey)
                 throws CommandResolutionException, UnauthorizedException {
             final List<PreresolvedInputTreeNode<? extends Input>> rootNodes = initializePreresolvedInputTree();
 
@@ -281,7 +281,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             for (final PreresolvedInputTreeNode<? extends Input> rootNode : rootNodes) {
                 log.debug("Resolving input tree with root input \"{}\".", rootNode.input().name());
                 final ResolvedInputTreeNode<? extends Input> resolvedRootNode =
-                        resolveNode(rootNode, null, resolvedValuesByReplacementKey);
+                        resolveNode(rootNode, null, resolvedValuesByReplacementKey, loadFiles);
                 log.debug("Done resolving input tree with root input \"{}\".", rootNode.input().name());
                 resolvedInputTrees.add(resolvedRootNode);
 
@@ -300,7 +300,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.info("Resolving command wrapper inputs.");
             log.debug("{}", commandWrapper);
 
-            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees();
+            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees(false);
 
             return PartiallyResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
@@ -325,7 +325,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.debug("{}", command);
 
             final Map<String, String> resolvedInputValuesByReplacementKey = Maps.newHashMap();
-            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees(resolvedInputValuesByReplacementKey);
+            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees(true, resolvedInputValuesByReplacementKey);
 
             log.debug("Checking for missing required inputs.");
             final List<String> missingRequiredInputs = findMissingRequiredInputs(resolvedInputTrees);
@@ -453,7 +453,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         @Nonnull
         private ResolvedInputValue resolveExternalWrapperInput(final CommandWrapperExternalInput input,
-                                                               final Map<String, String> resolvedInputValuesByReplacementKey)
+                                                               final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                               final boolean loadFiles)
                 throws CommandResolutionException, UnauthorizedException, IllegalInputException {
             log.info("Resolving input \"{}\".", input.name());
 
@@ -500,22 +501,22 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     try {
                         if (type.equals(PROJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Project.class, Project.uriToModelObject(preload), Project.idToModelObject(userI, preload));
+                                    Project.class, Project.uriToModelObject(loadFiles, preload), Project.idToModelObject(userI, loadFiles, preload));
                         } else if (type.equals(SUBJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Subject.class, Subject.uriToModelObject(), Subject.idToModelObject(userI));
+                                    Subject.class, Subject.uriToModelObject(loadFiles), Subject.idToModelObject(userI, loadFiles));
                         } else if (type.equals(SESSION.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Session.class, Session.uriToModelObject(), Session.idToModelObject(userI));
+                                    Session.class, Session.uriToModelObject(loadFiles), Session.idToModelObject(userI, loadFiles));
                         } else if (type.equals(SCAN.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Scan.class, Scan.uriToModelObject(), Scan.idToModelObject(userI));
+                                    Scan.class, Scan.uriToModelObject(loadFiles), Scan.idToModelObject(userI, loadFiles));
                         } else if (type.equals(ASSESSOR.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Assessor.class, Assessor.uriToModelObject(), Assessor.idToModelObject(userI));
+                                    Assessor.class, Assessor.uriToModelObject(loadFiles), Assessor.idToModelObject(userI, loadFiles));
                         } else {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Resource.class, Resource.uriToModelObject(), Resource.idToModelObject(userI));
+                                    Resource.class, Resource.uriToModelObject(loadFiles), Resource.idToModelObject(userI, loadFiles));
                         }
                     } catch (CommandInputResolutionException e) {
                         // When resolveXnatObject throws this, it does not have the input object in scope
@@ -615,7 +616,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private List<ResolvedInputValue> resolveDerivedWrapperInput(final CommandWrapperDerivedInput input,
                                                                     final @Nonnull ResolvedInputValue parent,
-                                                                    final Map<String, String> resolvedInputValuesByReplacementKey)
+                                                                    final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                                    final boolean loadFiles)
                 throws CommandResolutionException, IllegalInputException {
             log.info("Resolving input \"{}\".", input.name());
 
@@ -725,13 +727,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 } else {
                     final Project project;
                     if (parentType.equals(SUBJECT.getName())) {
-                        project = ((Subject)parentXnatObject).getProject(userI);
+                        project = ((Subject)parentXnatObject).getProject(userI, loadFiles);
                     } else if (parentType.equals(SESSION.getName())) {
-                        project = ((Session)parentXnatObject).getProject(userI);
+                        project = ((Session)parentXnatObject).getProject(userI, loadFiles);
                     } else if (parentType.equals(SCAN.getName())) {
-                        project = ((Scan)parentXnatObject).getProject(userI);
+                        project = ((Scan)parentXnatObject).getProject(userI, loadFiles);
                     } else {
-                        project = ((Assessor)parentXnatObject).getProject(userI);
+                        project = ((Assessor)parentXnatObject).getProject(userI, loadFiles);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
                     resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
@@ -790,7 +792,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         }
                     } else {
                         // Parent is session
-                        final Subject subject = ((Session)parentXnatObject).getSubject(userI);
+                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, loadFiles);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(subject);
                         resolvedValues = Collections.singletonList(subject.getUri());
                     }
@@ -848,12 +850,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             }));
                         }
                     } else if (parentType.equals(ASSESSOR.getName())) {
-                        final Session session = ((Assessor)parentXnatObject).getSession(userI);
+                        final Session session = ((Assessor)parentXnatObject).getSession(userI, loadFiles);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     } else {
                         // Parent is scan
-                        final Session session = ((Scan)parentXnatObject).getSession(userI);
+                        final Session session = ((Scan)parentXnatObject).getSession(userI, loadFiles);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     }
@@ -1199,7 +1201,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private ResolvedInputTreeNode<? extends Input> resolveNode(final PreresolvedInputTreeNode<? extends Input> preresolvedInputNode,
                                                                    final @Nullable ResolvedInputValue parentValue,
-                                                                   final Map<String, String> resolvedInputValuesByReplacementKey)
+                                                                   final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                                   final boolean loadFiles)
                 throws CommandResolutionException, UnauthorizedException {
             if (log.isDebugEnabled()) {
                 log.debug("Resolving input \"" + preresolvedInputNode.input().name() + "\"" +
@@ -1213,7 +1216,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             if (thisNode.input() instanceof CommandWrapperExternalInput) {
                 resolvedInputValues = Collections.singletonList(
                         resolveExternalWrapperInput((CommandWrapperExternalInput)thisNode.input(),
-                                resolvedInputValuesByReplacementKey)
+                                resolvedInputValuesByReplacementKey, loadFiles)
                 );
             } else if (thisNode.input() instanceof CommandWrapperDerivedInput) {
                 if (parentValue == null) {
@@ -1222,7 +1225,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedInputValues = Collections.emptyList();
                 } else {
                     resolvedInputValues = resolveDerivedWrapperInput((CommandWrapperDerivedInput) thisNode.input(),
-                            parentValue, resolvedInputValuesByReplacementKey);
+                            parentValue, resolvedInputValuesByReplacementKey, loadFiles);
                 }
             } else {
                 resolvedInputValues = Collections.singletonList(
@@ -1247,7 +1250,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                         final Map<String, String> copyOfResolvedInputValuesByReplacementKey = Maps.newHashMap(resolvedInputValuesByReplacementKey);
                         copyOfResolvedInputValuesByReplacementKey.put(thisNode.input().replacementKey(), resolvedInputValue.value());
-                        resolvedChildNodes.add(resolveNode(child, resolvedInputValue, copyOfResolvedInputValuesByReplacementKey));
+                        resolvedChildNodes.add(resolveNode(child, resolvedInputValue, copyOfResolvedInputValuesByReplacementKey, loadFiles));
                     }
                     resolvedValuesAndChildren.add(ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren.create(resolvedInputValue, resolvedChildNodes));
                 } else {

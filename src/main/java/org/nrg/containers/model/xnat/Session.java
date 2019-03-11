@@ -40,37 +40,37 @@ public class Session extends XnatModelObject {
 
     public Session() {}
 
-    public Session(final String sessionId, final UserI userI) {
+    public Session(final String sessionId, final UserI userI, final boolean loadFiles) {
         this.id = sessionId;
         loadXnatImagesessiondata(userI);
         this.uri = UriParserUtils.getArchiveUri(xnatImagesessiondataI);
-        populateProperties(null);
+        populateProperties(null, loadFiles);
     }
 
-    public Session(final AssessedURII assessedURII) {
+    public Session(final AssessedURII assessedURII, final boolean loadFiles) {
         final XnatImagesessiondata imagesessiondata = assessedURII.getSession();
         if (imagesessiondata != null && XnatImagesessiondata.class.isAssignableFrom(imagesessiondata.getClass())) {
             this.xnatImagesessiondataI = imagesessiondata;
             this.uri = ((URIManager.DataURIA) assessedURII).getUri();
-            populateProperties(null);
+            populateProperties(null, loadFiles);
         }
     }
 
-    public Session(final XnatImagesessiondataI xnatImagesessiondataI) {
-        this(xnatImagesessiondataI, null, null);
+    public Session(final XnatImagesessiondataI xnatImagesessiondataI, final boolean loadFiles) {
+        this(xnatImagesessiondataI, loadFiles, null, null);
     }
 
-    public Session(final XnatImagesessiondataI xnatImagesessiondataI, final String parentUri, final String rootArchivePath) {
+    public Session(final XnatImagesessiondataI xnatImagesessiondataI, final boolean loadFiles, final String parentUri, final String rootArchivePath) {
         this.xnatImagesessiondataI = xnatImagesessiondataI;
         if (parentUri == null) {
             this.uri = UriParserUtils.getArchiveUri(xnatImagesessiondataI);
         } else {
             this.uri = parentUri + "/experiments/" + xnatImagesessiondataI.getId();
         }
-        populateProperties(rootArchivePath);
+        populateProperties(rootArchivePath, loadFiles);
     }
 
-    private void populateProperties(final String rootArchivePath) {
+    private void populateProperties(final String rootArchivePath, final boolean loadFiles) {
         this.id = xnatImagesessiondataI.getId();
         this.label = xnatImagesessiondataI.getLabel();
         this.xsiType = xnatImagesessiondataI.getXSIType();
@@ -85,23 +85,23 @@ public class Session extends XnatModelObject {
 
         this.scans = Lists.newArrayList();
         for (final XnatImagescandataI xnatImagescandataI : xnatImagesessiondataI.getScans_scan()) {
-            this.scans.add(new Scan(xnatImagescandataI, this.uri, rootArchivePath));
+            this.scans.add(new Scan(xnatImagescandataI, loadFiles, this.uri, rootArchivePath));
         }
 
         this.resources = Lists.newArrayList();
         for (final XnatAbstractresourceI xnatAbstractresourceI : xnatImagesessiondataI.getResources_resource()) {
             if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, this.uri, rootArchivePath));
+                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, this.uri, rootArchivePath));
             }
         }
 
         this.assessors = Lists.newArrayList();
         for (final XnatImageassessordataI xnatImageassessordataI : xnatImagesessiondataI.getAssessors_assessor()) {
-            assessors.add(new Assessor(xnatImageassessordataI, this.uri, rootArchivePath));
+            assessors.add(new Assessor(xnatImageassessordataI, loadFiles, this.uri, rootArchivePath));
         }
     }
 
-    public static Function<URIManager.ArchiveItemURI, Session> uriToModelObject() {
+    public static Function<URIManager.ArchiveItemURI, Session> uriToModelObject(final boolean loadFiles) {
         return new Function<URIManager.ArchiveItemURI, Session>() {
             @Nullable
             @Override
@@ -113,14 +113,14 @@ public class Session extends XnatModelObject {
 
                     if (imageSession != null &&
                             XnatImagesessiondata.class.isAssignableFrom(imageSession.getClass())) {
-                        return new Session((AssessedURII) uri);
+                        return new Session((AssessedURII) uri, loadFiles);
                     }
                 } else if (uri != null &&
                         ExperimentURII.class.isAssignableFrom(uri.getClass())) {
                     final XnatExperimentdata experimentdata = ((ExperimentURII) uri).getExperiment();
                     if (experimentdata != null &&
                             XnatImagesessiondataI.class.isAssignableFrom(experimentdata.getClass())) {
-                        return new Session((XnatImagesessiondataI) experimentdata);
+                        return new Session((XnatImagesessiondataI) experimentdata, loadFiles);
                     }
                 }
 
@@ -129,7 +129,7 @@ public class Session extends XnatModelObject {
         };
     }
 
-    public static Function<String, Session> idToModelObject(final UserI userI) {
+    public static Function<String, Session> idToModelObject(final UserI userI, final boolean loadFiles) {
         return new Function<String, Session>() {
             @Nullable
             @Override
@@ -139,21 +139,21 @@ public class Session extends XnatModelObject {
                 }
                 final XnatImagesessiondata imagesessiondata = XnatImagesessiondata.getXnatImagesessiondatasById(s, userI, true);
                 if (imagesessiondata != null) {
-                    return new Session(imagesessiondata);
+                    return new Session(imagesessiondata, loadFiles);
                 }
                 return null;
             }
         };
     }
 
-    public Project getProject(final UserI userI) {
+    public Project getProject(final UserI userI, final boolean loadFiles) {
         loadXnatImagesessiondata(userI);
-        return new Project(xnatImagesessiondataI.getProject(), userI);
+        return new Project(xnatImagesessiondataI.getProject(), userI, loadFiles);
     }
 
-    public Subject getSubject(final UserI userI) {
+    public Subject getSubject(final UserI userI, final boolean loadFiles) {
         loadXnatImagesessiondata(userI);
-        return new Subject(xnatImagesessiondataI.getSubjectId(), userI);
+        return new Subject(xnatImagesessiondataI.getSubjectId(), userI, loadFiles);
     }
 
     public void loadXnatImagesessiondata(final UserI userI) {

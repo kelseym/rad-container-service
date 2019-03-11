@@ -34,34 +34,34 @@ public class Subject extends XnatModelObject {
 
     public Subject() {}
 
-    public Subject(final String subjectId, final UserI userI) {
+    public Subject(final String subjectId, final UserI userI, final boolean loadFiles) {
         this.id = subjectId;
         loadXnatSubjectdataI(userI);
         this.uri = UriParserUtils.getArchiveUri(xnatSubjectdataI);
-        populateProperties(null);
+        populateProperties(null, loadFiles);
     }
 
-    public Subject(final SubjectURII subjectURII) {
+    public Subject(final SubjectURII subjectURII, final boolean loadFiles) {
         this.xnatSubjectdataI = subjectURII.getSubject();
         this.uri = ((URIManager.DataURIA) subjectURII).getUri();
-        populateProperties(null);
+        populateProperties(null, loadFiles);
     }
 
-    public Subject(final XnatSubjectdataI xnatSubjectdataI) {
-        this(xnatSubjectdataI, null, null);
+    public Subject(final XnatSubjectdataI xnatSubjectdataI, final boolean loadFiles) {
+        this(xnatSubjectdataI, loadFiles, null, null);
     }
 
-    public Subject(final XnatSubjectdataI xnatSubjectdataI, final String parentUri, final String rootArchivePath) {
+    public Subject(final XnatSubjectdataI xnatSubjectdataI, final boolean loadFiles, final String parentUri, final String rootArchivePath) {
         this.xnatSubjectdataI = xnatSubjectdataI;
         if (parentUri == null) {
             this.uri = UriParserUtils.getArchiveUri(xnatSubjectdataI);
         } else {
             this.uri = parentUri + "/subjects/" + xnatSubjectdataI.getId();
         }
-        populateProperties(rootArchivePath);
+        populateProperties(rootArchivePath, loadFiles);
     }
 
-    private void populateProperties(final String rootArchivePath) {
+    private void populateProperties(final String rootArchivePath, final boolean loadFiles) {
         this.id = xnatSubjectdataI.getId();
         this.label = xnatSubjectdataI.getLabel();
         this.xsiType = xnatSubjectdataI.getXSIType();
@@ -70,26 +70,26 @@ public class Subject extends XnatModelObject {
         this.sessions = Lists.newArrayList();
         for (final XnatExperimentdataI xnatExperimentdataI : xnatSubjectdataI.getExperiments_experiment()) {
             if (xnatExperimentdataI instanceof XnatImagesessiondataI) {
-                sessions.add(new Session((XnatImagesessiondataI) xnatExperimentdataI, this.uri, rootArchivePath));
+                sessions.add(new Session((XnatImagesessiondataI) xnatExperimentdataI, loadFiles, this.uri, rootArchivePath));
             }
         }
 
         this.resources = Lists.newArrayList();
         for (final XnatAbstractresourceI xnatAbstractresourceI : xnatSubjectdataI.getResources_resource()) {
             if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, this.uri, rootArchivePath));
+                resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, this.uri, rootArchivePath));
             }
         }
     }
 
-    public static Function<URIManager.ArchiveItemURI, Subject> uriToModelObject() {
+    public static Function<URIManager.ArchiveItemURI, Subject> uriToModelObject(final boolean loadFiles) {
         return new Function<URIManager.ArchiveItemURI, Subject>() {
             @Nullable
             @Override
             public Subject apply(@Nullable URIManager.ArchiveItemURI uri) {
                 if (uri != null &&
                         SubjectURII.class.isAssignableFrom(uri.getClass())) {
-                    return new Subject((SubjectURII) uri);
+                    return new Subject((SubjectURII) uri, loadFiles);
                 }
 
                 return null;
@@ -97,7 +97,7 @@ public class Subject extends XnatModelObject {
         };
     }
 
-    public static Function<String, Subject> idToModelObject(final UserI userI) {
+    public static Function<String, Subject> idToModelObject(final UserI userI, final boolean loadFiles) {
         return new Function<String, Subject>() {
             @Nullable
             @Override
@@ -107,16 +107,16 @@ public class Subject extends XnatModelObject {
                 }
                 final XnatSubjectdata xnatSubjectdata = XnatSubjectdata.getXnatSubjectdatasById(s, userI, true);
                 if (xnatSubjectdata != null) {
-                    return new Subject(xnatSubjectdata);
+                    return new Subject(xnatSubjectdata, loadFiles);
                 }
                 return null;
             }
         };
     }
 
-    public Project getProject(final UserI userI) {
+    public Project getProject(final UserI userI, final boolean loadFiles) {
         loadXnatSubjectdataI(userI);
-        return new Project(xnatSubjectdataI.getProject(), userI);
+        return new Project(xnatSubjectdataI.getProject(), userI, loadFiles);
     }
 
     public void loadXnatSubjectdataI(final UserI userI) {

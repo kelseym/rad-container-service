@@ -1296,7 +1296,7 @@ public class ContainerServiceImpl implements ContainerService {
             if (type.equals(SCAN.getName())) {
                 // If the external input is a scan, the workflow will not show up anywhere. So we
                 // use its parent session as the root object instead.
-                final XnatModelObject parentSession = ((Scan) inputValueXnatObject).getSession(userI);
+                final XnatModelObject parentSession = ((Scan) inputValueXnatObject).getSession(userI, false);
                 if (parentSession != null) {
                     xnatObjectToUseAsRoot = parentSession;
                 } else {
