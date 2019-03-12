@@ -16,7 +16,9 @@ import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.services.archive.CatalogService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,10 +51,11 @@ public class LaunchRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+                                             final ThreadPoolExecutorFactoryBean executorFactoryBean,
+                                             @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                 commandResolutionService, aliasTokenService, siteConfigPreferences,
-                containerFinalizeService, executorFactoryBean, null);
+                containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
     }
 
     @Bean
