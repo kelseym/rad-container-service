@@ -64,7 +64,12 @@ public class ContainersConfig {
             factory.setConcurrency("10-20");
             return factory;
     }
-	
+
+    @Bean(name = "containerStagingRequest")
+    public Destination containerStagingRequest(@Value("containerStagingRequest") String containerStagingRequest) throws JMSException {
+        return new ActiveMQQueue(containerStagingRequest);
+    }
+
 	@Bean(name = "containerFinalizeRequest")
 	public Destination containerFinalizeRequest(@Value("containerFinalizeRequest") String containerFinalizeRequest) throws JMSException {
 		return new ActiveMQQueue(containerFinalizeRequest);

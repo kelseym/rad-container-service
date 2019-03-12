@@ -2,15 +2,14 @@ package org.nrg.containers.services;
 
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
-import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
-import org.nrg.containers.exceptions.UnauthorizedException;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 
 import java.io.InputStream;
@@ -51,27 +50,25 @@ public interface ContainerService {
     Container.ContainerHistory addContainerHistoryItem(final Container container,
                                                        final Container.ContainerHistory history, final UserI userI);
 
-    Container resolveCommandAndLaunchContainer(long wrapperId,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(long commandId,
-                                               String wrapperName,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(String project,
+    PersistentWorkflowI createContainerWorkflow(String xnatId, String xsiType,
+                                                String wrapperName, String projectId, UserI user)
+            throws Exception;
+
+    void queueResolveCommandAndLaunchContainer(String project,
                                                long wrapperId,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(String project,
                                                long commandId,
                                                String wrapperName,
                                                Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container launchResolvedCommand(final ResolvedCommand resolvedCommand, final UserI userI)
+                                               UserI userI, PersistentWorkflowI workflow) throws Exception;
+
+    void consumeResolveCommandAndLaunchContainer(String project,
+                                                 long wrapperId,
+                                                 long commandId,
+                                                 String wrapperName,
+                                                 Map<String, String> inputValues,
+                                                 UserI userI, String workflowid);
+
+    Container launchResolvedCommand(final ResolvedCommand resolvedCommand, final UserI userI, PersistentWorkflowI workflow)
             throws NoDockerServerException, DockerServerException, ContainerException;
 
     void processEvent(final ContainerEvent event);

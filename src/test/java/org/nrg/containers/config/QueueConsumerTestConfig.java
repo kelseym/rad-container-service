@@ -10,23 +10,8 @@ import org.nrg.containers.daos.ContainerEntityRepository;
 import org.nrg.containers.daos.DockerServerEntityRepository;
 import org.nrg.containers.events.listeners.DockerContainerEventListener;
 import org.nrg.containers.events.listeners.DockerServiceEventListener;
-import org.nrg.containers.model.command.entity.CommandEntity;
-import org.nrg.containers.model.command.entity.CommandInputEntity;
-import org.nrg.containers.model.command.entity.CommandMountEntity;
-import org.nrg.containers.model.command.entity.CommandOutputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperDerivedInputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperExternalInputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
-import org.nrg.containers.model.command.entity.DockerCommandEntity;
-import org.nrg.containers.model.command.entity.DockerSetupCommandEntity;
-import org.nrg.containers.model.command.entity.DockerWrapupCommandEntity;
-import org.nrg.containers.model.container.entity.ContainerEntity;
-import org.nrg.containers.model.container.entity.ContainerEntityHistory;
-import org.nrg.containers.model.container.entity.ContainerEntityInput;
-import org.nrg.containers.model.container.entity.ContainerEntityMount;
-import org.nrg.containers.model.container.entity.ContainerEntityOutput;
-import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
+import org.nrg.containers.model.command.entity.*;
+import org.nrg.containers.model.container.entity.*;
 import org.nrg.containers.model.server.docker.DockerServerEntity;
 import org.nrg.containers.services.*;
 import org.nrg.containers.services.impl.*;
@@ -60,15 +45,15 @@ import java.util.Properties;
 @Configuration
 @EnableTransactionManagement
 @Import({CommandConfig.class, HibernateConfig.class, RestApiTestConfig.class})
-public class IntegrationTestConfig {
+public class QueueConsumerTestConfig {
     /*
     Control API and dependencies + Events
      */
     @Bean
-    public DockerControlApi dockerControlApi(final DockerServerService dockerServerService,
+    public DockerControlApi spyDockerControlApi(final DockerServerService dockerServerService,
                                              final CommandLabelService commandLabelService,
                                              final NrgEventService eventService) {
-        return new DockerControlApi(dockerServerService, commandLabelService, eventService);
+        return Mockito.spy(new DockerControlApi(dockerServerService, commandLabelService, eventService));
     }
 
     @Bean
@@ -125,6 +110,16 @@ public class IntegrationTestConfig {
     Container launch Service and dependencies
      */
     @Bean
+    public CommandResolutionService commandResolutionService() {
+        return Mockito.mock(CommandResolutionService.class);
+    }
+
+    @Bean
+    public CommandService mockCommandService() {
+        return Mockito.mock(CommandService.class);
+    }
+
+    @Bean
     public MailService mailService() {
         return new SpringBasedMailServiceImpl(null);
     }
@@ -141,24 +136,15 @@ public class IntegrationTestConfig {
     public ContainerService containerService(final ContainerControlApi containerControlApi,
                                              final ContainerEntityService containerEntityService,
                                              final CommandResolutionService commandResolutionService,
-                                             final CommandService commandService,
+                                             final CommandService mockCommandService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
                                              final ThreadPoolExecutorFactoryBean executorFactoryBean,
                                              @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
-                        commandResolutionService, commandService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
-    }
-
-    @Bean
-    public CommandResolutionService commandResolutionService(final CommandService commandService,
-                                                             final ConfigService configService,
-                                                             final SiteConfigPreferences siteConfigPreferences,
-                                                             final ObjectMapper objectMapper,
-                                                             final DockerService dockerService) {
-        return new CommandResolutionServiceImpl(commandService, configService, siteConfigPreferences, objectMapper, dockerService);
+                commandResolutionService, mockCommandService, aliasTokenService, siteConfigPreferences,
+                containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
     }
 
     @Bean

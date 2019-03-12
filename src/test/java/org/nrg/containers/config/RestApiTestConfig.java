@@ -2,6 +2,7 @@ package org.nrg.containers.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mockito.Mockito;
+import org.nrg.mail.services.MailService;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.RoleServiceI;
 import org.nrg.xdat.security.services.UserManagementServiceI;
@@ -39,6 +40,11 @@ public class RestApiTestConfig extends WebMvcConfigurerAdapter {
         tBean.setCorePoolSize(1);
         tBean.setThreadNamePrefix("container-test-");
         return tBean;
+    }
+
+    @Bean
+    public MailService mockMailService() {
+        return Mockito.mock(MailService.class);
     }
 
     @Bean

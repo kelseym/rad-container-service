@@ -81,27 +81,17 @@ var XNAT = getObject(XNAT || {});
     function getProjectLauncherUI(wrapperId,rootElementName,rootElementValue){
         return rootUrl('/xapi/projects/'+projectId+'/wrappers/'+wrapperId+'/launch?'+rootElementName+'='+rootElementValue);
     }
-    function containerLaunchUrl(wrapperId){
-        return csrfUrl('/xapi/wrappers/'+wrapperId+'/launch');
+    function containerLaunchUrl(wrapperId,rootElementName){
+        return csrfUrl('/xapi/wrappers/'+wrapperId+'/root/'+rootElementName+'/launch');
     }
-    function projectContainerLaunchUrl(project,wrapperId){
-        return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/launch');
+    function projectContainerLaunchUrl(project,wrapperId,rootElementName){
+        return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/root/'+rootElementName+'/launch');
     }
-    function bulkLaunchUrl(wrapperId,rootElements){
-        // array of root elements can be provided
-        if (rootElements) {
-            return csrfUrl('/xapi/wrappers/'+wrapperId+'/bulklaunch?'+rootElements)
-        } else {
-            return csrfUrl('/xapi/wrappers/'+wrapperId+'/bulklaunch');
-        }
+    function bulkLaunchUrl(wrapperId,rootElementName){
+        return csrfUrl('/xapi/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch');
     }
-    function bulkProjectLaunchUrl(project,wrapperId,rootElements){
-        // array of root elements can be provided
-        if (rootElements) {
-            return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/bulklaunch?'+rootElements)
-        } else {
-            return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/bulklaunch');
-        }
+    function bulkProjectLaunchUrl(project,wrapperId,rootElementName){
+        return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch');
     }
     function sessionUrl(){
         var sessionId = (XNAT.data.context.isImageSession) ? XNAT.data.context.ID : null;
@@ -727,8 +717,8 @@ var XNAT = getObject(XNAT || {});
 
                                 var projectContext = XNAT.data.context.project;
                                 var launchUrl = (projectContext.length) ?
-                                    projectContainerLaunchUrl(projectContext,wrapperId) :
-                                    containerLaunchUrl(wrapperId);
+                                    projectContainerLaunchUrl(projectContext,wrapperId,rootElement) :
+                                    containerLaunchUrl(wrapperId,rootElement);
 
                                 XNAT.xhr.postJSON({
                                     url: launchUrl,
@@ -968,14 +958,14 @@ var XNAT = getObject(XNAT || {});
 
                                 var dataToPost = bulkData;
                                 var launchUrl = (project) ?
-                                    bulkProjectLaunchUrl(project,wrapperId) :
-                                    bulkLaunchUrl(wrapperId);
+                                    bulkProjectLaunchUrl(project,wrapperId,rootElement) :
+                                    bulkLaunchUrl(wrapperId,rootElement);
 
                                 XNAT.xhr.postJSON({
                                     beforeSend: function() {
                                         XNAT.ui.dialog.closeAll();
                                         XNAT.ui.dialog.alert("Containers are being launched in the background. " +
-                                            "You may continue to work, refreshing the dashboard to see updated progress.");
+                                            "You may continue to work, monitoring workflows to see updated progress.");
                                         return true;
                                     },
                                     url: launchUrl,
@@ -985,17 +975,17 @@ var XNAT = getObject(XNAT || {});
                                         var messageContent = [],
                                             totalLaunchAttempts = data.successes.concat(data.failures).length;
                                         if (data.failures.length > 0) {
-                                            messageContent.push( spawn('div.message',data.successes.length + ' of '+totalLaunchAttempts+' containers successfully launched.') );
+                                            messageContent.push( spawn('div.message',data.successes.length + ' of '+totalLaunchAttempts+' containers successfully queued for launch.') );
                                         } else if(data.successes.length > 0) {
-                                            messageContent.push( spawn('div.success','All containers successfully launched.') );
+                                            messageContent.push( spawn('div.success','All containers successfully queued for launch.') );
                                         } else {
                                             errorHandler({
-                                                statusText: 'Something went wrong. No containers were launched.'
+                                                statusText: 'Something went wrong. No containers were queued for launch.'
                                             });
                                         }
 
                                         if (data.successes.length > 0) {
-                                            messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Successful Container Launches') );
+                                            messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Containers successfully queued') );
 
                                             data.successes.forEach(function(success){
                                                 if (success['type'] === 'service') {
@@ -1011,7 +1001,7 @@ var XNAT = getObject(XNAT || {});
                                         }
 
                                         if (data.failures.length > 0){
-                                            messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Failed Container Launches') );
+                                            messageContent.push( spawn('h3',{'style': {'margin-top': '2em' }},'Containers that couldn\'t be queued') );
                                             data.failures.forEach(function(failure){
                                                 messageContent.push( spawn('p',{ style: { 'font-weight': 'bold' }}, 'Error Message:') );
                                                 messageContent.push( spawn('pre.json', failure.message) );
@@ -1020,7 +1010,7 @@ var XNAT = getObject(XNAT || {});
                                         }
 
                                         XNAT.ui.dialog.open({
-                                            title: 'Container Launch Success',
+                                            title: 'Container launch report',
                                             content: spawn('div', messageContent ),
                                             buttons: [
                                                 {
@@ -1043,7 +1033,7 @@ var XNAT = getObject(XNAT || {});
                                             ]);
 
                                             XNAT.ui.dialog.open({
-                                                title: 'Container Launch <span style="text-transform: capitalize">'+data.status+'</span>',
+                                                title: 'Container <span style="text-transform: capitalize">'+data.status+'</span>',
                                                 content: messageContent,
                                                 buttons: [
                                                     {

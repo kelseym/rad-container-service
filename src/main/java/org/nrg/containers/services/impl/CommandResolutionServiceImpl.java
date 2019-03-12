@@ -171,50 +171,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         return helper.preResolve();
     }
 
-    @Override
-    public ResolvedCommand resolve(final long commandId,
-                                   final String wrapperName,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(commandId, wrapperName), inputValues, userI);
-    }
-
-    @Override
-    @Nonnull
-    public ResolvedCommand resolve(final long wrapperId,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(wrapperId), inputValues, userI);
-    }
-
-    @Override
-    @Nonnull
-    public ResolvedCommand resolve(final String project,
-                                   final long wrapperId,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI)
-                .toBuilder()
-                .project(project)
-                .build();
-    }
-
-    @Override
-    public ResolvedCommand resolve(final String project,
-                                   final long commandId,
-                                   final String wrapperName,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI)
-                .toBuilder()
-                .project(project)
-                .build();
-    }
-
     // @Override
     // @Nonnull
     // public PartiallyResolvedCommand resolve(final Command command,

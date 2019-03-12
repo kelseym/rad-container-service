@@ -11,10 +11,7 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SC
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SESSION;
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
 
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -32,18 +29,20 @@ import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
-import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.ContainerFinalizationException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
-import org.nrg.containers.exceptions.UnauthorizedException;
 import org.nrg.containers.jms.requests.ContainerFinalizeRequest;
+import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.jms.utils.QueueUtils;
 import org.nrg.containers.model.command.auto.Command;
+import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
+import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputValue;
+import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerHistory;
@@ -52,13 +51,11 @@ import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.model.xnat.Scan;
 import org.nrg.containers.model.xnat.XnatModelObject;
-import org.nrg.containers.services.CommandResolutionService;
-import org.nrg.containers.services.ContainerEntityService;
-import org.nrg.containers.services.ContainerFinalizeService;
-import org.nrg.containers.services.ContainerService;
+import org.nrg.containers.services.*;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
+import org.nrg.xdat.om.*;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xdat.security.user.exceptions.UserInitException;
@@ -88,21 +85,26 @@ public class ContainerServiceImpl implements ContainerService {
     private static final String MIN_XNAT_VERSION_REQUIRED = "1.7.5";
 	public static final String waiting = "Waiting";
     public static final String finalizing = "Finalizing";
+    public static final String setupStr = "Setup";
+    public static final String wrapupStr = "Wrapup";
+    public static final String containerLaunchJustification = "Container launch";
 
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
     private final CommandResolutionService commandResolutionService;
+    private final CommandService commandService;
     private final AliasTokenService aliasTokenService;
     private final SiteConfigPreferences siteConfigPreferences;
     private final ContainerFinalizeService containerFinalizeService;
     private final XnatAppInfo xnatAppInfo;
-    private final ExecutorService	executorService;
+    private final ExecutorService executorService;
 
     @Autowired
     public ContainerServiceImpl(final ContainerControlApi containerControlApi,
                                 final ContainerEntityService containerEntityService,
                                 final CommandResolutionService commandResolutionService,
+                                final CommandService commandService,
                                 final AliasTokenService aliasTokenService,
                                 final SiteConfigPreferences siteConfigPreferences,
                                 final ContainerFinalizeService containerFinalizeService,
@@ -111,6 +113,7 @@ public class ContainerServiceImpl implements ContainerService {
         this.containerControlApi = containerControlApi;
         this.containerEntityService = containerEntityService;
         this.commandResolutionService = commandResolutionService;
+        this.commandService = commandService;
         this.aliasTokenService = aliasTokenService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.containerFinalizeService = containerFinalizeService;
@@ -322,63 +325,119 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
-    @Nonnull
-    public Container resolveCommandAndLaunchContainer(final long wrapperId,
-                                                      final Map<String, String> inputValues,
-                                                      final UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException {
-        return launchResolvedCommand(commandResolutionService.resolve(wrapperId, inputValues, userI), userI);
-    }
-
-    @Override
-    @Nonnull
-    public Container resolveCommandAndLaunchContainer(final long commandId,
-                                                      final String wrapperName,
-                                                      final Map<String, String> inputValues,
-                                                      final UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException {
-        return launchResolvedCommand(commandResolutionService.resolve(commandId, wrapperName, inputValues, userI), userI);
-
-    }
-
-    @Override
-    @Nonnull
-    public Container resolveCommandAndLaunchContainer(final String project,
+    public void queueResolveCommandAndLaunchContainer(@Nullable final String project,
                                                       final long wrapperId,
+                                                      final long commandId,
+                                                      @Nullable final String wrapperName,
                                                       final Map<String, String> inputValues,
-                                                      final UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException {
-        return launchResolvedCommand(commandResolutionService.resolve(project, wrapperId, inputValues, userI), userI);
+                                                      final UserI userI,
+                                                      @Nullable PersistentWorkflowI workflow)
+            throws Exception {
+
+        // Workflow shouldn't be null unless container launched without a root element
+        // (I think the only way to do so would be through the REST API)
+        String workflowid = null;
+        String status = null;
+        if (workflow != null) {
+            workflowid = workflow.getWorkflowId().toString();
+            status = workflow.getStatus();
+        }
+
+        ContainerStagingRequest request = new ContainerStagingRequest(project, wrapperId, commandId, wrapperName,
+                inputValues, userI.getLogin(), workflowid);
+
+        // Workflow will only retain the JMS indicator for command resolution, once launching process begins, status is
+        // updated without JMS indicator. This is probably okay since staging tasks are added to the JMS queue manually
+        // upon launch, rather than automatically by an event.
+        if (status != null && request.inJMSQueue(status)) {
+            log.debug("{} appears to already be in JMS queue", workflowid);
+            // Throw exception?
+            return;
+        }
+
+        log.debug("Adding to staging queue: wfid {}, username {}",
+                request.getWorkflowid(), request.getUsername());
+        if (workflow != null) {
+            workflow.setStatus(request.makeJMSQueuedStatus(status));
+            WorkflowUtils.save(workflow, workflow.buildEvent());
+        }
+        XDAT.sendJmsRequest(request);
     }
 
     @Override
-    @Nonnull
-    public Container resolveCommandAndLaunchContainer(final String project,
-                                                      final long commandId,
-                                                      final String wrapperName,
-                                                      final Map<String, String> inputValues,
-                                                      final UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException {
-        return launchResolvedCommand(commandResolutionService.resolve(project, commandId, wrapperName, inputValues, userI), userI);
+    public void consumeResolveCommandAndLaunchContainer(@Nullable final String project,
+                                                        final long wrapperId,
+                                                        final long commandId,
+                                                        @Nullable final String wrapperName,
+                                                        final Map<String, String> inputValues,
+                                                        final UserI userI,
+                                                        @Nullable final String workflowid) {
 
+        PersistentWorkflowI workflow = null;
+        if (workflowid != null) {
+            workflow = WorkflowUtils.getUniqueWorkflow(userI, workflowid);
+        }
+
+        try {
+            ConfiguredCommand configuredCommand =
+                    project == null ?
+                            (commandId == 0L && wrapperName == null ?
+                                    commandService.getAndConfigure(wrapperId) :
+                                    commandService.getAndConfigure(commandId, wrapperName)) :
+                            (commandId == 0L && wrapperName == null ?
+                                    commandService.getAndConfigure(project, wrapperId) :
+                                    commandService.getAndConfigure(project, commandId, wrapperName));
+
+            ResolvedCommand resolvedCommand = commandResolutionService.resolve(configuredCommand, inputValues, userI);
+            if (StringUtils.isNotBlank(project)) {
+                resolvedCommand = resolvedCommand.toBuilder().project(project).build();
+            }
+
+            // Launch resolvedCommand
+            Container container = launchResolvedCommand(resolvedCommand, userI, workflow);
+            if (log.isInfoEnabled()) {
+                CommandWrapper wrapper = configuredCommand.wrapper();
+                log.info("Launched command {}, wrapper {} {}. Produced container {}.", configuredCommand.id(),
+                        wrapper.id(), wrapper.name(), container.databaseId());
+                if (log.isDebugEnabled()) {
+                    log.debug("" + container);
+                }
+            }
+        } catch (Exception e) {
+            if (workflow != null) {
+                String failedStatus = "Failed (staging consume: " + e.getMessage() + ")";
+                workflow.setStatus(failedStatus);
+                try {
+                    WorkflowUtils.save(workflow, workflow.buildEvent());
+                } catch (Exception we) {
+                    log.error("Unable to set workflow status to {} for wfid={}", failedStatus, workflowid, we);
+                }
+            }
+            log.error("Container command resolution failed.", e);
+        }
     }
+
 
     @Override
     @Nonnull
     public Container launchResolvedCommand(final ResolvedCommand resolvedCommand,
-                                           final UserI userI)
+                                           final UserI userI,
+                                           @Nullable PersistentWorkflowI workflow)
             throws NoDockerServerException, DockerServerException, ContainerException, UnsupportedOperationException {
-        return launchResolvedCommand(resolvedCommand, userI, null);
+        return launchResolvedCommand(resolvedCommand, userI, workflow,null);
     }
 
+
+    @Nonnull
     private Container launchResolvedCommand(final ResolvedCommand resolvedCommand,
                                             final UserI userI,
-                                            final Container parent)
+                                            @Nullable PersistentWorkflowI workflow,
+                                            @Nullable final Container parent)
             throws NoDockerServerException, DockerServerException, ContainerException, UnsupportedOperationException {
         if (resolvedCommand.type().equals(DOCKER.getName()) ||
                 resolvedCommand.type().equals(DOCKER_SETUP.getName()) ||
                 resolvedCommand.type().equals(DOCKER_WRAPUP.getName())) {
-            return launchResolvedDockerCommand(resolvedCommand, userI, parent);
+            return launchResolvedDockerCommand(resolvedCommand, userI, workflow, parent);
         } else {
             throw new UnsupportedOperationException("Cannot launch a command of type " + resolvedCommand.type());
         }
@@ -386,50 +445,71 @@ public class ContainerServiceImpl implements ContainerService {
 
     private Container launchResolvedDockerCommand(final ResolvedCommand resolvedCommand,
                                                   final UserI userI,
-                                                  final Container parent)
+                                                  @Nullable PersistentWorkflowI workflow,
+                                                  @Nullable final Container parent)
             throws NoDockerServerException, DockerServerException, ContainerException {
+
         log.info("Preparing to launch resolved command.");
         final ResolvedCommand preparedToLaunch = prepareToLaunch(resolvedCommand, parent, userI);
-        final PersistentWorkflowI workflow = makeWorkflowIfAppropriate(resolvedCommand, userI);
-        String wfid = (workflow == null) ? "" : workflow.getWorkflowId().toString();
 
-        log.info("Creating container from resolved command.");
+        if (resolvedCommand.type().equals(DOCKER_SETUP.getName()) && workflow != null) {
+            // Create a new workflow for setup (wrapup doesn't come through this method, gets its workflow
+            // in createWrapupContainerInDbFromResolvedCommand)
+            try {
+                workflow = createContainerWorkflow(workflow.getId(), workflow.getDataType(),
+                        workflow.getPipelineName() + "-setup", workflow.getExternalid(), userI);
+            } catch (Exception e) {
+                workflow = null;
+            }
+        }
+
+        // Update workflow with resolved command (or try to create it if null)
+        workflow = updateWorkflowWithResolvedCommand(workflow, resolvedCommand, userI);
+
 		try {
-        	final Container createdContainerOrService = containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
+            log.info("Creating container from resolved command.");
+        	final Container createdContainerOrService =
+                    containerControlApi.createContainerOrSwarmService(preparedToLaunch, userI);
 
-	        //Update workflow with container information
-            addContainerInformationToWorkflow(workflow,createdContainerOrService);
-            log.info("Recording container launch.");
-	        
+            if (workflow != null) {
+                // Update workflow with container information
+                log.info("Recording container launch.");
+                updateWorkflowWithContainer(workflow, createdContainerOrService);
+            }
+
+            // Save container in db.
 			final Container savedContainerOrService = toPojo(containerEntityService.save(fromPojo(
 	                createdContainerOrService.toBuilder()
-	                        .workflowId(wfid)
+	                        .workflowId(workflow != null ? workflow.getWorkflowId().toString() : null)
 	                        .parent(parent)
 	                        .build()
 	        ), userI));
 	
 	        if (resolvedCommand.wrapupCommands().size() > 0) {
+	            // Save wrapup containers in db
 	            log.info("Creating wrapup container objects in database (not creating docker containers).");
 	            for (final ResolvedCommand resolvedWrapupCommand : resolvedCommand.wrapupCommands()) {
-	                final Container wrapupContainer = createWrapupContainerInDbFromResolvedCommand(resolvedWrapupCommand, savedContainerOrService, userI);
-	                log.debug("Created wrapup container {} for parent container {}.", wrapupContainer.databaseId(), savedContainerOrService.databaseId());
+	                final Container wrapupContainer = createWrapupContainerInDbFromResolvedCommand(resolvedWrapupCommand,
+                            savedContainerOrService, userI, workflow);
+	                log.debug("Created wrapup container {} for parent container {}.", wrapupContainer.databaseId(),
+                            savedContainerOrService.databaseId());
 	            }
 	        }
 	
 	        if (resolvedCommand.setupCommands().size() > 0) {
 	            log.info("Launching setup containers.");
 	            for (final ResolvedCommand resolvedSetupCommand : resolvedCommand.setupCommands()) {
-	                launchResolvedCommand(resolvedSetupCommand, userI, savedContainerOrService);
+	                launchResolvedCommand(resolvedSetupCommand, userI, workflow, savedContainerOrService);
 	            }
 	        } else {
 	            startContainer(userI, savedContainerOrService);
 	        }
 	
 	        return savedContainerOrService;
-        }catch(Exception e) {
+        } catch(Exception e) {
         	handleFailure(workflow,e);
+        	throw e;
         }
-        return null;
     }
 
     private void startContainer(final UserI userI, final Container savedContainerOrService) throws NoDockerServerException, ContainerException {
@@ -444,9 +524,20 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Nonnull
-    private Container createWrapupContainerInDbFromResolvedCommand(final ResolvedCommand resolvedCommand, final Container parent, final UserI userI) {
+    private Container createWrapupContainerInDbFromResolvedCommand(final ResolvedCommand resolvedCommand, final Container parent,
+                                                                   final UserI userI, PersistentWorkflowI parentWorkflow) {
+
+        String workflowid;
+        try {
+            PersistentWorkflowI workflow = createContainerWorkflow(parentWorkflow.getId(), parentWorkflow.getDataType(),
+                    parentWorkflow.getPipelineName() + "-wrapup", parentWorkflow.getExternalid(), userI);
+            workflowid = workflow.getWorkflowId().toString();
+        } catch (Exception e) {
+            workflowid = null;
+        }
         final Container toCreate = Container.containerFromResolvedCommand(resolvedCommand, null, userI.getLogin()).toBuilder()
                 .parent(parent)
+                .workflowId(workflowid)
                 .subtype(DOCKER_WRAPUP.getName())
                 .project(parent != null ? parent.project() : null)
                 .build();
@@ -454,7 +545,8 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Nonnull
-    private Container launchContainerFromDbObject(final Container toLaunch, final UserI userI) throws DockerServerException, NoDockerServerException, ContainerException {
+    private Container launchContainerFromDbObject(final Container toLaunch, final UserI userI)
+            throws DockerServerException, NoDockerServerException, ContainerException {
         final Container preparedToLaunch = prepareToLaunch(toLaunch, userI);
 
         log.info("Creating docker container for wrapup container {}.", toLaunch.databaseId());
@@ -462,6 +554,13 @@ public class ContainerServiceImpl implements ContainerService {
 
         log.info("Updating wrapup container {}.", toLaunch.databaseId());
         containerEntityService.update(fromPojo(createdContainerOrService));
+
+        // Update workflow if we have one
+        String workflowid = toLaunch.workflowId();
+        if (StringUtils.isNotBlank(workflowid)) {
+            PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI, workflowid);
+            updateWorkflowWithContainer(workflow, createdContainerOrService);
+        }
 
         startContainer(userI, createdContainerOrService);
 
@@ -599,19 +698,19 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
 	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
-		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString,isSuccessful,service.serviceId(),userI.getLogin(),service.workflowId());
+		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString,isSuccessful,service.serviceId(),userI.getLogin());
 		int count=QueueUtils.count(request.getDestination());
-		
-		if(!StringUtils.startsWith("_",this.getWorkflowStatus(userI, service))) {
+
+		if (!request.inJMSQueue(this.getWorkflowStatus(userI, service))) {
 			log.info("adding to finalizing queue, count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",count,request.getExitCodeString(),request.isSuccessful(),request.getId(),request.getUsername(),service.status());
-			addContainerHistoryItem(service, ContainerHistory.fromSystem("_"+service.status(),"Processing finished. Uploading files." ), userI);
-			try{
+			addContainerHistoryItem(service, ContainerHistory.fromSystem(request.makeJMSQueuedStatus(service.status()),"Processing finished. Uploading files." ), userI);
+			try {
 				XDAT.sendJmsRequest(request);
-			}  catch (Exception e) { 
+			} catch (Exception e) {
 				addContainerHistoryItem(service, ContainerHistory.fromSystem(waiting,"Finalizing Message queue failed. Throw back into waiting and try again later." ), userI);
 				log.error("Finalizing Message queue failed. Throw back into waiting and try again later.", e);
 			}
-		}else {
+		} else {
 			log.info("skip finalizing queue, count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",count,request.getExitCodeString(),request.isSuccessful(),request.getId(),request.getUsername(),service.status());
 		}
 		
@@ -620,13 +719,10 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
 	public void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
 		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
-		//Poor (wo)man's queue
     	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
 		if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
 		    addContainerHistoryItem(service, ContainerHistory.fromSystem(finalizing,"Processing finished. Uploading files." ), userI);
-		    if (log.isDebugEnabled()){
-		    	log.debug("Service has exited. Finalizing.");
-		    }
+		    log.debug("Service has exited. Finalizing.");
 		    final Container serviceWithAddedEvent = retrieve(service.databaseId());
 		    //Do the finalization in its own thread. That way we dont block the DockerStatusUpdater
 		    //Dont want to deal with RejectionHandler just yet
@@ -641,7 +737,7 @@ public class ContainerServiceImpl implements ContainerService {
 		        }
 		    };
 		    executorService.submit(finalizeContainer);
-		}else {
+		} else {
 		    addContainerHistoryItem(service, ContainerHistory.fromSystem("Waiting","Processing finished. Waiting to upload files." ), userI);
 			log.info("As there are " +countOfContainersBeingFinalized + "/" + containerControlApi.getContainerFinalizationPoolLimit() + " being finalized at present. Delaying service " + service.serviceId() + " Workflow: " + service.workflowId() + " finalization");
 		}
@@ -758,7 +854,7 @@ public class ContainerServiceImpl implements ContainerService {
                     }
                 };
 
-                checkIfSpecialContainersFailed(setupContainers, parent, startMainContainer, "Setup", userI);
+                checkIfSpecialContainersFailed(setupContainers, parent, startMainContainer, setupStr, userI);
             }
         } else if (subtype.equals(DOCKER_WRAPUP.getName())) {
             // This is a wrapup container.
@@ -785,7 +881,7 @@ public class ContainerServiceImpl implements ContainerService {
                     }
                 };
 
-                checkIfSpecialContainersFailed(wrapupContainersForParent, parent, finalizeMainContainer, "Wrapup", userI);
+                checkIfSpecialContainersFailed(wrapupContainersForParent, parent, finalizeMainContainer, wrapupStr, userI);
             }
         }
     }
@@ -852,7 +948,18 @@ public class ContainerServiceImpl implements ContainerService {
             }
 
             log.info("Setting status to \"Failed {}\" for parent container {} with container id {}.", setupOrWrapup, parentDatabaseId, parentContainerId);
-            addContainerHistoryItem(parent, ContainerHistory.fromSystem("Failed " + setupOrWrapup, failedContainerMessage), userI);
+            ContainerHistory failureHist = ContainerHistory.fromSystem("Failed " + setupOrWrapup, failedContainerMessage);
+            addContainerHistoryItem(parent, failureHist, userI);
+
+            // If specialContainers are setup containers and there are also wrapup containers, we need to update their
+            // statuses in the db (since they haven't been created or started, they don't need to be killed)
+            if (setupOrWrapup.equals(setupStr)) {
+                final List<Container> wrapupContainersForParent = retrieveWrapupContainersForParent(parentDatabaseId);
+                for (Container wrapupContainer : wrapupContainersForParent) {
+                    addContainerHistoryItem(wrapupContainer, failureHist, userI);
+                }
+            }
+
         } else if (numNull == numSpecial) {
             // This is an error. We know at least one setup container has finished because we have reached this "finalize" method.
             // At least one of the setup containers should have a non-null exit status.
@@ -1006,12 +1113,65 @@ public class ContainerServiceImpl implements ContainerService {
         }
     }
 
+
     /**
-     * Creates a workflow if possible and returns it.
+     * Creates a workflow object to be used with container service
+     * @param xnatIdOrArchivePath the xnat ID of the container's root element
+     * @param containerInputType the container input type of the container's root element
+     * @param wrapperName the wrapper name or id as a string
+     * @param projectId the project ID
+     * @param user the user
+     * @return the workflow
+     * @throws Exception if unable to create workflow
+     */
+    public PersistentWorkflowI createContainerWorkflow(String xnatIdOrArchivePath, String containerInputType,
+                                                       String wrapperName, String projectId, UserI user)
+            throws Exception {
+        String xnatId = new File(xnatIdOrArchivePath).getName(); //sometimes, this is the archive path
+        String xsiType = null;
+        try {
+            switch (CommandWrapperInputType.valueOf(containerInputType)) {
+                case PROJECT:
+                    xsiType = XnatProjectdata.SCHEMA_ELEMENT_NAME;
+                    break;
+                case SUBJECT:
+                    xsiType = XnatSubjectdata.SCHEMA_ELEMENT_NAME;
+                    break;
+                case SESSION:
+                    xsiType = XnatImagesessiondata.SCHEMA_ELEMENT_NAME;
+                    break;
+                case SCAN:
+                    xsiType = XnatScscandata.SCHEMA_ELEMENT_NAME;
+                    break;
+                case RESOURCE:
+                    xsiType = XnatResource.SCHEMA_ELEMENT_NAME;
+                    break;
+                case ASSESSOR:
+                    xsiType = XnatSubjectassessordata.SCHEMA_ELEMENT_NAME;
+                    break;
+            }
+        } catch (IllegalArgumentException e) {
+            // Not what we're expecting, but just go with it (it'll be updated after command is resolved)
+            xsiType = containerInputType;
+        } catch (NullPointerException e) {
+            xsiType = "";
+        }
+        PersistentWorkflowI workflow = WorkflowUtils.buildOpenWorkflow(user, xsiType, xnatId, projectId,
+                EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
+                        wrapperName,
+                        ContainerServiceImpl.containerLaunchJustification,
+                        ""));
+        workflow.setStatus(PersistentWorkflowUtils.QUEUED);
+        WorkflowUtils.save(workflow, workflow.buildEvent());
+        log.debug("Created workflow {}.", workflow.getWorkflowId());
+        return workflow;
+    }
+
+    /**
+     * Updates a workflow with info from resolved command, creating the workflow if null
      *
-     * This is a way for us to show the
-     * the container execution in the history table and as a workflow alert banner
-     * (where enabled) without any custom UI work.
+     * This is a way for us to show the the container execution in the history table
+     * and as a workflow alert banner (where enabled) without any custom UI work.
      *
      * It is possible to create a workflow for the execution if the resolved command
      * has one external input which is an XNAT object. If it has zero external inputs,
@@ -1019,53 +1179,68 @@ public class ContainerServiceImpl implements ContainerService {
      * than one external input, we don't know which is the one that should display the
      * workflow, so we don't make one.
      *
+     * @param workflow  the initial workflow
      * @param resolvedCommand A resolved command that will be used to launch a container
      * @param userI The user launching the container
-     * @return created workflow, or null if no workflow was created
+     * @return the updated or created workflow
      */
-    @Nullable
-    private PersistentWorkflowI makeWorkflowIfAppropriate(final ResolvedCommand resolvedCommand, final UserI userI) {
-        log.debug("Preparing to make workflow.");
+    private PersistentWorkflowI updateWorkflowWithResolvedCommand(@Nullable PersistentWorkflowI workflow,
+                                                                  final ResolvedCommand resolvedCommand,
+                                                                  final UserI userI) {
         final XFTItem rootInputObject = findRootInputObject(resolvedCommand, userI);
         if (rootInputObject == null) {
             // We didn't find a root input XNAT object, so we can't make a workflow.
-            log.debug("Cannot make workflow.");
-            return null;
+            log.debug("Cannot update workflow, no root input.");
+            return workflow;
         }
 
-        log.debug("Creating workflow for Wrapper {} - Command {} - Image {}.",
-                resolvedCommand.wrapperName(), resolvedCommand.commandName(), resolvedCommand.image());
         try {
-            final PersistentWorkflowI workflow = WorkflowUtils.buildOpenWorkflow(userI, rootInputObject,
-                    EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
-                            resolvedCommand.wrapperName(),
-                            "Container launch",
-                            ""));
+            if (workflow == null) {
+                // Create it
+                log.debug("Create workflow for Wrapper {} - Command {} - Image {}.",
+                        resolvedCommand.wrapperName(), resolvedCommand.commandName(), resolvedCommand.image());
+                workflow = WorkflowUtils.buildOpenWorkflow(userI, rootInputObject,
+                        EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
+                                resolvedCommand.wrapperName(),
+                                ContainerServiceImpl.containerLaunchJustification,
+                                ""));
+            } else {
+                // Update it
+                log.debug("Update workflow for Wrapper {} - Command {} - Image {}.",
+                        resolvedCommand.wrapperName(), resolvedCommand.commandName(), resolvedCommand.image());
+                // Update workflow fields
+                workflow.setId(rootInputObject.getIDValue());
+                workflow.setExternalid(PersistentWorkflowUtils.getExternalId(rootInputObject));
+                workflow.setDataType(rootInputObject.getXSIType());
+                workflow.setPipelineName(resolvedCommand.wrapperName());
+            }
             workflow.setStatus(PersistentWorkflowUtils.QUEUED);
             WorkflowUtils.save(workflow, workflow.buildEvent());
-            log.debug("Created workflow {}.", workflow.getWorkflowId());
-            return workflow;
+            log.debug("Updated workflow {}.", workflow.getWorkflowId());
         } catch (Exception e) {
-            log.error("Could not create workflow.", e);
+            log.error("Could not create/update workflow.", e);
         }
-        return null;
-      }
+        return workflow;
+    }
 
-    private void addContainerInformationToWorkflow(PersistentWorkflowI wrk, Container containerOrService) {
-    	if (wrk == null) {
-            log.debug("Cannot update workflow with container information.");
-            return;
-    	}
+    /**
+     * Updates a workflow with info from container object
+     *
+     * @param workflow  the initial workflow
+     * @param containerOrService the container
+     */
+    private void updateWorkflowWithContainer(@Nonnull PersistentWorkflowI workflow, Container containerOrService) {
+        String wrkFlowComment = StringUtils.isNotBlank(containerOrService.serviceId()) ?
+                containerOrService.serviceId() :
+                containerOrService.containerId();
+        log.debug("Updating workflow for Container {}", wrkFlowComment);
+
     	try {
-            String wrkFlowComment = StringUtils.isNotBlank(containerOrService.serviceId()) ?
-                                					containerOrService.serviceId() :
-                                					containerOrService.containerId();
-            wrk.setComments(wrkFlowComment);
-            wrk.setStatus(PersistentWorkflowUtils.IN_PROGRESS);
-            WorkflowUtils.save(wrk, wrk.buildEvent());
-            log.debug("updated workflow {}.", wrk.getWorkflowId());
+            workflow.setComments(wrkFlowComment);
+            WorkflowUtils.save(workflow, workflow.buildEvent());
+            log.debug("Updated workflow {}.", workflow.getWorkflowId());
         } catch (Exception e) {
-            log.error("Could not create workflow.", e);
+            log.error("Could not update workflow.", e);
         }
     }
 
