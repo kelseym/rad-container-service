@@ -1043,21 +1043,25 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException {
         final String logPath = container.getLogPath(logFileName);
         if (StringUtils.isBlank(logPath)) {
-            // If log path is blank, that means we have not yet saved the logs from docker. Go fetch them now.
-            if (ContainerService.STDOUT_LOG_NAME.contains(logFileName)) {
-            	if(container.isSwarmService()){
-                    return new ByteArrayInputStream(containerControlApi.getServiceStdoutLog(container.serviceId()).getBytes());
-            	}else{
-                    return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId()).getBytes());
-            	}
-            } else if (ContainerService.STDERR_LOG_NAME.contains(logFileName)) {
-            	if(container.isSwarmService()){
-            		return new ByteArrayInputStream(containerControlApi.getServiceStderrLog(container.serviceId()).getBytes());
-            	}else{
-                    return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId()).getBytes());
-            	}
-            } else {
-                return null;
+            try {
+                // If log path is blank, that means we have not yet saved the logs from docker. Go fetch them now.
+                if (ContainerService.STDOUT_LOG_NAME.contains(logFileName)) {
+                    if (container.isSwarmService()) {
+                        return new ByteArrayInputStream(containerControlApi.getServiceStdoutLog(container.serviceId()).getBytes());
+                    } else {
+                        return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId()).getBytes());
+                    }
+                } else if (ContainerService.STDERR_LOG_NAME.contains(logFileName)) {
+                    if (container.isSwarmService()) {
+                        return new ByteArrayInputStream(containerControlApi.getServiceStderrLog(container.serviceId()).getBytes());
+                    } else {
+                        return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId()).getBytes());
+                    }
+                } else {
+                    return null;
+                }
+            } catch (NoDockerServerException | DockerServerException e) {
+                log.debug("No {} log for {}", logFileName, container.databaseId());
             }
         } else {
             // If log path is not blank, that means we have saved the logs to a file. Read it now.
