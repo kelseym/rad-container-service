@@ -190,6 +190,12 @@ public class ContainerRestApi extends AbstractXapiRestController {
             throws NoDockerServerException, DockerServerException, NotFoundException {
         UserI userI = XDAT.getUserDetails();
         final InputStream logStream = containerService.getLogStream(containerId, file);
+        if (logStream == null) {
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, getAttachmentDisposition(containerId + "-" + file, "log"))
+                    .header(HttpHeaders.CONTENT_TYPE, TEXT)
+                    .body("");
+        }
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         byte[] buffer = new byte[1024];
         int length;
