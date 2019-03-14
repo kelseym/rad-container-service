@@ -570,7 +570,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         var $manager = $('#command-history-container'),
             _historyTable;
 
-        XNAT.ui.dialog.loading.open();
+        if (context != 'site') {
+            XNAT.ui.dialog.loading.open();
+        } else {
+            $manager.text("Loading...");
+        }
 
         sortHistoryData(context).done(function (data) {
             if (data.length) {
@@ -621,12 +625,12 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     );
                     this.render($manager, 20);
-                    XNAT.ui.dialog.loading.close();
+                    if (context !== 'site') XNAT.ui.dialog.loading.close();
                 });
             }
             else {
                 $manager.empty().append('No history entries to display')
-                XNAT.ui.dialog.loading.close();
+                if (context !== 'site') XNAT.ui.dialog.loading.close();
             }
         });
     };

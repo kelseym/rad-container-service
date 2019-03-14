@@ -168,33 +168,33 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
                 final OutputsAndExceptions outputsAndExceptions = uploadOutputs();
                 final List<Exception> failedRequiredOutputs = outputsAndExceptions.exceptions;
+                String status = PersistentWorkflowUtils.COMPLETE;
+                Date statusTime = new Date();
                 if (!failedRequiredOutputs.isEmpty()) {
-                    final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem("Failed",
+                    final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED + " (upload)",
                             "Failed to upload required outputs.\n" + Joiner.on("\n").join(Lists.transform(failedRequiredOutputs, new Function<Exception, String>() {
                                 @Override
                                 public String apply(final Exception input) {
                                     return input.getMessage();
                                 }
                             })));
+                    status = failedHistoryItem.status();
+                    statusTime = failedHistoryItem.timeRecorded();
                     finalizedContainerBuilder.addHistoryItem(failedHistoryItem)
-                            .outputs(outputsAndExceptions.outputs)
-                            .status(failedHistoryItem.status())
                             .statusTime(failedHistoryItem.timeRecorded());
-                } else {
-                    finalizedContainerBuilder.outputs(outputsAndExceptions.outputs)  // Overwrite any existing outputs
-                            .status("Complete")
-                            .statusTime(new Date());
                 }
+                finalizedContainerBuilder.outputs(outputsAndExceptions.outputs)  // Overwrite any existing outputs
+                        .status(status)
+                        .statusTime(statusTime);
 
-                ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), PersistentWorkflowUtils.COMPLETE, userI);
-                sendContainerStatusUpdateEmail( true, pipeline_name,xnatId,xnatLabel, project, logPaths);
-                
+                ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), status, userI);
+                sendContainerStatusUpdateEmail(true, pipeline_name, xnatId, xnatLabel, project, logPaths);
             } else {
                 ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), PersistentWorkflowUtils.FAILED, userI);
-                finalizedContainerBuilder.status("Failed")
-                        .addHistoryItem(Container.ContainerHistory.fromSystem("Failed", ""))
+                finalizedContainerBuilder.status(PersistentWorkflowUtils.FAILED)
+                        .addHistoryItem(Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED, ""))
                         .statusTime(new Date());
-                sendContainerStatusUpdateEmail( false, pipeline_name,xnatId,xnatLabel, project, logPaths);
+                sendContainerStatusUpdateEmail(false, pipeline_name, xnatId, xnatLabel, project, logPaths);
             }
             return finalizedContainerBuilder.build();
         }
