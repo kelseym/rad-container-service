@@ -36,7 +36,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
             .put("complete", "Complete")
             .put("created", "Created")
             .put("rejected", "Failed (Rejected)")
-            .put("failed", "Failed (Task)")
+            .put("failed", "Failed")
             .put("start", "Running")
             .put("started", "Running")
             .put("running", "Running")

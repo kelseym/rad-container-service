@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
+import com.spotify.docker.client.messages.swarm.TaskStatus;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.action.ClientException;
@@ -28,6 +29,7 @@ import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.exceptions.UnauthorizedException;
+import org.nrg.containers.jms.requests.ContainerRequest;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerMount;
 import org.nrg.containers.model.container.auto.Container.ContainerOutput;
@@ -149,35 +151,40 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 	XnatExperimentdata exp = XnatExperimentdata.getXnatExperimentdatasById(xnatId, userI, false);
                 	if (exp != null){
                 		xnatLabel = exp.getLabel();
-                	}else {
+                	} else {
                     	XnatSubjectdata subject = XnatSubjectdata.getXnatSubjectdatasById(xnatId, userI, false);
                     	if (subject != null) {
                     		xnatLabel = subject.getLabel();
                     	}
                 	}
-                }catch(Exception e) {
+                } catch(Exception e) {
                 	log.error("Unable to get the XNAT Label for " + xnatId);
                 }
             }
 
-            if (!isFailed) {
-                // Do not try to upload outputs if we know the container failed.
+            String status;
+            String details = "";
+            boolean processingCompleted = !isFailed;
+
+            if (processingCompleted) {
+                // Upload outputs if processing completed successfully
                 for (final ContainerMount mountOut : toFinalize.mounts()) {
                     outputMounts.put(mountOut.name(), mountOut);
                 }
 
                 final OutputsAndExceptions outputsAndExceptions = uploadOutputs();
                 final List<Exception> failedRequiredOutputs = outputsAndExceptions.exceptions;
-                String status = PersistentWorkflowUtils.COMPLETE;
+                status = PersistentWorkflowUtils.COMPLETE;
                 Date statusTime = new Date();
                 if (!failedRequiredOutputs.isEmpty()) {
+                    details = "Failed to upload required outputs.\n" + Joiner.on("\n").join(Lists.transform(failedRequiredOutputs, new Function<Exception, String>() {
+                        @Override
+                        public String apply(final Exception input) {
+                            return input.getMessage();
+                        }
+                    }));
                     final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED + " (upload)",
-                            "Failed to upload required outputs.\n" + Joiner.on("\n").join(Lists.transform(failedRequiredOutputs, new Function<Exception, String>() {
-                                @Override
-                                public String apply(final Exception input) {
-                                    return input.getMessage();
-                                }
-                            })));
+                            details);
                     status = failedHistoryItem.status();
                     statusTime = failedHistoryItem.timeRecorded();
                     finalizedContainerBuilder.addHistoryItem(failedHistoryItem)
@@ -186,16 +193,38 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 finalizedContainerBuilder.outputs(outputsAndExceptions.outputs)  // Overwrite any existing outputs
                         .status(status)
                         .statusTime(statusTime);
-
-                ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), status, userI);
-                sendContainerStatusUpdateEmail(true, pipeline_name, xnatId, xnatLabel, project, logPaths);
             } else {
-                ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), PersistentWorkflowUtils.FAILED, userI);
-                finalizedContainerBuilder.status(PersistentWorkflowUtils.FAILED)
-                        .addHistoryItem(Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED, ""))
+                // Check if failure already recorded (perhaps with more detail so we don't want to overwrite)
+                String containerStatus = toFinalize.status();
+                status = containerStatus != null ?
+                        containerStatus.replaceAll("^" + ContainerRequest.inQueueStatusPrefix, "") :
+                        "";
+                if (!status.startsWith(PersistentWorkflowUtils.FAILED)) {
+                    // If it's not a failure status, we need to make it so
+                    status = PersistentWorkflowUtils.FAILED;
+                    finalizedContainerBuilder.addHistoryItem(Container.ContainerHistory.fromSystem(status, details));
+                }
+                finalizedContainerBuilder.status(status)
                         .statusTime(new Date());
-                sendContainerStatusUpdateEmail(false, pipeline_name, xnatId, xnatLabel, project, logPaths);
+
+                // To my knowledge, only swarm has these special failure messages
+                if (toFinalize.isSwarmService()) {
+                    for (Container.ContainerHistory history : toFinalize.history().reverse()) {
+                        if (history.status().equals(TaskStatus.TASK_STATE_FAILED) &&
+                                StringUtils.isNotBlank(history.message())) {
+                            details = history.message();
+                            break;
+                        }
+                    }
+                }
+                if (StringUtils.isBlank(details)) {
+                    details = "Non-zero exit code and/or failure status from container";
+                }
             }
+
+            ContainerUtils.updateWorkflowStatus(toFinalize.workflowId(), status, userI, details);
+            sendContainerStatusUpdateEmail(processingCompleted, pipeline_name, xnatId, xnatLabel, project, logPaths);
+
             return finalizedContainerBuilder.build();
         }
 

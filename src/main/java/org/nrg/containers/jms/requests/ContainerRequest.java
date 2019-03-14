@@ -4,7 +4,7 @@ package org.nrg.containers.jms.requests;
 import org.apache.commons.lang3.StringUtils;
 
 abstract public class ContainerRequest   {
-	String inQueueStatusPrefix = "_";
+	public static String inQueueStatusPrefix = "_";
 
 	/**
 	 * Returns true if workflow status indicates that the request is in the JMS queue

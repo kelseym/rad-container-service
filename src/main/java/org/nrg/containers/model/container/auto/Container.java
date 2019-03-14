@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
@@ -103,6 +104,17 @@ public abstract class Container {
             }
         }
         return exitCode;
+    }
+
+    @JsonIgnore
+    public int countRestarts() {
+        int restarts = 0;
+        for (ContainerHistory history : this.history()) {
+            if (history.isRestartStatus()) {
+                restarts++;
+            }
+        }
+        return restarts;
     }
 
     @JsonCreator
@@ -803,6 +815,9 @@ public abstract class Container {
         @Nullable @JsonProperty("message") public abstract String message();
         @Nullable @JsonProperty("exitCode") public abstract String exitCode();
 
+        @JsonIgnore
+        public final static String restartStatus = "Restart";
+
         @JsonCreator
         public static ContainerHistory create(@JsonProperty("id") final long databaseId,
                                               @JsonProperty("status") final String status,
@@ -832,6 +847,7 @@ public abstract class Container {
                     .entityId(containerEntityHistory.getEntityId())
                     .timeRecorded(containerEntityHistory.getTimeRecorded())
                     .externalTimestamp(containerEntityHistory.getExternalTimestamp())
+                    .message(containerEntityHistory.getMessage())
                     .exitCode(containerEntityHistory.getExitCode())
                     .build();
         }
@@ -856,6 +872,7 @@ public abstract class Container {
                     .entityId(null)
                     .timeRecorded(new Date())
                     .externalTimestamp(null)
+                    .message(null)
                     .build();
         }
 
@@ -871,6 +888,11 @@ public abstract class Container {
         }
 
         public static ContainerHistory fromServiceTask(final ServiceTask task) {
+            String message = StringUtils.defaultString(task.message(), "");
+            if (StringUtils.isNotBlank(message) && StringUtils.isNotBlank(task.err())) {
+                message += ": ";
+            }
+            message += StringUtils.defaultString(task.err(), "");
             return builder()
                     .entityType("service")
                     .entityId(null)
@@ -878,8 +900,13 @@ public abstract class Container {
                     .exitCode(task.exitCode() == null ? null : String.valueOf(task.exitCode()))
                     .timeRecorded(new Date())
                     .externalTimestamp(task.statusTime() == null ? null : String.valueOf(task.statusTime().getTime()))
-                    .message(task.message())
+                    .message(message)
                     .build();
+        }
+
+        @JsonIgnore
+        public boolean isRestartStatus() {
+            return status().equals(restartStatus);
         }
 
         public static Builder builder() {
