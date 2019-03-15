@@ -445,8 +445,9 @@ public class LaunchRestApi extends AbstractXapiRestController {
 
         } catch (Throwable t) {
             if (workflow != null) {
-                String failedStatus = "Failed (staging queue: " + t.getMessage() + ")";
+                String failedStatus = "Failed (staging queue)";
                 workflow.setStatus(failedStatus);
+                workflow.setDetails(t.getMessage());
                 try {
                     WorkflowUtils.save(workflow, workflow.buildEvent());
                 } catch (Exception we) {

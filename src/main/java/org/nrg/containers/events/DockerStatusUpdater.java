@@ -177,7 +177,9 @@ public class DockerStatusUpdater   implements Runnable {
                 log.error(msg, e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), msg));
 
-                final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem("Failed", "Not found on swarm.");
+                String errMsg = "Not found on swarm.";
+                final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED,
+                        errMsg);
                 final Container notFound = service.toBuilder()
                         .status(failedHistoryItem.status())
                         .statusTime(failedHistoryItem.timeRecorded())
@@ -185,7 +187,8 @@ public class DockerStatusUpdater   implements Runnable {
 
                 containerService.update(notFound);
 
-                ContainerUtils.updateWorkflowStatus(notFound.workflowId(), PersistentWorkflowUtils.FAILED, AdminUtils.getAdminUser());
+                ContainerUtils.updateWorkflowStatus(notFound.workflowId(), PersistentWorkflowUtils.FAILED,
+                        AdminUtils.getAdminUser(), errMsg);
             } catch (DockerServerException e) {
                 log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));

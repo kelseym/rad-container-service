@@ -3,21 +3,32 @@ package org.nrg.containers.model.container.auto;
 import com.google.auto.value.AutoValue;
 import com.spotify.docker.client.messages.swarm.ContainerStatus;
 import com.spotify.docker.client.messages.swarm.Task;
+import com.spotify.docker.client.messages.swarm.TaskStatus;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.regex.Pattern;
 
 @AutoValue
 public abstract class ServiceTask {
-    private static final Pattern exitStatusPattern = Pattern.compile("complete|shutdown|failed|rejected");
-    private static final Pattern successStatusPattern = Pattern.compile("complete");
-    private static final Pattern hasNotStartedPattern = Pattern.compile("new|allocated|pending|assigned|accepted|preparing|ready|starting");
+    private static final Pattern successStatusPattern = Pattern.compile(TaskStatus.TASK_STATE_COMPLETE);
+    private static final Pattern exitStatusPattern = Pattern.compile(
+            StringUtils.join(
+                    Arrays.asList(TaskStatus.TASK_STATE_FAILED, TaskStatus.TASK_STATE_COMPLETE,
+                            TaskStatus.TASK_STATE_REJECTED, TaskStatus.TASK_STATE_SHUTDOWN), '|'));
+    private static final Pattern hasNotStartedPattern = Pattern.compile(
+            StringUtils.join(
+                    Arrays.asList(TaskStatus.TASK_STATE_NEW, TaskStatus.TASK_STATE_ALLOCATED, TaskStatus.TASK_STATE_PENDING,
+                            TaskStatus.TASK_STATE_ASSIGNED, TaskStatus.TASK_STATE_ACCEPTED, TaskStatus.TASK_STATE_PREPARING,
+                            TaskStatus.TASK_STATE_READY, TaskStatus.TASK_STATE_STARTING), '|'));
 
     public abstract String serviceId();
     public abstract String taskId();
     @Nullable public abstract String nodeId();
+    public abstract Boolean badState();
     public abstract String status();
     @Nullable public abstract Date statusTime();
     @Nullable public abstract String containerId();
@@ -27,21 +38,30 @@ public abstract class ServiceTask {
 
     public static ServiceTask create(final @Nonnull Task task, final String serviceId) {
         final ContainerStatus containerStatus = task.status().containerStatus();
+        Long exitCode = containerStatus == null ? null : containerStatus.exitCode();
+        // Bad state occurs when node is terminated while service still trying to run there
+        boolean badState = !isExitStatus(task.status().state()) &&
+                (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0));
         return ServiceTask.builder()
                 .serviceId(serviceId)
                 .taskId(task.id())
                 .nodeId(task.nodeId())
                 .status(task.status().state())
+                .badState(badState)
                 .statusTime(task.status().timestamp())
                 .message(task.status().message())
                 .err(task.status().err())
-                .exitCode(containerStatus == null ? null : containerStatus.exitCode())
+                .exitCode(exitCode)
                 .containerId(containerStatus == null ? null : containerStatus.containerId())
                 .build();
     }
 
     public boolean isExitStatus() {
         final String status = status();
+        return isExitStatus(status);
+    }
+
+    public static boolean isExitStatus(String status){
         return status != null && exitStatusPattern.matcher(status).matches();
     }
     
@@ -72,6 +92,7 @@ public abstract class ServiceTask {
         public abstract Builder containerId(final String containerId);
         public abstract Builder nodeId(final String nodeId);
         public abstract Builder status(final String status);
+        public abstract Builder badState(final Boolean badState);
         public abstract Builder statusTime(final Date statusTime);
         public abstract Builder message(final String message);
         public abstract Builder err(final String err);

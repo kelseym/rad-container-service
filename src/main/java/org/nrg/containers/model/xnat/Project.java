@@ -7,6 +7,7 @@ import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
+import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.xdat.model.XnatAbstractresourceI;
 import org.nrg.xdat.om.XnatProjectdata;
 import org.nrg.xdat.om.XnatResourcecatalog;
@@ -19,6 +20,7 @@ import org.nrg.xnat.helpers.uri.archive.ProjectURII;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @JsonInclude(Include.NON_NULL)
@@ -30,72 +32,73 @@ public class Project extends XnatModelObject {
 
     public Project() {}
 
-    public Project(final String projectId, final UserI userI) {
-        this(projectId, userI, true);
+    public Project(final String projectId, final UserI userI, final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+        this(projectId, userI, loadFiles, loadTypesMap, true);
     }
 
-    public Project(final String projectId, final UserI userI, final boolean preload) {
+    public Project(final String projectId, final UserI userI, final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         this.id = projectId;
         loadXnatProjectdata(userI);
         this.uri = UriParserUtils.getArchiveUri(xnatProjectdata);
-        populateProperties(preload);
+        populateProperties(loadFiles, loadTypesMap, preload);
     }
 
-    public Project(final ProjectURII projectURII) {
-        this(projectURII, true);
+    public Project(final ProjectURII projectURII, final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+        this(projectURII, loadFiles, loadTypesMap, true);
     }
 
-    public Project(final ProjectURII projectURII, final boolean preload) {
+    public Project(final ProjectURII projectURII, final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         this.xnatProjectdata = projectURII.getProject();
         this.uri = ((URIManager.DataURIA) projectURII).getUri();
-        populateProperties(preload);
+        populateProperties(loadFiles, loadTypesMap, preload);
     }
 
-    public Project(final XnatProjectdata xnatProjectdata) {
-        this(xnatProjectdata, true);
+    public Project(final XnatProjectdata xnatProjectdata, final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+        this(xnatProjectdata, loadFiles, loadTypesMap, true);
     }
 
-    public Project(final XnatProjectdata xnatProjectdata, final boolean preload) {
+    public Project(final XnatProjectdata xnatProjectdata, final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         this.xnatProjectdata = xnatProjectdata;
         this.uri = UriParserUtils.getArchiveUri(xnatProjectdata);
-        populateProperties(preload);
+        populateProperties(loadFiles, loadTypesMap, preload);
     }
 
-    private void populateProperties(final boolean preload) {
+    private void populateProperties(final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         this.id = xnatProjectdata.getId();
         this.label = xnatProjectdata.getName();
         this.xsiType = xnatProjectdata.getXSIType();
-        this.directory = xnatProjectdata.getRootArchivePath() + "arc001";
+        this.directory = xnatProjectdata.getRootArchivePath() + xnatProjectdata.getCurrentArc();
 
         this.subjects = Lists.newArrayList();
-        if (preload) {
+        if (preload && loadTypesMap.get(CommandWrapperInputType.SUBJECT.getName())) {
             for (final XnatSubjectdata subject : xnatProjectdata.getParticipants_participant()) {
-                subjects.add(new Subject(subject, this.uri, xnatProjectdata.getRootArchivePath()));
+                subjects.add(new Subject(subject, loadFiles, loadTypesMap, this.uri, xnatProjectdata.getRootArchivePath()));
             }
         }
 
         this.resources = Lists.newArrayList();
-        if (preload) {
+        if (preload && (loadFiles || (loadTypesMap != null && loadTypesMap.get(CommandWrapperInputType.RESOURCE.getName())))) {
             for (final XnatAbstractresourceI xnatAbstractresourceI : xnatProjectdata.getResources_resource()) {
                 if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                    resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, this.uri, xnatProjectdata.getRootArchivePath()));
+                    resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, loadTypesMap,
+                            this.uri, xnatProjectdata.getRootArchivePath()));
                 }
             }
         }
     }
 
-    public static Function<URIManager.ArchiveItemURI, Project> uriToModelObject() {
-        return uriToModelObject(true);
+    public static Function<URIManager.ArchiveItemURI, Project> uriToModelObject(final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+        return uriToModelObject(loadFiles, loadTypesMap, true);
     }
 
-    public static Function<URIManager.ArchiveItemURI, Project> uriToModelObject(final boolean preload) {
+    public static Function<URIManager.ArchiveItemURI, Project> uriToModelObject(final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         return new Function<URIManager.ArchiveItemURI, Project>() {
             @Nullable
             @Override
             public Project apply(@Nullable URIManager.ArchiveItemURI uri) {
                 if (uri != null &&
                         ProjectURII.class.isAssignableFrom(uri.getClass())) {
-                    return new Project((ProjectURII) uri, preload);
+                    return new Project((ProjectURII) uri, loadFiles, loadTypesMap, preload);
                 }
 
                 return null;
@@ -103,11 +106,11 @@ public class Project extends XnatModelObject {
         };
     }
 
-    public static Function<String, Project> idToModelObject(final UserI userI) {
-        return idToModelObject(userI, true);
+    public static Function<String, Project> idToModelObject(final UserI userI, final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+        return idToModelObject(userI, loadFiles, loadTypesMap, true);
     }
 
-    public static Function<String, Project> idToModelObject(final UserI userI, final boolean preload) {
+    public static Function<String, Project> idToModelObject(final UserI userI, final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
         return new Function<String, Project>() {
             @Nullable
             @Override
@@ -117,7 +120,7 @@ public class Project extends XnatModelObject {
                 }
                 final XnatProjectdata xnatProjectdata = XnatProjectdata.getXnatProjectdatasById(s, userI, false);
                 if (xnatProjectdata != null) {
-                    return new Project(xnatProjectdata, preload);
+                    return new Project(xnatProjectdata, loadFiles, loadTypesMap, preload);
                 }
                 return null;
             }

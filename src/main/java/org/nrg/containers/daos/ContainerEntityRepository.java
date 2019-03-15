@@ -7,6 +7,7 @@ import org.hibernate.criterion.Restrictions;
 import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.model.container.entity.ContainerEntityMount;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.orm.hibernate.AbstractHibernateDAO;
 import org.springframework.stereotype.Repository;
 
@@ -100,7 +101,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                         .add(Restrictions.not(Restrictions.disjunction()
                                 .add(Restrictions.like("status", "Complete"))
                                 .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed",MatchMode.START))
+                                .add(Restrictions.like("status", "Failed", MatchMode.START))
                                 .add(Restrictions.like("status", "Killed"))
                                 .add(Restrictions.like("status", "Finalizing"))
                         ))
@@ -132,7 +133,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.like("status", "Waiting"))
+                        .add(Restrictions.like("status", ContainerServiceImpl.waiting))
                 )
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
@@ -160,7 +161,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.like("status", "Finalizing"))
+                        .add(Restrictions.like("status", ContainerServiceImpl.finalizing))
                 )
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
