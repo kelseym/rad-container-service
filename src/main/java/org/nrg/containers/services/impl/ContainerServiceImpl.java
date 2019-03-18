@@ -717,7 +717,7 @@ public class ContainerServiceImpl implements ContainerService {
         try {
             // Kill it if it's still running
             containerControlApi.killService(service.serviceId());
-        } catch (NotFoundException e) {
+        } catch (DockerServerException | NotFoundException e) {
             // Ideally it's already gone
         }
 
@@ -774,6 +774,8 @@ public class ContainerServiceImpl implements ContainerService {
                 .message("Swarm node error")
                 .err(failureMessage)
                 .statusTime(new Date())
+                .taskId("DUMMY")
+                .swarmNodeError(true)
                 .build();
         ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
         addContainerHistoryItem(service, newHistoryItem, userI);
