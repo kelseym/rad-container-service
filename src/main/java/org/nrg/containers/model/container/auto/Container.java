@@ -872,7 +872,7 @@ public abstract class Container {
                     .entityId(null)
                     .timeRecorded(new Date())
                     .externalTimestamp(null)
-                    .message(null)
+                    .message(message)
                     .build();
         }
 
