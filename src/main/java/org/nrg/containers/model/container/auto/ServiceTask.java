@@ -40,8 +40,12 @@ public abstract class ServiceTask {
         final ContainerStatus containerStatus = task.status().containerStatus();
         Long exitCode = containerStatus == null ? null : containerStatus.exitCode();
         // Bad state occurs when node is terminated while service still trying to run there
-        boolean badState = !isExitStatus(task.status().state()) &&
-                (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0));
+        // Criteria:    current state = [not an exit status] AND either desired state = shutdown OR exit code = -1
+        //              OR current state = shutdown and exit code = 137
+        String curState = task.status().state();
+        boolean badState = (!isExitStatus(curState) &&
+                (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0))) ||
+                curState.equals(TaskStatus.TASK_STATE_SHUTDOWN) && exitCode != null && exitCode.equals(137L);
         return ServiceTask.builder()
                 .serviceId(serviceId)
                 .taskId(task.id())

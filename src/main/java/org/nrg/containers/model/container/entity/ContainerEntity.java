@@ -6,9 +6,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
-import org.hibernate.envers.Audited;
-import org.nrg.containers.model.container.ContainerInputType;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 import javax.persistence.CascadeType;
@@ -18,7 +15,6 @@ import javax.persistence.Entity;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Transient;
-import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -32,6 +28,7 @@ import java.util.Set;
 @Entity
 @Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
+    public static String KILL_STATUS = "kill";
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
             .put("complete", "Complete")
             .put("created", "Created")
@@ -42,7 +39,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
             .put("running", "Running")
             .put("remove", "Failed (Remove)")
             .put("orphaned", "Failed (Orphaned)")
-            .put("kill", "Failed (Killed)")
+            .put(KILL_STATUS, "Failed (Killed)")
             .put("oom", "Failed (Memory)")
             .put("shutdown", "Failed (Shutdown)")
             .put("starting", "Starting")

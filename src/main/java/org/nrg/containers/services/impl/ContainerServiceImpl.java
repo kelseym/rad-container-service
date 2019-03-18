@@ -411,8 +411,9 @@ public class ContainerServiceImpl implements ContainerService {
             }
         } catch (Exception e) {
             if (workflow != null) {
-                String failedStatus = "Failed (staging consume: " + e.getMessage() + ")";
+                String failedStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
                 workflow.setStatus(failedStatus);
+                workflow.setDetails(e.getMessage());
                 try {
                     WorkflowUtils.save(workflow, workflow.buildEvent());
                 } catch (Exception we) {
@@ -644,7 +645,7 @@ public class ContainerServiceImpl implements ContainerService {
     public void processEvent(final ServiceTaskEvent event) {
         ServiceTask task = event.task();
         final Container service;
-        final int maxRestarts = 1;
+        final int maxRestarts = 2;
 
 	    log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
 	           task.taskId(), task.serviceId());
@@ -669,7 +670,7 @@ public class ContainerServiceImpl implements ContainerService {
             try {
                 final UserI userI = Users.getUser(userLogin);
                 final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
-                
+
                 //process new and waiting events (duplicate docker events are skipped)              
                 if (!(isWaiting(service) || isFinalizing(service)) &&
                         addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
@@ -680,7 +681,8 @@ public class ContainerServiceImpl implements ContainerService {
 
                 	if (task.badState()) {
                         String failureMessage = "Bad state (exit status of -1 or desired state='shutdown' despite " +
-                                "apparently active current state) occurred in all " + maxRestarts+1 + " runs)";
+                                "apparently active current state OR state='shutdown' with exit code 137) occurred " +
+                                "in all " + maxRestarts+1 + " runs)";
                 	    // Node killed or something, try to restart
                         if (service.countRestarts() < maxRestarts) {
                             try {
@@ -688,13 +690,13 @@ public class ContainerServiceImpl implements ContainerService {
                                 return;
                             } catch (Exception e) {
                                 log.error("Unable to restart service {}, proceed with finalizing", service.serviceId(), e);
-                                failureMessage = "Unable to restart for bad state";
+                                failureMessage = "Unable to restart after bad state";
                             }
                         }
                         // Already restarted or unable to restart, fail it and finalize
                         task = task.toBuilder()
                                 .status(TaskStatus.TASK_STATE_FAILED)
-                                .exitCode(125L) // Docker code for "Docker run itself fails"
+                                .exitCode(126L) // Docker code for "the contained command cannot be invoked"
                                 .message(StringUtils.isNotBlank(task.message()) ? task.message() : "Bad state")
                                 .err(StringUtils.isNotBlank(task.err()) ? task.err() : failureMessage)
                                 .build();
@@ -710,17 +712,17 @@ public class ContainerServiceImpl implements ContainerService {
                         //Hence limit the number of finalizations with queue
                     	queuedFinalize(exitCodeString, task.isSuccessfulStatus(), serviceWithAddedEvent, userI);
                     } else {
-                        log.debug("Docker event has not exited yet" + service.serviceId() + " Workflow: " +
-                                service.workflowId() + service.status());
+                        log.debug("Docker event has not exited yet. Service: {} Workflow: {} Status: {}",
+                                service.serviceId(), service.workflowId(), service.status());
                     }
 
                 }
             } catch (UserInitException | UserNotFoundException e) {
-                log.error("Could not update container status. Could not get user details for user " + userLogin, e);
+                log.error("Could not update container status. Could not get user details for user {}", userLogin, e);
             }
         }
 
-        log.debug("Done processing service task event: " + event);
+        log.debug("Done processing service task event: {}", event);
     }
 
     private void restartService(Container service, ServiceTask prevTask, UserI userI)
@@ -734,8 +736,8 @@ public class ContainerServiceImpl implements ContainerService {
         }
 
         // Log the restart history
-        String restartMessage = "Restarting serviceId: "+ service.serviceId() + " due to bad state (like node: " +
-                service.nodeId() + " went down)";
+        String restartMessage = "Restarting serviceId "+ service.serviceId() + " due to bad state (likely node " +
+                service.nodeId() + " went down or ran out of memory)";
         ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
                 restartMessage);
         addContainerHistoryItem(service, restartHistory, userI);
@@ -755,9 +757,9 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
-	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service,
+	public void queuedFinalize(final String exitCodeString, final boolean isSuccessfulStatus, final Container service,
                                final UserI userI) {
-		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString, isSuccessful,
+		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString, isSuccessfulStatus,
                 service.serviceId(), userI.getLogin());
 		int count = QueueUtils.count(request.getDestination());
 
@@ -782,7 +784,7 @@ public class ContainerServiceImpl implements ContainerService {
 	}
 	
     @Override
-	public void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
+	public void consumeFinalize(final String exitCodeString, final boolean isSuccessfulStatus, final Container service, final UserI userI) {
 		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
     	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
 		if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
@@ -796,7 +798,7 @@ public class ContainerServiceImpl implements ContainerService {
 		        @Override
 		        public void run() {
 		        	try {
-		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessful);
+		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessfulStatus);
 		            } catch (ContainerException | NoDockerServerException | DockerServerException e) {
 		                log.error("Container finalization failed.", e);
 		            }
@@ -1058,7 +1060,8 @@ public class ContainerServiceImpl implements ContainerService {
 
     private String kill(final Container container, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException {
-        addContainerHistoryItem(container, ContainerHistory.fromUserAction("Killed", userI.getLogin()), userI);
+        addContainerHistoryItem(container, ContainerHistory.fromUserAction(ContainerEntity.KILL_STATUS,
+                userI.getLogin()), userI);
 
         String containerDockerId;
         if(container.isSwarmService()){
@@ -1169,7 +1172,7 @@ public class ContainerServiceImpl implements ContainerService {
         try {
         	workflow.setStatus(PersistentWorkflowUtils.FAILED);
         	WorkflowUtils.save(workflow, workflow.buildEvent());
-        }catch(Exception e) {
+        } catch(Exception e) {
         	log.error("Unable to update workflow and set it to FAILED status", e);
         }
     }
@@ -1177,15 +1180,15 @@ public class ContainerServiceImpl implements ContainerService {
     private void handleFailure(PersistentWorkflowI workflow, final Exception source) {
         try {
         	workflow.setDetails(source.getMessage());
-        	if(source instanceof DockerServerException){
+        	if (source instanceof DockerServerException) {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Service)");
-        	}else if(source instanceof ContainerException){
+        	} else if (source instanceof ContainerException) {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Container)");
-        	}else{
+        	} else {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED);
         	}
         	WorkflowUtils.save(workflow, workflow.buildEvent());
-        }catch(Exception e) {
+        } catch(Exception e) {
         	log.error("Unable to update workflow and set it to FAILED status", e);
         }
     }
