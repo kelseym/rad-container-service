@@ -679,14 +679,14 @@ public class ContainerServiceImpl implements ContainerService {
                 } else {
                     log.debug("Checking isExitStatus {} and service.status {}", task.isExitStatus(), service.status());
 
-                	if (task.badState()) {
-                        String failureMessage = "Bad state (exit status of -1 or desired state='shutdown' despite " +
-                                "apparently active current state OR state='shutdown' with exit code 137) occurred " +
+                	if (task.swarmNodeError()) {
+                        String failureMessage = "Swarm node error (exit status of -1 or desired state='shutdown' " +
+                                "despite apparently active current state OR state='shutdown' with exit code 137) detected " +
                                 "in all " + maxRestarts+1 + " runs)";
                 	    // Node killed or something, try to restart
                         if (service.countRestarts() < maxRestarts) {
                             try {
-                                restartService(service, task, userI);
+                                restartService(service, userI);
                                 return;
                             } catch (Exception e) {
                                 log.error("Unable to restart service {}, proceed with finalizing", service.serviceId(), e);
@@ -697,7 +697,7 @@ public class ContainerServiceImpl implements ContainerService {
                         task = task.toBuilder()
                                 .status(TaskStatus.TASK_STATE_FAILED)
                                 .exitCode(126L) // Docker code for "the contained command cannot be invoked"
-                                .message(StringUtils.isNotBlank(task.message()) ? task.message() : "Bad state")
+                                .message(StringUtils.isNotBlank(task.message()) ? task.message() : "Swarm node error")
                                 .err(StringUtils.isNotBlank(task.err()) ? task.err() : failureMessage)
                                 .build();
                         ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
@@ -725,7 +725,7 @@ public class ContainerServiceImpl implements ContainerService {
         log.debug("Done processing service task event: {}", event);
     }
 
-    private void restartService(Container service, ServiceTask prevTask, UserI userI)
+    private void restartService(Container service, UserI userI)
             throws DockerServerException, NoDockerServerException, ContainerException {
 
         try {
@@ -736,8 +736,8 @@ public class ContainerServiceImpl implements ContainerService {
         }
 
         // Log the restart history
-        String restartMessage = "Restarting serviceId "+ service.serviceId() + " due to bad state (likely node " +
-                service.nodeId() + " went down or ran out of memory)";
+        String restartMessage = "Restarting serviceId "+ service.serviceId() + " due to apparent swarm node error " +
+                "(likely node " + service.nodeId() + " went down or ran out of memory)";
         ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
                 restartMessage);
         addContainerHistoryItem(service, restartHistory, userI);
