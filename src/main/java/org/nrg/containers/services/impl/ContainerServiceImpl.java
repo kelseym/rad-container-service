@@ -714,15 +714,10 @@ public class ContainerServiceImpl implements ContainerService {
             throw new ContainerException("Cannot restart non-swarm container");
         }
 
-        try {
-            // Kill it if it's still running
-            containerControlApi.killService(service.serviceId());
-        } catch (DockerServerException | NotFoundException e) {
-            // Ideally it's already gone
-        }
+        String serviceId = service.serviceId();
 
         // Log the restart history
-        String restartMessage = "Restarting serviceId "+ service.serviceId() + " due to apparent swarm node error " +
+        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
                 "(likely node " + service.nodeId() + " went down or ran out of memory)";
         ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
                 restartMessage);
@@ -738,6 +733,13 @@ public class ContainerServiceImpl implements ContainerService {
                 .status(ContainerHistory.restartStatus)
                 .build();
         containerEntityService.update(fromPojo(service));
+
+        // Kill it if it's still running
+        try {
+            containerControlApi.killService(serviceId);
+        } catch (DockerServerException | NotFoundException e) {
+            // It may already be gone
+        }
 
         // Relaunch container in new service
         launchContainerFromDbObject(service, userI, true);
