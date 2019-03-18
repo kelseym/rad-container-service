@@ -748,6 +748,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public boolean restartService(Container service, UserI userI) {
         final int maxRestarts = 2;
+        int nrun = maxRestarts + 1;
 
         if (!service.isSwarmService()) {
             // Refuse to restart a non-swarm container
@@ -756,7 +757,7 @@ public class ContainerServiceImpl implements ContainerService {
 
         String failureMessage = "Service not found on swarm OR state='shutdown' with exit code 137 OR " +
                 "exit status of -1 or desired state='shutdown' despite apparently active current state occurred " +
-                "in all " + maxRestarts+1 + " runs)";
+                "in all " + nrun + " attempts)";
         // Node killed or something, try to restart
         if (service.countRestarts() < maxRestarts) {
             try {
