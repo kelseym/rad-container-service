@@ -652,7 +652,7 @@ public class ContainerServiceImpl implements ContainerService {
 
         // When we create the service, we don't know all the IDs. If this is the first time we
         // have seen a task for this service, we can set those IDs now.
-        if (StringUtils.isBlank(event.service().taskId())) {
+        if (StringUtils.isBlank(event.service().taskId()) || StringUtils.isBlank(event.service().nodeId())) {
             log.debug("Service \"{}\" has no task information yet. Setting it now.", task.serviceId());
             final Container serviceToUpdate = event.service().toBuilder()
                     .taskId(task.taskId())
@@ -716,13 +716,6 @@ public class ContainerServiceImpl implements ContainerService {
 
         String serviceId = service.serviceId();
 
-        // Log the restart history
-        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
-                "(likely node " + service.nodeId() + " went down or ran out of memory)";
-        ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
-                restartMessage);
-        addContainerHistoryItem(service, restartHistory, userI);
-
         // Rebuild service, emptying ids (serviceId = null keeps it from being updated until a new service is assigned),
         // and save it to db
         service = service.toBuilder()
@@ -733,6 +726,13 @@ public class ContainerServiceImpl implements ContainerService {
                 .status(ContainerHistory.restartStatus)
                 .build();
         containerEntityService.update(fromPojo(service));
+
+        // Log the restart history
+        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
+                "(likely node " + service.nodeId() + " went down or ran out of memory)";
+        ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
+                restartMessage);
+        addContainerHistoryItem(service, restartHistory, userI);
 
         // Kill it if it's still running
         try {
@@ -776,7 +776,7 @@ public class ContainerServiceImpl implements ContainerService {
                 .message("Swarm node error")
                 .err(failureMessage)
                 .statusTime(new Date())
-                .taskId("DUMMY")
+                .taskId("")
                 .swarmNodeError(true)
                 .build();
         ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
