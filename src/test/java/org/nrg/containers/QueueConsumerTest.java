@@ -38,6 +38,7 @@ import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.ItemI;
 import org.nrg.xft.event.EventMetaI;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
@@ -273,10 +274,11 @@ public class QueueConsumerTest {
                 eq(mockUser)
         )).thenThrow(new CommandResolutionException(exceptionMessage));
 
-        final String expectedWorkflowStatus = "Failed (staging consume: " + exceptionMessage + ")";
+        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
         containerService.consumeResolveCommandAndLaunchContainer(null, WRAPPER_ID, 0L,
                 null, input, mockUser, fakeWorkflow.getWorkflowId().toString());
         assertThat(fakeWorkflow.getStatus(), is(expectedWorkflowStatus));
+        assertThat(fakeWorkflow.getDetails(), is(exceptionMessage));
     }
 
     @Test
@@ -290,9 +292,10 @@ public class QueueConsumerTest {
         when(spyDockerControlApi.createContainerOrSwarmService(RESOLVED_COMMAND, mockUser))
                 .thenThrow(new RuntimeException(exceptionMessage));
 
-        final String expectedWorkflowStatus = "Failed (staging consume: " + exceptionMessage + ")";
+        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
         containerService.consumeResolveCommandAndLaunchContainer(null, WRAPPER_ID, 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow.getWorkflowId().toString());
         assertThat(fakeWorkflow.getStatus(), is(expectedWorkflowStatus));
+        assertThat(fakeWorkflow.getDetails(), is(exceptionMessage));
     }
 }
