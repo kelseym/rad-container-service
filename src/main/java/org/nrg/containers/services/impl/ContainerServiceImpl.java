@@ -53,6 +53,7 @@ import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.model.xnat.Scan;
 import org.nrg.containers.model.xnat.XnatModelObject;
 import org.nrg.containers.services.*;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
@@ -645,7 +646,6 @@ public class ContainerServiceImpl implements ContainerService {
     public void processEvent(final ServiceTaskEvent event) {
         ServiceTask task = event.task();
         final Container service;
-        final int maxRestarts = 2;
 
 	    log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
 	           task.taskId(), task.serviceId());
@@ -679,29 +679,11 @@ public class ContainerServiceImpl implements ContainerService {
                 } else {
                     log.debug("Checking isExitStatus {} and service.status {}", task.isExitStatus(), service.status());
 
-                	if (task.swarmNodeError()) {
-                        String failureMessage = "Swarm node error (exit status of -1 or desired state='shutdown' " +
-                                "despite apparently active current state OR state='shutdown' with exit code 137) detected " +
-                                "in all " + maxRestarts+1 + " runs)";
-                	    // Node killed or something, try to restart
-                        if (service.countRestarts() < maxRestarts) {
-                            try {
-                                restartService(service, userI);
-                                return;
-                            } catch (Exception e) {
-                                log.error("Unable to restart service {}, proceed with finalizing", service.serviceId(), e);
-                                failureMessage = "Unable to restart after bad state";
-                            }
-                        }
-                        // Already restarted or unable to restart, fail it and finalize
-                        task = task.toBuilder()
-                                .status(TaskStatus.TASK_STATE_FAILED)
-                                .exitCode(126L) // Docker code for "the contained command cannot be invoked"
-                                .message(StringUtils.isNotBlank(task.message()) ? task.message() : "Swarm node error")
-                                .err(StringUtils.isNotBlank(task.err()) ? task.err() : failureMessage)
-                                .build();
-                        ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
-                        addContainerHistoryItem(service, newHistoryItem, userI);
+                    if (task.swarmNodeError()) {
+                        // Attempt to restart the service and fail the workflow if we cannot;
+                        // either way, don't proceed to finalize.
+                        restartService(service, userI);
+                        return;
                     }
 
                     if (task.isExitStatus() || isWaiting(service)) {
@@ -725,8 +707,12 @@ public class ContainerServiceImpl implements ContainerService {
         log.debug("Done processing service task event: {}", event);
     }
 
-    private void restartService(Container service, UserI userI)
+    private void doRestart(Container service, UserI userI)
             throws DockerServerException, NoDockerServerException, ContainerException {
+
+        if (!service.isSwarmService()) {
+            throw new ContainerException("Cannot restart non-swarm container");
+        }
 
         try {
             // Kill it if it's still running
@@ -742,7 +728,8 @@ public class ContainerServiceImpl implements ContainerService {
                 restartMessage);
         addContainerHistoryItem(service, restartHistory, userI);
 
-        // Rebuild service, emptying ids (not sure if this is needed, but...), and save it to db
+        // Rebuild service, emptying ids (serviceId = null keeps it from being updated until a new service is assigned),
+        // and save it to db
         service = service.toBuilder()
                 .serviceId(null)
                 .taskId(null)
@@ -754,6 +741,48 @@ public class ContainerServiceImpl implements ContainerService {
 
         // Relaunch container in new service
         launchContainerFromDbObject(service, userI, true);
+    }
+
+    @Override
+    public boolean restartService(Container service, UserI userI) {
+        final int maxRestarts = 2;
+
+        if (!service.isSwarmService()) {
+            // Refuse to restart a non-swarm container
+            return false;
+        }
+
+        String failureMessage = "Service not found on swarm OR state='shutdown' with exit code 137 OR " +
+                "exit status of -1 or desired state='shutdown' despite apparently active current state occurred " +
+                "in all " + maxRestarts+1 + " runs)";
+        // Node killed or something, try to restart
+        if (service.countRestarts() < maxRestarts) {
+            try {
+                doRestart(service, userI);
+                return true;
+            } catch (Exception e) {
+                log.error("Unable to restart service {}", service.serviceId(), e);
+                failureMessage = "Unable to restart";
+            }
+        }
+
+        // Already restarted or unable to restart, fail it
+        ServiceTask task = ServiceTask.builder()
+                .serviceId(service.serviceId())
+                .status(TaskStatus.TASK_STATE_FAILED)
+                .exitCode(126L) // Docker code for "the contained command cannot be invoked"
+                .message("Swarm node error")
+                .err(failureMessage)
+                .statusTime(new Date())
+                .build();
+        ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
+        addContainerHistoryItem(service, newHistoryItem, userI);
+
+        // Update workflow again so we get the "Failed (Swarm)" status
+        ContainerUtils.updateWorkflowStatus(service.workflowId(), PersistentWorkflowUtils.FAILED + " (Swarm)",
+                userI, newHistoryItem.message());
+
+        return false;
     }
 
     @Override

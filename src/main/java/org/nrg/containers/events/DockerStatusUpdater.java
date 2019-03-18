@@ -4,22 +4,16 @@ import com.google.common.collect.Lists;
 import com.spotify.docker.client.exceptions.ServiceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.api.ContainerControlApi;
-import org.nrg.containers.config.ContainersConfig;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
-import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
-import org.nrg.framework.task.XnatTask;
-import org.nrg.framework.task.services.XnatTaskService;
-import org.nrg.xdat.turbine.utils.AdminUtils;
-import org.nrg.xft.event.persist.PersistentWorkflowUtils;
+import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xnat.services.XnatAppInfo;
-import org.nrg.xnat.task.AbstractXnatTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
@@ -169,26 +163,18 @@ public class DockerStatusUpdater   implements Runnable {
             	}
             	
             	if (isWaiting(service)){
-            		containerService.queuedFinalize("0",true, service, AdminUtils.getAdminUser());
+            		containerService.queuedFinalize("0", true, service, Users.getAdminUser());
             		continue;
             	}
-            	
-                final String msg = String.format("Service %s is in database, but not found on swarm. Setting status to \"Failed\".", service.serviceId());
-                log.error(msg, e);
-                report.add(UpdateReportEntry.failure(service.serviceId(), msg));
 
-                String errMsg = "Not found on swarm.";
-                final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED,
-                        errMsg);
-                final Container notFound = service.toBuilder()
-                        .status(failedHistoryItem.status())
-                        .statusTime(failedHistoryItem.timeRecorded())
-                        .build();
+            	boolean restarted = containerService.restartService(service, Users.getAdminUser());
+            	if (restarted) {
+                    report.add(UpdateReportEntry.success(service.serviceId()));
+                } else {
+            	    // Workflow updated within restartService to indicate failure and specifics, no need to do it here
+                    report.add(UpdateReportEntry.failure(service.serviceId(), "Unable to restart"));
+                }
 
-                containerService.update(notFound);
-
-                ContainerUtils.updateWorkflowStatus(notFound.workflowId(), PersistentWorkflowUtils.FAILED,
-                        AdminUtils.getAdminUser(), errMsg);
             } catch (DockerServerException e) {
                 log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));
