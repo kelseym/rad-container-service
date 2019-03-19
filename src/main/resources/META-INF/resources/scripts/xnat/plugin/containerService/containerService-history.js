@@ -464,11 +464,39 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             var val = historyEntry[key], formattedVal = '';
             if (Array.isArray(val)) {
                 var items = [];
+                var uniqueKeys=[];
                 val.forEach(function (item) {
-                    if (typeof item === 'object') item = JSON.stringify(item);
-                    items.push(spawn('li', [spawn('code', item)]));
+                	Object.keys(item).forEach(function(key){
+                		if(uniqueKeys.indexOf(key)===-1){
+                			uniqueKeys.push(key);
+                		}
+                	});
                 });
-                formattedVal = spawn('ul', {style: {'list-style-type': 'none', 'padding-left': '0'}}, items);
+                
+                formattedVal="<span><table><tr>";
+                uniqueKeys.forEach(function(key){
+                	formattedVal+="<th>"+key+"</th>";
+                });
+                formattedVal+="</tr>";
+
+                val.sort(function(obj1,obj2){
+                   var date1=Date.parse(obj1["time-recorded"]),date2=Date.parse(obj2["time-recorded"])
+                   return date1-date2;
+                })
+                
+                val.forEach(function (item) {
+                	formattedVal+="<tr>";
+                    uniqueKeys.forEach(function(key){
+                    	formattedVal+="<td nowrap>";
+                    	var temp = item[key];
+                    	if (typeof temp === 'object') temp = JSON.stringify(temp);
+                    	
+                        formattedVal+=temp;
+                    	formattedVal+="</td>";
+                    });
+                    formattedVal+="</tr>";
+                });
+                formattedVal+="</table></span>"
             } else if (typeof val === 'object') {
                 formattedVal = spawn('code', JSON.stringify(val));
             } else if (!val) {
@@ -479,7 +507,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
             pheTable.tr()
                 .td('<b>' + key + '</b>')
-                .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
+                .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px','overflow':'auto'}}, formattedVal)]);
 
                 // check logs and populate buttons at bottom of modal
                 if (key === 'log-paths') {
