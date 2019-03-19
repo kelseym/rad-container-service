@@ -45,10 +45,16 @@ public abstract class ServiceTask {
         // Criteria:    current state = [not an exit status] AND either desired state = shutdown OR exit code = -1
         //              OR current state = shutdown
         String curState = task.status().state();
+        String msg = task.status().message();
+        String err = task.status().err();
+        if (curState.equals(TaskStatus.TASK_STATE_PENDING)) {
+            msg = "";
+            err = "";
+        }
         boolean swarmNodeError = (!isExitStatus(curState) &&
                 (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0))) ||
                 curState.equals(TaskStatus.TASK_STATE_SHUTDOWN);
-        String msg = task.status().message();
+
         if (swarmNodeError) {
             msg = swarmNodeStatusMsg;
         }
@@ -60,7 +66,7 @@ public abstract class ServiceTask {
                 .swarmNodeError(swarmNodeError)
                 .statusTime(task.status().timestamp())
                 .message(msg)
-                .err(task.status().err())
+                .err(err)
                 .exitCode(exitCode)
                 .containerId(containerStatus == null ? null : containerStatus.containerId())
                 .build();
