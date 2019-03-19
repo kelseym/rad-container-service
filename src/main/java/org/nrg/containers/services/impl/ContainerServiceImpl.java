@@ -668,7 +668,7 @@ public class ContainerServiceImpl implements ContainerService {
 
                 //process new and waiting events (duplicate docker events are skipped)              
                 if (!(isWaiting(service) || isFinalizing(service)) &&
-                        (isRestarting(service) || addContainerHistoryItem(service, taskHistoryItem, userI) == null)) {
+                        addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
                     // We have already added this task and can safely skip it.
                     log.debug("Skipping task status we have already seen: service {} task status {}",
                             service.serviceId(), task.status());
