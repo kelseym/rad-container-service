@@ -30,7 +30,7 @@ import java.util.Set;
 public class ContainerEntity extends AbstractHibernateEntity {
     public static String KILL_STATUS = "kill";
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
-            .put("complete", "Complete")
+            .put("complete", "Waiting") // Docker swarm "complete" maps to waiting to be finalized
             .put("created", "Created")
             .put("rejected", "Failed (Rejected)")
             .put("failed", "Failed")

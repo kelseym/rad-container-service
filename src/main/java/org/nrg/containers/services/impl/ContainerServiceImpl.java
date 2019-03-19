@@ -873,8 +873,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public void finalize(final Container container, final UserI userI)
             throws ContainerException, DockerServerException, NoDockerServerException {
-        String status = container.status();
-        // Seems that container status doesn't remain in these states, but perhaps it would if it still needed to be finalized?
+        String status = container.lastHistoryStatus();
         boolean isSuccessfulStatus = container.isSwarmService() ?
                 ServiceTask.isSuccessfulStatus(status) :
                 DockerContainerEvent.isSuccessfulStatus(status);
