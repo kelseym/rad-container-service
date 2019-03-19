@@ -156,8 +156,8 @@ public class DockerStatusUpdater   implements Runnable {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
             } catch (ServiceNotFoundException e) {
-            	if (containerService.isFinalizing(service) || containerService.isRestarting(service)){
-            		log.debug("ignoring failed service retrieval for finalizing and restarting jobs");
+            	if (containerService.isFinalizing(service)){
+            		log.debug("ignoring failed service retrieval for finalizing job");
             		continue;
             	}
             	

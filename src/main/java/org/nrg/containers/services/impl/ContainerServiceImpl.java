@@ -859,10 +859,6 @@ public class ContainerServiceImpl implements ContainerService {
     public boolean isFinalizing(Container service){
     	return finalizing.equals(service.status());
     }
-    @Override
-    public boolean isRestarting(Container service){
-        return Container.ContainerHistory.restartStatus.equals(service.status());
-    }
 
     @Override
     public void finalize(final String containerId, final UserI userI)
