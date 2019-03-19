@@ -25,6 +25,8 @@ public abstract class ServiceTask {
                             TaskStatus.TASK_STATE_ASSIGNED, TaskStatus.TASK_STATE_ACCEPTED, TaskStatus.TASK_STATE_PREPARING,
                             TaskStatus.TASK_STATE_READY, TaskStatus.TASK_STATE_STARTING), '|'));
 
+    public static String swarmNodeStatusMsg = "Swarm node error";
+
     public abstract String serviceId();
     public abstract String taskId();
     @Nullable public abstract String nodeId();
@@ -41,11 +43,15 @@ public abstract class ServiceTask {
         Long exitCode = containerStatus == null ? null : containerStatus.exitCode();
         // swarmNodeError occurs when node is terminated / spot instance lost while service still trying to run on it
         // Criteria:    current state = [not an exit status] AND either desired state = shutdown OR exit code = -1
-        //              OR current state = shutdown and exit code = 137
+        //              OR current state = shutdown
         String curState = task.status().state();
         boolean swarmNodeError = (!isExitStatus(curState) &&
                 (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0))) ||
-                curState.equals(TaskStatus.TASK_STATE_SHUTDOWN) && exitCode != null && exitCode.equals(137L);
+                curState.equals(TaskStatus.TASK_STATE_SHUTDOWN);
+        String msg = task.status().message();
+        if (swarmNodeError) {
+            msg = swarmNodeStatusMsg;
+        }
         return ServiceTask.builder()
                 .serviceId(serviceId)
                 .taskId(task.id())
@@ -53,7 +59,7 @@ public abstract class ServiceTask {
                 .status(task.status().state())
                 .swarmNodeError(swarmNodeError)
                 .statusTime(task.status().timestamp())
-                .message(task.status().message())
+                .message(msg)
                 .err(task.status().err())
                 .exitCode(exitCode)
                 .containerId(containerStatus == null ? null : containerStatus.containerId())

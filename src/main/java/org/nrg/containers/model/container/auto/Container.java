@@ -10,7 +10,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.spotify.docker.client.messages.ContainerMount;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
@@ -48,6 +50,7 @@ import java.util.Map;
 @AutoValue
 public abstract class Container {
     @JsonIgnore private String exitCode;
+    @JsonIgnore private List<ContainerHistory> sortedHist = null;
 
     @JsonProperty("id") public abstract long databaseId();
     @JsonProperty("command-id") public abstract long commandId();
@@ -88,6 +91,31 @@ public abstract class Container {
     }
 
     @JsonIgnore
+    private synchronized List<ContainerHistory> getSortedHistory() {
+        if (sortedHist == null) {
+            sortedHist = this.history().asList();
+            Collections.sort(sortedHist, Collections.reverseOrder()); //Descending order (most recent first)
+        }
+        return sortedHist;
+    }
+
+    @JsonIgnore
+    @NotNull
+    public ServiceTask getLastTask() {
+        ContainerHistory history = getSortedHistory().get(0);
+        String exitCode = history.exitCode();
+        String externalTime = history.externalTimestamp();
+        ServiceTask lastTask = ServiceTask.builder()
+                .serviceId(this.serviceId())
+                .taskId(this.taskId())
+                .status(history.status())
+                .exitCode(exitCode == null ? null : Long.parseLong(exitCode))
+                .statusTime(externalTime == null ? null : new Date(Long.parseLong(externalTime)))
+                .build();
+        return lastTask;
+    }
+
+    @JsonIgnore
     @Nullable
     public String exitCode() {
         if (exitCode == null) {
@@ -96,7 +124,7 @@ public abstract class Container {
             //      did not contain an "exitCode" key
             // "0": success
             // "1" to "255": failure
-            for (final ContainerHistory history : this.history()) {
+            for (final ContainerHistory history : getSortedHistory()) {
                 if (history.exitCode() != null) {
                     exitCode = history.exitCode();
                     break;
@@ -104,6 +132,12 @@ public abstract class Container {
             }
         }
         return exitCode;
+    }
+
+    @JsonIgnore
+    @Nullable
+    public String lastHistoryStatus() {
+        return getSortedHistory().get(0).status();
     }
 
     @JsonIgnore
@@ -803,7 +837,7 @@ public abstract class Container {
     }
 
     @AutoValue
-    public static abstract class ContainerHistory {
+    public static abstract class ContainerHistory implements Comparable<ContainerHistory> {
         @Nullable @JsonProperty("id") public abstract Long databaseId();
         @JsonProperty("status") public abstract String status();
         @JsonProperty("entity-type") public abstract String entityType();
@@ -902,6 +936,16 @@ public abstract class Container {
                     .externalTimestamp(task.statusTime() == null ? null : String.valueOf(task.statusTime().getTime()))
                     .message(message)
                     .build();
+        }
+
+        @Override
+        public int compareTo(@NotNull ContainerHistory other) {
+            Date thisTime = this.timeRecorded();
+            Date otherTime = other.timeRecorded();
+            if (thisTime == null || otherTime == null) {
+                return 0;
+            }
+            return thisTime.compareTo(otherTime);
         }
 
         @JsonIgnore

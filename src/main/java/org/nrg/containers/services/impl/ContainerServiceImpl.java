@@ -12,11 +12,7 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SE
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SUBJECT;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -90,7 +86,6 @@ public class ContainerServiceImpl implements ContainerService {
     public static final String setupStr = "Setup";
     public static final String wrapupStr = "Wrapup";
     public static final String containerLaunchJustification = "Container launch";
-
 
     private final ContainerControlApi containerControlApi;
     private final ContainerEntityService containerEntityService;
@@ -653,7 +648,7 @@ public class ContainerServiceImpl implements ContainerService {
         // When we create the service, we don't know all the IDs. If this is the first time we
         // have seen a task for this service, we can set those IDs now.
         if (StringUtils.isBlank(event.service().taskId()) || StringUtils.isBlank(event.service().nodeId())) {
-            log.debug("Service \"{}\" has no task information yet. Setting it now.", task.serviceId());
+            log.debug("Service \"{}\" has no task and/or node information yet. Setting it now.", task.serviceId());
             final Container serviceToUpdate = event.service().toBuilder()
                     .taskId(task.taskId())
                     .containerId(task.containerId())
@@ -673,11 +668,13 @@ public class ContainerServiceImpl implements ContainerService {
 
                 //process new and waiting events (duplicate docker events are skipped)              
                 if (!(isWaiting(service) || isFinalizing(service)) &&
-                        addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
+                        (isRestarting(service) || addContainerHistoryItem(service, taskHistoryItem, userI) == null)) {
                     // We have already added this task and can safely skip it.
-                    log.debug("Skipping task status we have already seen.");
+                    log.debug("Skipping task status we have already seen: service {} task status {}",
+                            service.serviceId(), task.status());
                 } else {
-                    log.debug("Checking isExitStatus {} and service.status {}", task.isExitStatus(), service.status());
+                    log.debug("Checking service {} task.status {} task.exitCode {} task.isExitStatus {}",
+                            service.serviceId(), task.status(), task.exitCode(), task.isExitStatus());
 
                     if (task.swarmNodeError()) {
                         // Attempt to restart the service and fail the workflow if we cannot;
@@ -715,6 +712,8 @@ public class ContainerServiceImpl implements ContainerService {
         }
 
         String serviceId = service.serviceId();
+        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
+                "(likely node " + service.nodeId() + " went down or ran out of memory)";
 
         // Rebuild service, emptying ids (serviceId = null keeps it from being updated until a new service is assigned),
         // and save it to db
@@ -728,8 +727,6 @@ public class ContainerServiceImpl implements ContainerService {
         containerEntityService.update(fromPojo(service));
 
         // Log the restart history
-        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
-                "(likely node " + service.nodeId() + " went down or ran out of memory)";
         ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
                 restartMessage);
         addContainerHistoryItem(service, restartHistory, userI);
@@ -747,7 +744,7 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public boolean restartService(Container service, UserI userI) {
-        final int maxRestarts = 2;
+        final int maxRestarts = 5;
         int nrun = maxRestarts + 1;
 
         if (!service.isSwarmService()) {
@@ -755,8 +752,8 @@ public class ContainerServiceImpl implements ContainerService {
             return false;
         }
 
-        String failureMessage = "Service not found on swarm OR state='shutdown' with exit code 137 OR " +
-                "exit status of -1 or desired state='shutdown' despite apparently active current state occurred " +
+        String failureMessage = "Service not found on swarm OR state='shutdown' OR " +
+                "apparently active current state with exit status of -1 or desired state='shutdown' occurred " +
                 "in all " + nrun + " attempts)";
         // Node killed or something, try to restart
         if (service.countRestarts() < maxRestarts) {
@@ -861,6 +858,10 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public boolean isFinalizing(Container service){
     	return finalizing.equals(service.status());
+    }
+    @Override
+    public boolean isRestarting(Container service){
+        return Container.ContainerHistory.restartStatus.equals(service.status());
     }
 
     @Override

@@ -7,6 +7,7 @@ import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
@@ -155,23 +156,21 @@ public class DockerStatusUpdater   implements Runnable {
                 controlApi.throwTaskEventForService(dockerServer, service);
                 report.add(UpdateReportEntry.success(service.serviceId()));
             } catch (ServiceNotFoundException e) {
-            	if (isFinalizing(service) || isRestarting(service)){
+            	if (containerService.isFinalizing(service) || containerService.isRestarting(service)){
             		log.debug("ignoring failed service retrieval for finalizing and restarting jobs");
             		continue;
             	}
             	
-            	if (isWaiting(service)){
-            		containerService.queuedFinalize("0", true, service, Users.getAdminUser());
+            	if (containerService.isWaiting(service)){
+            		containerService.queuedFinalize(service.exitCode(),
+                            ServiceTask.isSuccessfulStatus(service.lastHistoryStatus()),
+                            service, Users.getAdminUser());
             		continue;
             	}
 
-            	boolean restarted = containerService.restartService(service, Users.getAdminUser());
-            	if (restarted) {
-                    report.add(UpdateReportEntry.success(service.serviceId()));
-                } else {
-            	    // Workflow updated within restartService to indicate failure and specifics, no need to do it here
-                    report.add(UpdateReportEntry.failure(service.serviceId(), "Unable to restart"));
-                }
+            	// Throw a restart event so that we hit the "in processing" queue in DockerServiceEventListener
+            	controlApi.throwRestartEventForService(service);
+            	report.add(UpdateReportEntry.success(service.serviceId()));
 
             } catch (DockerServerException e) {
                 log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
@@ -191,18 +190,6 @@ public class DockerStatusUpdater   implements Runnable {
         report.successful = allTrue || allFalse ? allTrue : null;
 
         return report;
-    }
-   
-    public boolean isWaiting(Container service){
-    	return ContainerServiceImpl.waiting.equals(service.status());
-    }
-    
-    public boolean isFinalizing(Container service){
-    	return ContainerServiceImpl.finalizing.equals(service.status());
-    }
-
-    public boolean isRestarting(Container service){
-        return Container.ContainerHistory.restartStatus.equals(service.status());
     }
 
     private static class UpdateReport {

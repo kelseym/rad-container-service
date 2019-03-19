@@ -87,6 +87,7 @@ public interface ContainerService {
     InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
 	boolean isWaiting(Container service);
 	boolean isFinalizing(Container service);
+	boolean isRestarting(Container service);
 	void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
     void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
 
