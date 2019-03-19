@@ -1196,6 +1196,17 @@ public class DockerControlApi implements ContainerControlApi {
         }
     }
 
+    @Override
+    public void throwRestartEventForService(final Container service) {
+        ServiceTask lastTask = service.getLastTask();
+        ServiceTask restartTask = lastTask.toBuilder()
+                .swarmNodeError(true)
+                .message(ServiceTask.swarmNodeStatusMsg) //Differentiate from when lastTask went through processEvent
+                .build();
+        final ServiceTaskEvent restartTaskEvent = ServiceTaskEvent.create(restartTask, service);
+        eventService.triggerEvent(restartTaskEvent);
+    }
+
     /**
      * Convert spotify-docker Image object to xnat-container Image object
      *

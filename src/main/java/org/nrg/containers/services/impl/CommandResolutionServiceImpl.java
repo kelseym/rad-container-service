@@ -1411,7 +1411,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private String getValueForCommandLine(final CommandInput input, final String resolvedInputValue) {
             log.debug("Resolving command-line value.");
-            if (resolvedInputValue == null) {
+            if (StringUtils.isBlank(resolvedInputValue)) {
                 log.debug("Input value is null. Using value \"\" on the command line.");
                 return "";
             }

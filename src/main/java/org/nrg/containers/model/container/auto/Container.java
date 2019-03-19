@@ -25,20 +25,10 @@ import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 import org.nrg.containers.utils.JsonDateSerializer;
 import org.nrg.containers.utils.JsonStringToDateSerializer;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonGetter;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.google.auto.value.AutoValue;
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -48,6 +38,7 @@ import java.util.Map;
 @AutoValue
 public abstract class Container {
     @JsonIgnore private String exitCode;
+    @JsonIgnore private List<ContainerHistory> sortedHist = null;
 
     @JsonProperty("id") public abstract long databaseId();
     @JsonProperty("command-id") public abstract long commandId();
@@ -88,6 +79,31 @@ public abstract class Container {
     }
 
     @JsonIgnore
+    private synchronized List<ContainerHistory> getSortedHistory() {
+        if (sortedHist == null) {
+            sortedHist = this.history().asList();
+            Collections.sort(sortedHist, Collections.reverseOrder()); //Descending order (most recent first)
+        }
+        return sortedHist;
+    }
+
+    @JsonIgnore
+    @NotNull
+    public ServiceTask getLastTask() {
+        ContainerHistory history = getSortedHistory().get(0);
+        String exitCode = history.exitCode();
+        String externalTime = history.externalTimestamp();
+        ServiceTask lastTask = ServiceTask.builder()
+                .serviceId(this.serviceId())
+                .taskId(this.taskId())
+                .status(history.status())
+                .exitCode(exitCode == null ? null : Long.parseLong(exitCode))
+                .statusTime(externalTime == null ? null : new Date(Long.parseLong(externalTime)))
+                .build();
+        return lastTask;
+    }
+
+    @JsonIgnore
     @Nullable
     public String exitCode() {
         if (exitCode == null) {
@@ -96,7 +112,7 @@ public abstract class Container {
             //      did not contain an "exitCode" key
             // "0": success
             // "1" to "255": failure
-            for (final ContainerHistory history : this.history()) {
+            for (final ContainerHistory history : getSortedHistory()) {
                 if (history.exitCode() != null) {
                     exitCode = history.exitCode();
                     break;
@@ -104,6 +120,12 @@ public abstract class Container {
             }
         }
         return exitCode;
+    }
+
+    @JsonIgnore
+    @Nullable
+    public String lastHistoryStatus() {
+        return getSortedHistory().get(0).status();
     }
 
     @JsonIgnore
@@ -803,7 +825,7 @@ public abstract class Container {
     }
 
     @AutoValue
-    public static abstract class ContainerHistory {
+    public static abstract class ContainerHistory implements Comparable<ContainerHistory> {
         @Nullable @JsonProperty("id") public abstract Long databaseId();
         @JsonProperty("status") public abstract String status();
         @JsonProperty("entity-type") public abstract String entityType();
@@ -902,6 +924,16 @@ public abstract class Container {
                     .externalTimestamp(task.statusTime() == null ? null : String.valueOf(task.statusTime().getTime()))
                     .message(message)
                     .build();
+        }
+
+        @Override
+        public int compareTo(@NotNull ContainerHistory other) {
+            Date thisTime = this.timeRecorded();
+            Date otherTime = other.timeRecorded();
+            if (thisTime == null || otherTime == null) {
+                return 0;
+            }
+            return thisTime.compareTo(otherTime);
         }
 
         @JsonIgnore
