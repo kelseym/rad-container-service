@@ -668,7 +668,7 @@ public class ContainerServiceImpl implements ContainerService {
 
                 //process new and waiting events (duplicate docker events are skipped)              
                 if (!(isWaiting(service) || isFinalizing(service)) &&
-                        (isRestarting(service) || addContainerHistoryItem(service, taskHistoryItem, userI) == null)) {
+                        addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
                     // We have already added this task and can safely skip it.
                     log.debug("Skipping task status we have already seen: service {} task status {}",
                             service.serviceId(), task.status());
@@ -873,8 +873,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     public void finalize(final Container container, final UserI userI)
             throws ContainerException, DockerServerException, NoDockerServerException {
-        String status = container.status();
-        // Seems that container status doesn't remain in these states, but perhaps it would if it still needed to be finalized?
+        String status = container.lastHistoryStatus();
         boolean isSuccessfulStatus = container.isSwarmService() ?
                 ServiceTask.isSuccessfulStatus(status) :
                 DockerContainerEvent.isSuccessfulStatus(status);
