@@ -28,7 +28,7 @@ public abstract class ServiceTask {
     public abstract String serviceId();
     public abstract String taskId();
     @Nullable public abstract String nodeId();
-    public abstract Boolean badState();
+    public abstract Boolean swarmNodeError();
     public abstract String status();
     @Nullable public abstract Date statusTime();
     @Nullable public abstract String containerId();
@@ -39,15 +39,19 @@ public abstract class ServiceTask {
     public static ServiceTask create(final @Nonnull Task task, final String serviceId) {
         final ContainerStatus containerStatus = task.status().containerStatus();
         Long exitCode = containerStatus == null ? null : containerStatus.exitCode();
-        // Bad state occurs when node is terminated while service still trying to run there
-        boolean badState = !isExitStatus(task.status().state()) &&
-                (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0));
+        // swarmNodeError occurs when node is terminated / spot instance lost while service still trying to run on it
+        // Criteria:    current state = [not an exit status] AND either desired state = shutdown OR exit code = -1
+        //              OR current state = shutdown and exit code = 137
+        String curState = task.status().state();
+        boolean swarmNodeError = (!isExitStatus(curState) &&
+                (task.desiredState().equals(TaskStatus.TASK_STATE_SHUTDOWN) || (exitCode != null && exitCode < 0))) ||
+                curState.equals(TaskStatus.TASK_STATE_SHUTDOWN) && exitCode != null && exitCode.equals(137L);
         return ServiceTask.builder()
                 .serviceId(serviceId)
                 .taskId(task.id())
                 .nodeId(task.nodeId())
                 .status(task.status().state())
-                .badState(badState)
+                .swarmNodeError(swarmNodeError)
                 .statusTime(task.status().timestamp())
                 .message(task.status().message())
                 .err(task.status().err())
@@ -92,7 +96,7 @@ public abstract class ServiceTask {
         public abstract Builder containerId(final String containerId);
         public abstract Builder nodeId(final String nodeId);
         public abstract Builder status(final String status);
-        public abstract Builder badState(final Boolean badState);
+        public abstract Builder swarmNodeError(final Boolean swarmNodeError);
         public abstract Builder statusTime(final Date statusTime);
         public abstract Builder message(final String message);
         public abstract Builder err(final String err);

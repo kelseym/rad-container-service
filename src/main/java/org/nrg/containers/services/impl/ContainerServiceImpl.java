@@ -53,6 +53,7 @@ import org.nrg.containers.model.container.entity.ContainerEntityHistory;
 import org.nrg.containers.model.xnat.Scan;
 import org.nrg.containers.model.xnat.XnatModelObject;
 import org.nrg.containers.services.*;
+import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
@@ -411,8 +412,9 @@ public class ContainerServiceImpl implements ContainerService {
             }
         } catch (Exception e) {
             if (workflow != null) {
-                String failedStatus = "Failed (staging consume: " + e.getMessage() + ")";
+                String failedStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
                 workflow.setStatus(failedStatus);
+                workflow.setDetails(e.getMessage());
                 try {
                     WorkflowUtils.save(workflow, workflow.buildEvent());
                 } catch (Exception we) {
@@ -644,14 +646,13 @@ public class ContainerServiceImpl implements ContainerService {
     public void processEvent(final ServiceTaskEvent event) {
         ServiceTask task = event.task();
         final Container service;
-        final int maxRestarts = 1;
 
 	    log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
 	           task.taskId(), task.serviceId());
 
         // When we create the service, we don't know all the IDs. If this is the first time we
         // have seen a task for this service, we can set those IDs now.
-        if (StringUtils.isBlank(event.service().taskId())) {
+        if (StringUtils.isBlank(event.service().taskId()) || StringUtils.isBlank(event.service().nodeId())) {
             log.debug("Service \"{}\" has no task information yet. Setting it now.", task.serviceId());
             final Container serviceToUpdate = event.service().toBuilder()
                     .taskId(task.taskId())
@@ -669,7 +670,7 @@ public class ContainerServiceImpl implements ContainerService {
             try {
                 final UserI userI = Users.getUser(userLogin);
                 final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
-                
+
                 //process new and waiting events (duplicate docker events are skipped)              
                 if (!(isWaiting(service) || isFinalizing(service)) &&
                         addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
@@ -678,28 +679,11 @@ public class ContainerServiceImpl implements ContainerService {
                 } else {
                     log.debug("Checking isExitStatus {} and service.status {}", task.isExitStatus(), service.status());
 
-                	if (task.badState()) {
-                        String failureMessage = "Bad state (exit status of -1 or desired state='shutdown' despite " +
-                                "apparently active current state) occurred in all " + maxRestarts+1 + " runs)";
-                	    // Node killed or something, try to restart
-                        if (service.countRestarts() < maxRestarts) {
-                            try {
-                                restartService(service, task, userI);
-                                return;
-                            } catch (Exception e) {
-                                log.error("Unable to restart service {}, proceed with finalizing", service.serviceId(), e);
-                                failureMessage = "Unable to restart for bad state";
-                            }
-                        }
-                        // Already restarted or unable to restart, fail it and finalize
-                        task = task.toBuilder()
-                                .status(TaskStatus.TASK_STATE_FAILED)
-                                .exitCode(125L) // Docker code for "Docker run itself fails"
-                                .message(StringUtils.isNotBlank(task.message()) ? task.message() : "Bad state")
-                                .err(StringUtils.isNotBlank(task.err()) ? task.err() : failureMessage)
-                                .build();
-                        ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
-                        addContainerHistoryItem(service, newHistoryItem, userI);
+                    if (task.swarmNodeError()) {
+                        // Attempt to restart the service and fail the workflow if we cannot;
+                        // either way, don't proceed to finalize.
+                        restartService(service, userI);
+                        return;
                     }
 
                     if (task.isExitStatus() || isWaiting(service)) {
@@ -710,37 +694,30 @@ public class ContainerServiceImpl implements ContainerService {
                         //Hence limit the number of finalizations with queue
                     	queuedFinalize(exitCodeString, task.isSuccessfulStatus(), serviceWithAddedEvent, userI);
                     } else {
-                        log.debug("Docker event has not exited yet" + service.serviceId() + " Workflow: " +
-                                service.workflowId() + service.status());
+                        log.debug("Docker event has not exited yet. Service: {} Workflow: {} Status: {}",
+                                service.serviceId(), service.workflowId(), service.status());
                     }
 
                 }
             } catch (UserInitException | UserNotFoundException e) {
-                log.error("Could not update container status. Could not get user details for user " + userLogin, e);
+                log.error("Could not update container status. Could not get user details for user {}", userLogin, e);
             }
         }
 
-        log.debug("Done processing service task event: " + event);
+        log.debug("Done processing service task event: {}", event);
     }
 
-    private void restartService(Container service, ServiceTask prevTask, UserI userI)
+    private void doRestart(Container service, UserI userI)
             throws DockerServerException, NoDockerServerException, ContainerException {
 
-        try {
-            // Kill it if it's still running
-            containerControlApi.killService(service.serviceId());
-        } catch (NotFoundException e) {
-            // Ideally it's already gone
+        if (!service.isSwarmService()) {
+            throw new ContainerException("Cannot restart non-swarm container");
         }
 
-        // Log the restart history
-        String restartMessage = "Restarting serviceId: "+ service.serviceId() + " due to bad state (like node: " +
-                service.nodeId() + " went down)";
-        ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
-                restartMessage);
-        addContainerHistoryItem(service, restartHistory, userI);
+        String serviceId = service.serviceId();
 
-        // Rebuild service, emptying ids (not sure if this is needed, but...), and save it to db
+        // Rebuild service, emptying ids (serviceId = null keeps it from being updated until a new service is assigned),
+        // and save it to db
         service = service.toBuilder()
                 .serviceId(null)
                 .taskId(null)
@@ -750,14 +727,72 @@ public class ContainerServiceImpl implements ContainerService {
                 .build();
         containerEntityService.update(fromPojo(service));
 
+        // Log the restart history
+        String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
+                "(likely node " + service.nodeId() + " went down or ran out of memory)";
+        ContainerHistory restartHistory = ContainerHistory.fromSystem(ContainerHistory.restartStatus,
+                restartMessage);
+        addContainerHistoryItem(service, restartHistory, userI);
+
+        // Kill it if it's still running
+        try {
+            containerControlApi.killService(serviceId);
+        } catch (DockerServerException | NotFoundException e) {
+            // It may already be gone
+        }
+
         // Relaunch container in new service
         launchContainerFromDbObject(service, userI, true);
     }
 
     @Override
-	public void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service,
+    public boolean restartService(Container service, UserI userI) {
+        final int maxRestarts = 2;
+
+        if (!service.isSwarmService()) {
+            // Refuse to restart a non-swarm container
+            return false;
+        }
+
+        String failureMessage = "Service not found on swarm OR state='shutdown' with exit code 137 OR " +
+                "exit status of -1 or desired state='shutdown' despite apparently active current state occurred " +
+                "in all " + maxRestarts+1 + " runs)";
+        // Node killed or something, try to restart
+        if (service.countRestarts() < maxRestarts) {
+            try {
+                doRestart(service, userI);
+                return true;
+            } catch (Exception e) {
+                log.error("Unable to restart service {}", service.serviceId(), e);
+                failureMessage = "Unable to restart";
+            }
+        }
+
+        // Already restarted or unable to restart, fail it
+        ServiceTask task = ServiceTask.builder()
+                .serviceId(service.serviceId())
+                .status(TaskStatus.TASK_STATE_FAILED)
+                .exitCode(126L) // Docker code for "the contained command cannot be invoked"
+                .message("Swarm node error")
+                .err(failureMessage)
+                .statusTime(new Date())
+                .taskId("")
+                .swarmNodeError(true)
+                .build();
+        ContainerHistory newHistoryItem = ContainerHistory.fromServiceTask(task);
+        addContainerHistoryItem(service, newHistoryItem, userI);
+
+        // Update workflow again so we get the "Failed (Swarm)" status
+        ContainerUtils.updateWorkflowStatus(service.workflowId(), PersistentWorkflowUtils.FAILED + " (Swarm)",
+                userI, newHistoryItem.message());
+
+        return false;
+    }
+
+    @Override
+	public void queuedFinalize(final String exitCodeString, final boolean isSuccessfulStatus, final Container service,
                                final UserI userI) {
-		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString, isSuccessful,
+		ContainerFinalizeRequest request = new ContainerFinalizeRequest(exitCodeString, isSuccessfulStatus,
                 service.serviceId(), userI.getLogin());
 		int count = QueueUtils.count(request.getDestination());
 
@@ -782,7 +817,7 @@ public class ContainerServiceImpl implements ContainerService {
 	}
 	
     @Override
-	public void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI) {
+	public void consumeFinalize(final String exitCodeString, final boolean isSuccessfulStatus, final Container service, final UserI userI) {
 		//Reduce load on the XNAT Server wrt to refreshCatalog like tasks possibly blocking finalization
     	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
 		if (countOfContainersBeingFinalized < containerControlApi.getContainerFinalizationPoolLimit()) {
@@ -796,7 +831,7 @@ public class ContainerServiceImpl implements ContainerService {
 		        @Override
 		        public void run() {
 		        	try {
-		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessful);
+		        		ContainerServiceImpl.this.finalize(serviceWithAddedEvent, userI, exitCodeString, isSuccessfulStatus);
 		            } catch (ContainerException | NoDockerServerException | DockerServerException e) {
 		                log.error("Container finalization failed.", e);
 		            }
@@ -1058,7 +1093,8 @@ public class ContainerServiceImpl implements ContainerService {
 
     private String kill(final Container container, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException {
-        addContainerHistoryItem(container, ContainerHistory.fromUserAction("Killed", userI.getLogin()), userI);
+        addContainerHistoryItem(container, ContainerHistory.fromUserAction(ContainerEntity.KILL_STATUS,
+                userI.getLogin()), userI);
 
         String containerDockerId;
         if(container.isSwarmService()){
@@ -1169,7 +1205,7 @@ public class ContainerServiceImpl implements ContainerService {
         try {
         	workflow.setStatus(PersistentWorkflowUtils.FAILED);
         	WorkflowUtils.save(workflow, workflow.buildEvent());
-        }catch(Exception e) {
+        } catch(Exception e) {
         	log.error("Unable to update workflow and set it to FAILED status", e);
         }
     }
@@ -1177,15 +1213,15 @@ public class ContainerServiceImpl implements ContainerService {
     private void handleFailure(PersistentWorkflowI workflow, final Exception source) {
         try {
         	workflow.setDetails(source.getMessage());
-        	if(source instanceof DockerServerException){
+        	if (source instanceof DockerServerException) {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Service)");
-        	}else if(source instanceof ContainerException){
+        	} else if (source instanceof ContainerException) {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Container)");
-        	}else{
+        	} else {
             	workflow.setStatus(PersistentWorkflowUtils.FAILED);
         	}
         	WorkflowUtils.save(workflow, workflow.buildEvent());
-        }catch(Exception e) {
+        } catch(Exception e) {
         	log.error("Unable to update workflow and set it to FAILED status", e);
         }
     }

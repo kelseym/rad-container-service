@@ -89,4 +89,12 @@ public interface ContainerService {
 	boolean isFinalizing(Container service);
 	void queuedFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
     void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
+
+    /**
+     * Restart a service through swarm
+     * @param service the service to restart
+     * @param user the user
+     * @return true is successfully restarted, false otherwise
+     */
+    boolean restartService(Container service, UserI user);
 }
