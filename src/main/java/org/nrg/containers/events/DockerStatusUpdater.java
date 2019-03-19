@@ -57,10 +57,8 @@ public class DockerStatusUpdater   implements Runnable {
     @Override
     public void run() {
 		if(!xnatAppInfo.isPrimaryNode()) {
-			log.trace("Not the Primary node: skipping update status with docker.");
 	        return;
     	}
-        log.trace("Primary node: Attempting to update status with docker.");
 
         final String skipMessage = "Skipping attempt to update status.";
 

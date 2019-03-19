@@ -1561,6 +1561,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     try {
                         newModelObject = uriToModelObject.apply((ArchiveItemURI) uri);
                     } catch (Throwable e) {
+                    	log.error("",e);
                         final String message = String.format("Could not instantiate %s with URI %s.", modelName, value);
                         log.error(message);
                         throw new CommandInputResolutionException(message, value);
