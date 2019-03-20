@@ -6,10 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
@@ -81,8 +78,7 @@ public abstract class Container {
     @JsonIgnore
     private synchronized List<ContainerHistory> getSortedHistory() {
         if (sortedHist == null) {
-            sortedHist = this.history().asList();
-            Collections.sort(sortedHist, Collections.reverseOrder()); //Descending order (most recent first)
+            sortedHist = Ordering.natural().reverse().sortedCopy(this.history()); //Descending order (most recent first)
         }
         return sortedHist;
     }
@@ -93,14 +89,13 @@ public abstract class Container {
         ContainerHistory history = getSortedHistory().get(0);
         String exitCode = history.exitCode();
         String externalTime = history.externalTimestamp();
-        ServiceTask lastTask = ServiceTask.builder()
+        return ServiceTask.builder()
                 .serviceId(this.serviceId())
                 .taskId(this.taskId())
                 .status(history.status())
                 .exitCode(exitCode == null ? null : Long.parseLong(exitCode))
                 .statusTime(externalTime == null ? null : new Date(Long.parseLong(externalTime)))
                 .build();
-        return lastTask;
     }
 
     @JsonIgnore
