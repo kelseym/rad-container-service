@@ -50,13 +50,6 @@ public class QueueConsumerTestConfig {
     Control API and dependencies + Events
      */
     @Bean
-    public DockerControlApi spyDockerControlApi(final DockerServerService dockerServerService,
-                                             final CommandLabelService commandLabelService,
-                                             final NrgEventService eventService) {
-        return Mockito.spy(new DockerControlApi(dockerServerService, commandLabelService, eventService));
-    }
-
-    @Bean
     public DockerServerService dockerServerService(final DockerServerEntityService dockerServerEntityService) {
         return new DockerServerServiceImpl(dockerServerEntityService);
     }
@@ -133,8 +126,8 @@ public class QueueConsumerTestConfig {
     }
 
     @Bean
-    public ContainerService containerService(final ContainerControlApi containerControlApi,
-                                             final ContainerEntityService containerEntityService,
+    public ContainerService containerService(final DockerControlApi mockDockerControlApi,
+                                             final ContainerEntityService mockContainerEntityService,
                                              final CommandResolutionService commandResolutionService,
                                              final CommandService mockCommandService,
                                              final AliasTokenService aliasTokenService,
@@ -142,9 +135,22 @@ public class QueueConsumerTestConfig {
                                              final ContainerFinalizeService containerFinalizeService,
                                              final ThreadPoolExecutorFactoryBean executorFactoryBean,
                                              @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
-        return new ContainerServiceImpl(containerControlApi, containerEntityService,
+        return new ContainerServiceImpl(mockDockerControlApi, mockContainerEntityService,
                 commandResolutionService, mockCommandService, aliasTokenService, siteConfigPreferences,
                 containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
+    }
+
+    @Bean
+    public DockerControlApi mockDockerControlApi(final DockerServerService dockerServerService,
+                                                 final CommandLabelService commandLabelService,
+                                                 final NrgEventService eventService) {
+        //return Mockito.spy(new DockerControlApi(dockerServerService, commandLabelService, eventService));
+        return Mockito.mock(DockerControlApi.class);
+    }
+
+    @Bean
+    public ContainerEntityService mockContainerEntityService() {
+        return Mockito.mock(ContainerEntityService.class);
     }
 
     @Bean

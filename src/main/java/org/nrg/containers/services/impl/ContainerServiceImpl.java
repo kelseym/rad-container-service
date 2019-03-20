@@ -26,10 +26,7 @@ import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
-import org.nrg.containers.exceptions.ContainerException;
-import org.nrg.containers.exceptions.ContainerFinalizationException;
-import org.nrg.containers.exceptions.DockerServerException;
-import org.nrg.containers.exceptions.NoDockerServerException;
+import org.nrg.containers.exceptions.*;
 import org.nrg.containers.jms.requests.ContainerFinalizeRequest;
 import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.jms.utils.QueueUtils;
@@ -338,33 +335,39 @@ public class ContainerServiceImpl implements ContainerService {
 
         // Workflow shouldn't be null unless container launched without a root element
         // (I think the only way to do so would be through the REST API)
-        String workflowid = null;
-        String status = null;
-        if (workflow != null) {
-            workflowid = workflow.getWorkflowId().toString();
-            status = workflow.getStatus();
-        }
+        String workflowid = workflow != null ? workflow.getWorkflowId().toString() : null;
+
+        //String workflowid = null;
+        //String status = null;
+        //if (workflow != null) {
+        //    workflowid = workflow.getWorkflowId().toString();
+        //    status = workflow.getStatus();
+        //}
 
         ContainerStagingRequest request = new ContainerStagingRequest(project, wrapperId, commandId, wrapperName,
                 inputValues, userI.getLogin(), workflowid);
 
+        // Update: don't use JMS indicator for staging queue since staging tasks are added to the JMS queue manually
+        //
         // Workflow will only retain the JMS indicator for command resolution, once launching process begins, status is
         // updated without JMS indicator. This is probably okay since staging tasks are added to the JMS queue manually
         // upon launch, rather than automatically by an event.
-        if (status != null && request.inJMSQueue(status)) {
-            log.debug("{} appears to already be in JMS queue", workflowid);
-            // Throw exception?
-            return;
-        }
+        //if (status != null && request.inJMSQueue(status)) {
+        //    log.debug("{} appears to already be in JMS queue", workflowid);
+        //    // Throw exception?
+        //    return;
+        //}
+        //
+        //if (workflow != null) {
+        //    workflow.setStatus(request.makeJMSQueuedStatus(status));
+        //    WorkflowUtils.save(workflow, workflow.buildEvent());
+        //}
 
         log.debug("Adding to staging queue: wfid {}, username {}",
                 request.getWorkflowid(), request.getUsername());
-        if (workflow != null) {
-            workflow.setStatus(request.makeJMSQueuedStatus(status));
-            WorkflowUtils.save(workflow, workflow.buildEvent());
-        }
         XDAT.sendJmsRequest(request);
     }
+
 
     @Override
     public void consumeResolveCommandAndLaunchContainer(@Nullable final String project,
@@ -401,25 +404,16 @@ public class ContainerServiceImpl implements ContainerService {
                 CommandWrapper wrapper = configuredCommand.wrapper();
                 log.info("Launched command {}, wrapper {} {}. Produced container {}.", configuredCommand.id(),
                         wrapper.id(), wrapper.name(), container.databaseId());
-                if (log.isDebugEnabled()) {
-                    log.debug("" + container);
-                }
+                log.debug("{}", container);
             }
-        } catch (Exception e) {
-            if (workflow != null) {
-                String failedStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
-                workflow.setStatus(failedStatus);
-                workflow.setDetails(e.getMessage());
-                try {
-                    WorkflowUtils.save(workflow, workflow.buildEvent());
-                } catch (Exception we) {
-                    log.error("Unable to set workflow status to {} for wfid={}", failedStatus, workflowid, we);
-                }
-            }
+        } catch (NotFoundException | CommandResolutionException | UnauthorizedException e) {
+            handleFailure(workflow, e, "Command resolution");
             log.error("Container command resolution failed.", e);
+        } catch (NoDockerServerException | DockerServerException | ContainerException | UnsupportedOperationException e) {
+            handleFailure(workflow, e, "Container launch");
+            log.error("Container launch failed.", e);
         }
     }
-
 
     @Override
     @Nonnull
@@ -429,7 +423,6 @@ public class ContainerServiceImpl implements ContainerService {
             throws NoDockerServerException, DockerServerException, ContainerException, UnsupportedOperationException {
         return launchResolvedCommand(resolvedCommand, userI, workflow,null);
     }
-
 
     @Nonnull
     private Container launchResolvedCommand(final ResolvedCommand resolvedCommand,
@@ -509,8 +502,8 @@ public class ContainerServiceImpl implements ContainerService {
 	        }
 	
 	        return savedContainerOrService;
-        } catch(Exception e) {
-        	handleFailure(workflow,e);
+        } catch (Exception e) {
+        	handleFailure(workflow, e);
         	throw e;
         }
     }
@@ -1198,28 +1191,41 @@ public class ContainerServiceImpl implements ContainerService {
     	}
     }
     
-    private void handleFailure(PersistentWorkflowI workflow) {
-        try {
-        	workflow.setStatus(PersistentWorkflowUtils.FAILED);
-        	WorkflowUtils.save(workflow, workflow.buildEvent());
-        } catch(Exception e) {
-        	log.error("Unable to update workflow and set it to FAILED status", e);
-        }
+    private void handleFailure(@Nullable PersistentWorkflowI workflow) {
+        handleFailure(workflow, null, null);
     }
-    
-    private void handleFailure(PersistentWorkflowI workflow, final Exception source) {
+
+    private void handleFailure(@Nullable PersistentWorkflowI workflow, @Nullable final Exception source) {
+        handleFailure(workflow, source, null);
+    }
+
+    /**
+     * Updates workflow status to Failed based on the exception if provided, appends ' (statusSuffix)' if provided or
+     * discernible from exception class
+     * @param workflow the workflow
+     * @param source the exception source
+     * @param statusSuffix optional suffix (will try to determine from exception class if not provided)
+     */
+    private void handleFailure(@Nullable PersistentWorkflowI workflow, @Nullable final Exception source,
+                               @Nullable String statusSuffix) {
+        if (workflow == null) return;
+
+        String details = "";
+        if (source != null) {
+            statusSuffix = StringUtils.defaultIfBlank(statusSuffix,
+                    source.getClass().getName().replace("Exception$", ""));
+            details = StringUtils.defaultString(source.getMessage());
+        }
+        statusSuffix = StringUtils.isNotBlank(statusSuffix) ?  " (" + statusSuffix + ")" : "";
+
+        String status = PersistentWorkflowUtils.FAILED + statusSuffix;
+
         try {
-        	workflow.setDetails(source.getMessage());
-        	if (source instanceof DockerServerException) {
-            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Service)");
-        	} else if (source instanceof ContainerException) {
-            	workflow.setStatus(PersistentWorkflowUtils.FAILED + " (Container)");
-        	} else {
-            	workflow.setStatus(PersistentWorkflowUtils.FAILED);
-        	}
+            workflow.setStatus(status);
+            workflow.setDetails(details);
         	WorkflowUtils.save(workflow, workflow.buildEvent());
         } catch(Exception e) {
-        	log.error("Unable to update workflow and set it to FAILED status", e);
+        	log.error("Unable to update workflow {} and set it to {} status", workflow.getWorkflowId(), status, e);
         }
     }
 

@@ -1,11 +1,14 @@
 package org.nrg.containers.model.xnat;
 
+import org.mockito.Mockito;
 import org.nrg.xft.event.EventMetaI;
 import org.nrg.xft.event.EventUtils;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 
 import java.util.Date;
+
+import static org.mockito.Mockito.when;
 
 public class FakeWorkflow implements PersistentWorkflowI {
 
@@ -20,6 +23,7 @@ public class FakeWorkflow implements PersistentWorkflowI {
      */
 
     private int wfid = 123456;
+    public static int eventId = 1;
     private String details;
     private String comments;
     private String justification;
@@ -293,7 +297,9 @@ public class FakeWorkflow implements PersistentWorkflowI {
     }
 
     public EventMetaI buildEvent() {
-        return null;
+        EventMetaI event = Mockito.mock(EventMetaI.class);
+        when(event.getEventId()).thenReturn(eventId);
+        return event;
     }
 
     public boolean save(UserI user, boolean overrideSecurity, boolean allowItemRemoval, EventMetaI c) throws Exception {

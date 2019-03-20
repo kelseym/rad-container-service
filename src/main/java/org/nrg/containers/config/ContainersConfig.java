@@ -43,19 +43,15 @@ import com.fasterxml.jackson.datatype.guava.GuavaModule;
 @Import({RootConfig.class})
 public class ContainersConfig {
 
-	public static final int MAX_FINALIZING_LIMIT = 5;
-
 	@Bean
 	public ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean() {
-		//return new ThreadPoolExecutorFactoryBean();
-		ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
-		tBean.setCorePoolSize(MAX_FINALIZING_LIMIT);
-		tBean.setThreadNamePrefix("container-finalizing-");
-		return tBean;
+	    final int nthread = 5;
+	    ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
+	    tBean.setCorePoolSize(nthread);
+	    tBean.setThreadNamePrefix("container-threadpool-");
+	    return tBean;
 	}
-	
 
-	
 	@Bean
  	public DefaultJmsListenerContainerFactory containerListenerContainerFactory( @Qualifier("springConnectionFactory")
                                                                                  ConnectionFactory connectionFactory ) {

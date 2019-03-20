@@ -22,9 +22,13 @@ import org.mockito.Mockito;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.QueueConsumerTestConfig;
 import org.nrg.containers.exceptions.CommandResolutionException;
+import org.nrg.containers.exceptions.ContainerException;
+import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
+import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.*;
@@ -95,48 +99,22 @@ public class QueueConsumerTest {
     private final String INPUT_VALUE = "the super cool value";
     private final String REAL_IMAGE = "busybox:latest";
 
-    private final boolean swarmMode = false;
-
-    private final List<String> containersToCleanUp = new ArrayList<>();
-    private final List<String> imagesToCleanUp = new ArrayList<>();
-
-    private static DockerClient CLIENT;
-
     @Autowired private CommandService mockCommandService;
+    @Autowired private ContainerEntityService mockContainerEntityService;
     @Autowired private CommandResolutionService mockCommandResolutionService;
     @Autowired private ContainerService containerService;
-    @Autowired private DockerControlApi spyDockerControlApi;
+    @Autowired private DockerControlApi mockDockerControlApi;
     @Autowired private AliasTokenService mockAliasTokenService;
     @Autowired private DockerServerService dockerServerService;
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private UserManagementServiceI mockUserManagementServiceI;
     @Autowired private PermissionsServiceI mockPermissionsServiceI;
 
-    @Rule public TemporaryFolder folder = new TemporaryFolder(new File(System.getProperty("user.dir") + "/build"));
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder(new File(System.getProperty("user.dir") + "/build"));
 
     @Before
     public void setup() throws Exception {
-        Configuration.setDefaults(new Configuration.Defaults() {
-
-            private final JsonProvider jsonProvider = new JacksonJsonProvider();
-            private final MappingProvider mappingProvider = new JacksonMappingProvider();
-
-            @Override
-            public JsonProvider jsonProvider() {
-                return jsonProvider;
-            }
-
-            @Override
-            public MappingProvider mappingProvider() {
-                return mappingProvider;
-            }
-
-            @Override
-            public Set<Option> options() {
-                return Sets.newHashSet(Option.DEFAULT_PATH_LEAF_TO_NULL);
-            }
-        });
-
         // Mock out the prefs bean
         final String defaultHost = "unix:///var/run/docker.sock";
         final String hostEnv = System.getenv("DOCKER_HOST");
@@ -226,9 +204,6 @@ public class QueueConsumerTest {
                 mockUser
         )).thenReturn(RESOLVED_COMMAND);
 
-        CLIENT = spyDockerControlApi.getClient();
-        CLIENT.pull(REAL_IMAGE);
-
         // Use powermock to mock out the static method XFTManager.isInitialized()
         mockStatic(XFTManager.class);
         when(XFTManager.isInitialized()).thenReturn(true);
@@ -243,21 +218,6 @@ public class QueueConsumerTest {
     @After
     public void cleanup() throws Exception {
         fakeWorkflow = new FakeWorkflow();
-        for (final String containerToCleanUp : containersToCleanUp) {
-            if (swarmMode) {
-                CLIENT.removeService(containerToCleanUp);
-            } else {
-                CLIENT.removeContainer(containerToCleanUp, DockerClient.RemoveContainerParam.forceKill());
-            }
-        }
-        containersToCleanUp.clear();
-
-        for (final String imageToCleanUp : imagesToCleanUp) {
-            CLIENT.removeImage(imageToCleanUp, true, false);
-        }
-        imagesToCleanUp.clear();
-
-        CLIENT.close();
     }
 
     @Test
@@ -274,7 +234,7 @@ public class QueueConsumerTest {
                 eq(mockUser)
         )).thenThrow(new CommandResolutionException(exceptionMessage));
 
-        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
+        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Command resolution)";
         containerService.consumeResolveCommandAndLaunchContainer(null, WRAPPER_ID, 0L,
                 null, input, mockUser, fakeWorkflow.getWorkflowId().toString());
         assertThat(fakeWorkflow.getStatus(), is(expectedWorkflowStatus));
@@ -285,17 +245,15 @@ public class QueueConsumerTest {
     @DirtiesContext
     public void testContainerLaunchException() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
-        // For some reason, this can't throw a checked exception, despite createContainerOrSwarmService
-        // supposedly throwing NoDockerServerException, DockerServerException, ContainerException
         final String exceptionMessage = "uh oh - issue launching container!";
-        when(spyDockerControlApi.createContainerOrSwarmService(RESOLVED_COMMAND, mockUser))
-                .thenThrow(new RuntimeException(exceptionMessage));
+        when(mockDockerControlApi.createContainerOrSwarmService(any(ResolvedCommand.class), eq(mockUser)))
+                .thenThrow(new ContainerException(exceptionMessage));
 
-        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
+        final String expectedWorkflowStatus = PersistentWorkflowUtils.FAILED + " (Container launch)";
         containerService.consumeResolveCommandAndLaunchContainer(null, WRAPPER_ID, 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow.getWorkflowId().toString());
         assertThat(fakeWorkflow.getStatus(), is(expectedWorkflowStatus));
         assertThat(fakeWorkflow.getDetails(), is(exceptionMessage));
     }
+
 }
