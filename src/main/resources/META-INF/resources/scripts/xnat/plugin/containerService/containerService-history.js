@@ -462,7 +462,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
         for (var key in historyEntry) {
             var val = historyEntry[key], formattedVal = '';
-            if (Array.isArray(val)) {
+            if (Array.isArray(val) && key!="log-paths") {
                 var items = [];
                 var uniqueKeys=[];
                 val.forEach(function (item) {
@@ -563,7 +563,9 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             width: 800,
             scroll: true,
             content: pheTable.table,
-            buttons: historyDialogButtons
+            buttons: historyDialogButtons,
+            header: true,
+            maxBtn: true
         });
     };
 
