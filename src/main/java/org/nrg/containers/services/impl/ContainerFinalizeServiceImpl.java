@@ -143,10 +143,12 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             String xnatId = null;
             String project = null;
             String pipeline_name = null;
+            Integer eventId = null;
             if (wrkFlow != null) {
                 xnatId = wrkFlow.getId();
                 project   = wrkFlow.getExternalid();
                 pipeline_name = wrkFlow.getPipelineName();
+                eventId = wrkFlow.buildEvent().getEventId().intValue();
                 try {
                 	XnatExperimentdata exp = XnatExperimentdata.getXnatExperimentdatasById(xnatId, userI, false);
                 	if (exp != null){
@@ -172,7 +174,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     outputMounts.put(mountOut.name(), mountOut);
                 }
 
-                final OutputsAndExceptions outputsAndExceptions = uploadOutputs();
+                final OutputsAndExceptions outputsAndExceptions = uploadOutputs(eventId);
                 final List<Exception> failedRequiredOutputs = outputsAndExceptions.exceptions;
                 status = PersistentWorkflowUtils.COMPLETE;
                 Date statusTime = new Date();
@@ -351,14 +353,14 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             return null;
         }
 
-        private OutputsAndExceptions uploadOutputs() {
+        private OutputsAndExceptions uploadOutputs(@Nullable Integer uploadEventId) {
             log.info(prefix + "Uploading outputs.");
 
             final List<ContainerOutput> outputs = Lists.newArrayList();
             final List<Exception> exceptions = Lists.newArrayList();
             for (final ContainerOutput nonUploadedOuput: toFinalize.outputs()) {
                 try {
-                    outputs.add(uploadOutput(nonUploadedOuput));
+                    outputs.add(uploadOutput(nonUploadedOuput, uploadEventId));
                 } catch (UnauthorizedException | ContainerException | RuntimeException e) {
                     log.error("Cannot upload files for command output " + nonUploadedOuput.name(), e);
                     if (nonUploadedOuput.required()) {
@@ -372,7 +374,8 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
             return new OutputsAndExceptions(outputs, exceptions);
         }
 
-        private ContainerOutput uploadOutput(final ContainerOutput output) throws ContainerException, UnauthorizedException {
+        private ContainerOutput uploadOutput(final ContainerOutput output, @Nullable Integer uploadEventId)
+                throws ContainerException, UnauthorizedException {
             log.info(prefix + "Uploading output \"{}\".", output.name());
             log.debug("{}", output);
 
@@ -450,7 +453,8 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         throw new UnauthorizedException(message);
                     }
 
-                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload, true, label, null, output.format(), null);
+                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload,
+                            uploadEventId, true, label, null, output.format(), null);
                     createdUri = UriParserUtils.getArchiveUri(resourcecatalog);
                     if (StringUtils.isBlank(createdUri)) {
                         createdUri = parentUri + "/resources/" + resourcecatalog.getLabel();
