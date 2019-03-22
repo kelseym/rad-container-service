@@ -26,12 +26,8 @@ import org.hamcrest.Matchers;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
-import org.nrg.containers.jms.listeners.ContainerStagingRequestListener;
-import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.container.auto.Container;
@@ -42,17 +38,18 @@ import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.*;
 import org.nrg.containers.utils.TestingUtils;
 import org.nrg.framework.exceptions.NotFoundException;
-import org.nrg.xdat.XDAT;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
-import org.nrg.xdat.security.helpers.Permissions;
 import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.ItemI;
+import org.nrg.xft.XFTItem;
+import org.nrg.xft.event.EventDetails;
 import org.nrg.xft.event.EventMetaI;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
@@ -73,7 +70,6 @@ import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Nullable;
-import javax.jms.ConnectionFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -81,7 +77,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -108,7 +103,7 @@ import static org.powermock.api.mockito.PowerMockito.*;
 @Slf4j
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
-@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class})
+@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class, PersistentWorkflowUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Transactional
@@ -247,7 +242,9 @@ public class CommandLaunchIntegrationTest {
         when(WorkflowUtils.getUniqueWorkflow(mockUser, fakeWorkflow.getWorkflowId().toString()))
                 .thenReturn(fakeWorkflow);
         doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
-
+        PowerMockito.spy(PersistentWorkflowUtils.class);
+        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
+                eq(mockUser), any(XFTItem.class), any(EventDetails.class));
     }
 
     @After
@@ -826,7 +823,7 @@ public class CommandLaunchIntegrationTest {
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
-        assertThat(exited.status(), is(not("Failed")));
+        assertThat(exited.status(), not(startsWith(PersistentWorkflowUtils.FAILED)));
         assertThat(exited.exitCode(), is("0"));
     }
 

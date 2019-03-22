@@ -1198,13 +1198,23 @@ public class DockerControlApi implements ContainerControlApi {
 
     @Override
     public void throwRestartEventForService(final Container service) {
+        log.trace("Throwing restart event for service {}.", service.serviceId());
         ServiceTask lastTask = service.getLastTask();
         ServiceTask restartTask = lastTask.toBuilder()
                 .swarmNodeError(true)
                 .message(ServiceTask.swarmNodeStatusMsg) //Differentiate from when lastTask went through processEvent
                 .build();
-        final ServiceTaskEvent restartTaskEvent = ServiceTaskEvent.create(restartTask, service);
+        final ServiceTaskEvent restartTaskEvent = ServiceTaskEvent.create(restartTask, service,
+                ServiceTaskEvent.EventType.Restart);
         eventService.triggerEvent(restartTaskEvent);
+    }
+
+    @Override
+    public void throwWaitingEventForService(final Container service) {
+        log.trace("Throwing waiting event for service {}.", service.serviceId());
+        final ServiceTaskEvent waitingTaskEvent = ServiceTaskEvent.create(service.getLastTask(), service,
+                ServiceTaskEvent.EventType.Waiting);
+        eventService.triggerEvent(waitingTaskEvent);
     }
 
     /**

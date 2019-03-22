@@ -883,12 +883,13 @@ public abstract class Container {
 
         public static ContainerHistory fromSystem(final String status,
                                                   final String message) {
+            Date now = new Date();
             return builder()
                     .status(status)
                     .entityType("system")
                     .entityId(null)
-                    .timeRecorded(new Date())
-                    .externalTimestamp(null)
+                    .timeRecorded(now)
+                    .externalTimestamp(String.valueOf(now.getTime()))
                     .message(message)
                     .build();
         }

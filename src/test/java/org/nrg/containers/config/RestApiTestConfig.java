@@ -1,6 +1,7 @@
 package org.nrg.containers.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.mockito.Mockito;
 import org.nrg.mail.services.MailService;
 import org.nrg.xdat.security.services.RoleHolder;
@@ -20,6 +21,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static org.powermock.api.mockito.PowerMockito.when;
 
@@ -35,10 +37,10 @@ public class RestApiTestConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean() {
-        ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
-        tBean.setCorePoolSize(1);
-        tBean.setThreadNamePrefix("container-test-");
+    public ThreadPoolExecutorFactoryBean syncThreadPoolExecutorFactoryBean() {
+        ThreadPoolExecutorFactoryBean tBean = Mockito.mock(ThreadPoolExecutorFactoryBean.class);
+        ExecutorService ec = MoreExecutors.newDirectExecutorService(); //synchronous execution for testing
+        when(tBean.getObject()).thenReturn(ec);
         return tBean;
     }
 

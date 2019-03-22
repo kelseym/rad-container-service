@@ -162,9 +162,7 @@ public class DockerStatusUpdater   implements Runnable {
             	}
             	
             	if (containerService.isWaiting(service)){
-            		containerService.queuedFinalize(service.exitCode(),
-                            ServiceTask.isSuccessfulStatus(service.lastHistoryStatus()),
-                            service, Users.getAdminUser());
+                    controlApi.throwWaitingEventForService(service);
             		continue;
             	}
 

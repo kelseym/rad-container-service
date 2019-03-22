@@ -2,7 +2,10 @@ package org.nrg.containers.events.listeners;
 
 import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.events.model.ServiceTaskEvent;
+import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.services.ContainerService;
+import org.nrg.xdat.security.helpers.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.bus.Event;
@@ -32,17 +35,34 @@ public class DockerServiceEventListener implements Consumer<Event<ServiceTaskEve
     }
 
     @Override
-    public void accept(final Event<ServiceTaskEvent> serviceTaskEventEvent) {
-        final ServiceTaskEvent event = serviceTaskEventEvent.getData();
+    public void accept(final Event<ServiceTaskEvent> serviceTaskEvent) {
+        final ServiceTaskEvent event = serviceTaskEvent.getData();
         Long serviceDbId = event.service().databaseId();
         if (!addToQueue(serviceDbId)) {
             log.debug("Skipping event {} because service still being processed from last event", event);
             return;
         }
         try {
-            containerService.processEvent(event);
+            ServiceTaskEvent.EventType eventType = event.eventType();
+            if (eventType == null) {
+                throw new Exception("Null type on service task event");
+            }
+            switch(eventType) {
+                case Waiting:
+                    Container service = event.service();
+                    ServiceTask task = event.task();
+                    containerService.queuedFinalize(service.exitCode(), ServiceTask.isSuccessfulStatus(task.status()),
+                            service, Users.getAdminUser());
+                    break;
+                case Restart:
+                case ProcessTask:
+                    containerService.processEvent(event);
+                    break;
+                default:
+                    throw new Exception("Unknown type of service task event: " + eventType);
+            }
         } catch (Throwable e) {
-            log.error("There was a problem handling the docker event.", e);
+            log.error("There was a problem handling the docker service task event.", e);
         }
         removeFromQueue(serviceDbId);
     }
