@@ -25,7 +25,7 @@ public abstract class ServiceTask {
                             TaskStatus.TASK_STATE_ASSIGNED, TaskStatus.TASK_STATE_ACCEPTED, TaskStatus.TASK_STATE_PREPARING,
                             TaskStatus.TASK_STATE_READY, TaskStatus.TASK_STATE_STARTING), '|'));
 
-    public static String swarmNodeStatusMsg = "Swarm node error";
+    public static String swarmNodeErrMsg = "Swarm node error";
 
     public abstract String serviceId();
     public abstract String taskId();
@@ -56,7 +56,7 @@ public abstract class ServiceTask {
                 curState.equals(TaskStatus.TASK_STATE_SHUTDOWN);
 
         if (swarmNodeError) {
-            msg = swarmNodeStatusMsg;
+            msg = swarmNodeErrMsg;
         }
         return ServiceTask.builder()
                 .serviceId(serviceId)
@@ -69,6 +69,21 @@ public abstract class ServiceTask {
                 .err(err)
                 .exitCode(exitCode)
                 .containerId(containerStatus == null ? null : containerStatus.containerId())
+                .build();
+    }
+
+    public static ServiceTask createFromHistoryAndService(final @Nonnull Container.ContainerHistory history,
+                                                          final @Nonnull Container service) {
+        String exitCode = history.exitCode();
+        String externalTime = history.externalTimestamp();
+        String message = history.message();
+        return ServiceTask.builder()
+                .serviceId(service.serviceId())
+                .taskId(service.taskId())
+                .status(history.status())
+                .swarmNodeError(message != null && message.contains(swarmNodeErrMsg)) // Hack
+                .exitCode(exitCode == null ? null : Long.parseLong(exitCode))
+                .statusTime(externalTime == null ? null : new Date(Long.parseLong(externalTime)))
                 .build();
     }
 

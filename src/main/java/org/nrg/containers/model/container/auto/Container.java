@@ -85,17 +85,8 @@ public abstract class Container {
 
     @JsonIgnore
     @NotNull
-    public ServiceTask getLastTask() {
-        ContainerHistory history = getSortedHistory().get(0);
-        String exitCode = history.exitCode();
-        String externalTime = history.externalTimestamp();
-        return ServiceTask.builder()
-                .serviceId(this.serviceId())
-                .taskId(this.taskId())
-                .status(history.status())
-                .exitCode(exitCode == null ? null : Long.parseLong(exitCode))
-                .statusTime(externalTime == null ? null : new Date(Long.parseLong(externalTime)))
-                .build();
+    public ServiceTask makeTaskFromLastHistoryItem() {
+        return ServiceTask.createFromHistoryAndService(getSortedHistory().get(0), this);
     }
 
     @JsonIgnore
