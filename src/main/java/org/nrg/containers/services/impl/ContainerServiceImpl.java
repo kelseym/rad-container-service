@@ -76,8 +76,9 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class ContainerServiceImpl implements ContainerService {
     private static final String MIN_XNAT_VERSION_REQUIRED = "1.7.5";
-	public static final String waiting = "Waiting";
-    public static final String finalizing = "Finalizing";
+    public static final String WAITING = "Waiting";
+    public static final String FINALIZING = "Finalizing";
+    public static final String CREATED = "Created";
     public static final String setupStr = "Setup";
     public static final String wrapupStr = "Wrapup";
     public static final String containerLaunchJustification = "Container launch";
@@ -273,7 +274,7 @@ public class ContainerServiceImpl implements ContainerService {
 			                    Date lastStatusTime = service.statusTime();
 			                    long diffHours = (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
 			                    if (diffHours < 72) {
-				                    addContainerHistoryItem(service, ContainerHistory.fromSystem(waiting,
+				                    addContainerHistoryItem(service, ContainerHistory.fromSystem(WAITING,
                                             "Reset status from Finalizing to Waiting." ), userI);
 				                	log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
                                             " Workflow: " + service.workflowId() + " to Waiting state");
@@ -537,6 +538,7 @@ public class ContainerServiceImpl implements ContainerService {
                 .workflowId(workflowid)
                 .subtype(DOCKER_WRAPUP.getName())
                 .project(parent != null ? parent.project() : null)
+                .status(CREATED) //Needs non-empty status to be picked up by containerService.retrieveNonfinalizedServices()
                 .build();
         return toPojo(containerEntityService.create(fromPojo(toCreate)));
     }
@@ -638,7 +640,7 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public void processEvent(final ServiceTaskEvent event) {
-        ServiceTask task = event.task();
+        final ServiceTask task = event.task();
         final Container service;
 
 	    log.debug("Processing service task. Task id \"{}\" for service \"{}\".",
@@ -659,43 +661,49 @@ public class ContainerServiceImpl implements ContainerService {
             service = event.service();
         }
 
-        if (service != null) {
-            final String userLogin = service.userId();
-            try {
-                final UserI userI = Users.getUser(userLogin);
-                final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
+        if (service == null) {
+            log.error("Could not find service corresponding to event {}", event);
+            return;
+        }
 
-                //process new and waiting events (duplicate docker events are skipped)              
-                if (!(isWaiting(service) || isFinalizing(service)) &&
-                        addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
-                    // We have already added this task and can safely skip it.
-                    log.debug("Skipping task status we have already seen: service {} task status {}",
-                            service.serviceId(), task.status());
-                } else {
-                    log.debug("Checking service {} task.status {} task.exitCode {} task.isExitStatus {}",
-                            service.serviceId(), task.status(), task.exitCode(), task.isExitStatus());
+        if (isFinalizing(service)) {
+            log.error("Service already finalizing {}", service);
+            return;
+        }
 
-                    if (task.swarmNodeError()) {
-                        // Attempt to restart the service and fail the workflow if we cannot;
-                        // either way, don't proceed to finalize.
-                        restartService(service, userI);
-                        return;
-                    }
+        final String userLogin = service.userId();
+        try {
+            final UserI userI = Users.getUser(userLogin);
+            final ContainerHistory taskHistoryItem = ContainerHistory.fromServiceTask(task);
 
-                    if (task.isExitStatus() || isWaiting(service)) {
-            		    final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
-                    	final Container serviceWithAddedEvent = retrieve(service.databaseId());
+            // Process new and waiting events (duplicate docker events are skipped)
+            if (!isWaiting(service) && addContainerHistoryItem(service, taskHistoryItem, userI) == null) {
+                // We have already added this task and can safely skip it.
+                log.debug("Skipping task status we have already seen: service {} task status {}",
+                        service.serviceId(), task.status());
+            } else {
+                log.debug("Checking service {} task.status {} task.exitCode {} task.isExitStatus {}",
+                        service.serviceId(), task.status(), task.exitCode(), task.isExitStatus());
 
-                    	queueFinalize(exitCodeString, task.isSuccessfulStatus(), serviceWithAddedEvent, userI);
-                    } else {
-                        log.debug("Docker event has not exited yet. Service: {} Workflow: {} Status: {}",
-                                service.serviceId(), service.workflowId(), service.status());
-                    }
-
+                if (!isWaiting(service) && task.swarmNodeError()) {
+                    // Attempt to restart the service and fail the workflow if we cannot;
+                    // either way, don't proceed to finalize.
+                    restartService(service, userI);
+                    return;
                 }
-            } catch (UserInitException | UserNotFoundException e) {
-                log.error("Could not update container status. Could not get user details for user {}", userLogin, e);
+
+                if (isWaiting(service) || task.isExitStatus()) {
+                    final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
+                    final Container serviceWithAddedEvent = retrieve(service.databaseId());
+
+                    queueFinalize(exitCodeString, task.isSuccessfulStatus(), serviceWithAddedEvent, userI);
+                } else {
+                    log.debug("Docker event has not exited yet. Service: {} Workflow: {} Status: {}",
+                            service.serviceId(), service.workflowId(), service.status());
+                }
             }
+        } catch (UserInitException | UserNotFoundException e) {
+            log.error("Could not update container status. Could not get user details for user {}", userLogin, e);
         }
 
         log.debug("Done processing service task event: {}", event);
@@ -710,7 +718,7 @@ public class ContainerServiceImpl implements ContainerService {
 
         String serviceId = service.serviceId();
         String restartMessage = "Restarting serviceId "+ serviceId + " due to apparent swarm node error " +
-                "(likely node " + service.nodeId() + " went down or ran out of memory)";
+                "(likely node " + service.nodeId() + " went down)";
 
         // Rebuild service, emptying ids (serviceId = null keeps it from being updated until a new service is assigned),
         // and save it to db
@@ -728,13 +736,6 @@ public class ContainerServiceImpl implements ContainerService {
                 restartMessage);
         addContainerHistoryItem(service, restartHistory, userI);
 
-        // Kill it if it's still running
-        try {
-            containerControlApi.killService(serviceId);
-        } catch (DockerServerException | NotFoundException e) {
-            // It may already be gone
-        }
-
         // Relaunch container in new service
         launchContainerFromDbObject(service, userI, true);
     }
@@ -747,6 +748,13 @@ public class ContainerServiceImpl implements ContainerService {
         if (!service.isSwarmService()) {
             // Refuse to restart a non-swarm container
             return false;
+        }
+
+        // Remove the errant service
+        try {
+            containerControlApi.killService(service.serviceId());
+        } catch (DockerServerException | NotFoundException | NoDockerServerException e) {
+            // It may already be gone
         }
 
         String failureMessage = "Service not found on swarm OR state='shutdown' OR " +
@@ -768,7 +776,7 @@ public class ContainerServiceImpl implements ContainerService {
                 .serviceId(service.serviceId())
                 .status(TaskStatus.TASK_STATE_FAILED)
                 .exitCode(126L) // Docker code for "the contained command cannot be invoked"
-                .message("Swarm node error")
+                .message(ServiceTask.swarmNodeErrMsg)
                 .err(failureMessage)
                 .statusTime(new Date())
                 .taskId("")
@@ -806,7 +814,7 @@ public class ContainerServiceImpl implements ContainerService {
 				XDAT.sendJmsRequest(request);
 			} catch (Exception e) {
 			    String msg = "Finalizing message queue failed. Throw back into waiting and try again later.";
-				addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(waiting, msg), userI);
+				addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(WAITING, msg), userI);
 				log.error(msg, e);
 			}
 		} else {
@@ -819,7 +827,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
 	public void consumeFinalize(final String exitCodeString, final boolean isSuccessfulStatus,
                                 final Container containerOrService, final UserI userI) {
-        addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(finalizing,
+        addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(FINALIZING,
                 "Processing finished. Uploading files." ), userI);
         log.debug("Finalizing service {}", containerOrService);
         final Container containerOrServiceWithAddedEvent = retrieve(containerOrService.databaseId());
@@ -840,11 +848,11 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public boolean isWaiting(Container containerOrService){
-    	return waiting.equals(containerOrService.status());
+    	return WAITING.equals(containerOrService.status());
     }
     @Override
     public boolean isFinalizing(Container containerOrService){
-    	return finalizing.equals(containerOrService.status());
+    	return FINALIZING.equals(containerOrService.status());
     }
 
     @Override
@@ -857,9 +865,10 @@ public class ContainerServiceImpl implements ContainerService {
     public void finalize(final Container container, final UserI userI)
             throws ContainerException, DockerServerException, NoDockerServerException {
         String status = container.lastHistoryStatus();
-        boolean isSuccessfulStatus = container.isSwarmService() ?
-                ServiceTask.isSuccessfulStatus(status) :
-                DockerContainerEvent.isSuccessfulStatus(status);
+        boolean isSuccessfulStatus = status == null || status.equals(FINALIZING) ||
+                (container.isSwarmService() ?
+                    ServiceTask.isSuccessfulStatus(status) :
+                    DockerContainerEvent.isSuccessfulStatus(status));
         finalize(container, userI, container.exitCode(), isSuccessfulStatus);
     }
 
@@ -868,6 +877,7 @@ public class ContainerServiceImpl implements ContainerService {
             throws ContainerException, NoDockerServerException, DockerServerException {
         final long databaseId = notFinalized.databaseId();
         log.debug("Beginning finalization for container {}.", databaseId);
+        final boolean failed = exitCodeIsFailed(exitCode) || !isSuccessfulStatus;
 
         // Check if this container is the parent to any wrapup containers that haven't been launched.
         // If we find any, launch them.
@@ -880,10 +890,19 @@ public class ContainerServiceImpl implements ContainerService {
             // If they have been launched, we assume they have also been completed. That's how we get back here.
             for (final Container wrapupContainer : wrapupContainers) {
                 if (StringUtils.isBlank(wrapupContainer.containerId()) && StringUtils.isBlank(wrapupContainer.serviceId())) {
-                    log.debug("Launching wrapup container {}.", wrapupContainer.databaseId());
-                    // This wrapup container has not been launched yet. Launch it now.
-                    launchedWrapupContainers = true;
-                    launchContainerFromDbObject(wrapupContainer, userI);
+                    if (failed) {
+                        // Don't launch them, just fail them
+                        String status = PersistentWorkflowUtils.FAILED + " (Parent)";
+                        log.info("Setting wrapup container {} status to \"{}\".", wrapupContainer.databaseId(), status);
+                        ContainerHistory failureHist = ContainerHistory.fromSystem(status,
+                                "Parent container failed (exit code=" + exitCode + ")");
+                        addContainerHistoryItem(wrapupContainer, failureHist, userI);
+                    } else {
+                        log.debug("Launching wrapup container {}.", wrapupContainer.databaseId());
+                        // This wrapup container has not been launched yet. Launch it now.
+                        launchedWrapupContainers = true;
+                        launchContainerFromDbObject(wrapupContainer, userI);
+                    }
                 }
             }
         }
@@ -901,9 +920,9 @@ public class ContainerServiceImpl implements ContainerService {
         log.info("Finalizing Container {}, {} id {}.", databaseId, containerOrService, containerOrServiceId);
 
         final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI,
-                exitCodeIsFailed(exitCode) || !isSuccessfulStatus, wrapupContainers);
+                failed, wrapupContainers);
 
-        log.debug("Done uploading for Container {}. Now saving information about created outputs.", databaseId);
+        log.debug("Done uploading files for container {}. Now saving information about outputs.", databaseId);
 
         containerEntityService.update(fromPojo(finalized));
 
@@ -914,7 +933,7 @@ public class ContainerServiceImpl implements ContainerService {
         final Container parent = finalized.parent();
         if (parent == null) {
             // Nothing left to do. This container is done.
-            log.debug("Done finalizing Container {}, {} id {}.", databaseId, containerOrService, containerOrServiceId);
+            log.debug("Done finalizing container {}, {} id {}.", databaseId, containerOrService, containerOrServiceId);
             return;
         }
         final long parentDatabaseId = parent.databaseId();

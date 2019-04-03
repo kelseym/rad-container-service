@@ -43,7 +43,7 @@ public class DockerStatusUpdater   implements Runnable {
         this.controlApi = controlApi;
         this.dockerServerService = dockerServerService;
         this.containerService = containerService;
-        this.xnatAppInfo=xnatAppInfo;
+        this.xnatAppInfo = xnatAppInfo;
     }
 
     @Override

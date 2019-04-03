@@ -26,6 +26,7 @@ import org.hamcrest.Matchers;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
 import org.nrg.containers.model.command.auto.Command;
@@ -36,6 +37,8 @@ import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.*;
+import org.nrg.containers.config.SpringJUnit4ClassRunnerFactory;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.containers.utils.TestingUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.entities.AliasToken;
@@ -65,7 +68,6 @@ import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,12 +104,24 @@ import static org.powermock.api.mockito.PowerMockito.*;
 
 @Slf4j
 @RunWith(PowerMockRunner.class)
-@PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
+@PowerMockRunnerDelegate(Parameterized.class)
 @PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class, PersistentWorkflowUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
+@Parameterized.UseParametersRunnerFactory(SpringJUnit4ClassRunnerFactory.class)
 @Transactional
 public class CommandLaunchIntegrationTest {
+    // Couldn't get the below to work
+    //@ClassRule public static final SpringClassRule SPRING_CLASS_RULE = new SpringClassRule();
+    //@Rule public final SpringMethodRule springMethodRule = new SpringMethodRule();
+
+    @Parameterized.Parameters
+    public static Collection<Boolean> swarmModes() {
+        return Arrays.asList(true, false);
+    }
+    @Parameterized.Parameter
+    public boolean swarmMode;
+
     private UserI mockUser;
     private String buildDir;
     private String archiveDir;
@@ -117,8 +131,6 @@ public class CommandLaunchIntegrationTest {
     private final String FAKE_SECRET = "secret";
     private final String FAKE_HOST = "mock://url";
     private FakeWorkflow fakeWorkflow = new FakeWorkflow();
-
-    private final boolean swarmMode = false;
 
     private boolean testIsOnCircleCi;
 
@@ -163,43 +175,10 @@ public class CommandLaunchIntegrationTest {
             }
         });
 
-        // Mock out the prefs bean
-        final String defaultHost = "unix:///var/run/docker.sock";
-        final String hostEnv = System.getenv("DOCKER_HOST");
-        final String certPathEnv = System.getenv("DOCKER_CERT_PATH");
-        final String tlsVerify = System.getenv("DOCKER_TLS_VERIFY");
-
         final String circleCiEnv = System.getenv("CIRCLECI");
         testIsOnCircleCi = StringUtils.isNotBlank(circleCiEnv) && Boolean.parseBoolean(circleCiEnv);
 
-        final boolean useTls = tlsVerify != null && tlsVerify.equals("1");
-        final String certPath;
-        if (useTls) {
-            if (StringUtils.isBlank(certPathEnv)) {
-                throw new Exception("Must set DOCKER_CERT_PATH if DOCKER_TLS_VERIFY=1.");
-            }
-            certPath = certPathEnv;
-        } else {
-            certPath = "";
-        }
-
-        final String containerHost;
-        if (StringUtils.isBlank(hostEnv)) {
-            containerHost = defaultHost;
-        } else {
-            final Pattern tcpShouldBeHttpRe = Pattern.compile("tcp://.*");
-            final java.util.regex.Matcher tcpShouldBeHttpMatch = tcpShouldBeHttpRe.matcher(hostEnv);
-            if (tcpShouldBeHttpMatch.matches()) {
-                // Must switch out tcp:// for either http:// or https://
-                containerHost = hostEnv.replace("tcp://", "http" + (useTls ? "s" : "") + "://");
-            } else {
-                containerHost = hostEnv;
-            }
-        }
-
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
-                false, null, null, null, false, null));
-
+        // Mock out the prefs bean
         // Mock the userI
         mockUser = mock(UserI.class);
         when(mockUser.getLogin()).thenReturn(FAKE_USER);
@@ -231,9 +210,6 @@ public class CommandLaunchIntegrationTest {
         when(mockSiteConfigPreferences.getArchivePath()).thenReturn(archiveDir); // container logs get stored under archive
         when(mockSiteConfigPreferences.getProperty("processingUrl", FAKE_HOST)).thenReturn(FAKE_HOST);
 
-        CLIENT = controlApi.getClient();
-        CLIENT.pull("busybox:latest");
-
         // Use powermock to mock out the static method XFTManager.isInitialized()
         mockStatic(XFTManager.class);
         when(XFTManager.isInitialized()).thenReturn(true);
@@ -246,22 +222,66 @@ public class CommandLaunchIntegrationTest {
         PowerMockito.spy(PersistentWorkflowUtils.class);
         doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
                 eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+
+        // Setup docker server
+        final String defaultHost = "unix:///var/run/docker.sock";
+        final String hostEnv = System.getenv("DOCKER_HOST");
+        final String certPathEnv = System.getenv("DOCKER_CERT_PATH");
+        final String tlsVerify = System.getenv("DOCKER_TLS_VERIFY");
+
+        final boolean useTls = tlsVerify != null && tlsVerify.equals("1");
+        final String certPath;
+        if (useTls) {
+            if (StringUtils.isBlank(certPathEnv)) {
+                throw new Exception("Must set DOCKER_CERT_PATH if DOCKER_TLS_VERIFY=1.");
+            }
+            certPath = certPathEnv;
+        } else {
+            certPath = "";
+        }
+
+        final String containerHost;
+        if (StringUtils.isBlank(hostEnv)) {
+            containerHost = defaultHost;
+        } else {
+            final Pattern tcpShouldBeHttpRe = Pattern.compile("tcp://.*");
+            final java.util.regex.Matcher tcpShouldBeHttpMatch = tcpShouldBeHttpRe.matcher(hostEnv);
+            if (tcpShouldBeHttpMatch.matches()) {
+                // Must switch out tcp:// for either http:// or https://
+                containerHost = hostEnv.replace("tcp://", "http" + (useTls ? "s" : "") + "://");
+            } else {
+                containerHost = hostEnv;
+            }
+        }
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
+                swarmMode, null, null, null, false, null, null));
+
+        CLIENT = controlApi.getClient();
+        CLIENT.pull("busybox:latest");
     }
 
     @After
     public void cleanup() throws Exception {
         fakeWorkflow = new FakeWorkflow();
         for (final String containerToCleanUp : containersToCleanUp) {
-            if (swarmMode) {
-                CLIENT.removeService(containerToCleanUp);
-            } else {
-                CLIENT.removeContainer(containerToCleanUp, DockerClient.RemoveContainerParam.forceKill());
+            try {
+                if (swarmMode) {
+                    CLIENT.removeService(containerToCleanUp);
+                } else {
+                    CLIENT.removeContainer(containerToCleanUp, DockerClient.RemoveContainerParam.forceKill());
+                }
+            } catch (Exception e) {
+                // do nothing
             }
         }
         containersToCleanUp.clear();
 
         for (final String imageToCleanUp : imagesToCleanUp) {
-            CLIENT.removeImage(imageToCleanUp, true, false);
+            try {
+                CLIENT.removeImage(imageToCleanUp, true, false);
+            } catch (Exception e) {
+                // do nothing
+            }
         }
         imagesToCleanUp.clear();
 
@@ -693,13 +713,19 @@ public class CommandLaunchIntegrationTest {
         containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(), 0L,
                 null, runtimeValues, mockUser, fakeWorkflow);
         final Container mainContainerRightAfterLaunch = getContainerFromWorkflow(fakeWorkflow);
+
         TestTransaction.flagForCommit();
         TestTransaction.end();
         TestTransaction.start();
+
         log.debug("Waiting for ten seconds. Peace!");
         Thread.sleep(10000); // Wait for container to finish
 
-        final Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId());
+        log.debug("Waiting until container is finalized or has failed");
+        await().until(containerIsFinalizingOrFailed(mainContainerRightAfterLaunch), is(true));
+        Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId()); //refresh it
+        assertThat(mainContainerAWhileAfterLaunch.status(), is(not("Failed")));
+
         final List<Container> wrapupContainers = containerService.retrieveWrapupContainersForParent(mainContainerAWhileAfterLaunch.databaseId());
         assertThat(wrapupContainers, hasSize(1));
         final Container wrapupContainer = wrapupContainers.get(0);
@@ -777,8 +803,10 @@ public class CommandLaunchIntegrationTest {
         await().until(containerHasStarted(container), is(true));
         log.debug("Waiting until task has finished");
         await().until(containerIsRunning(container), is(false));
-        log.debug("Waiting until status updater has picked up finished task and added item to history");
+        //Finalizing queue adds system history item, so this is no longer relevant
+        //log.debug("Waiting until status updater has picked up finished task and added item to history");
         //await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
+        log.debug("Waiting until container is finalized");
         await().until(containerIsFinalized(container), is(true));
 
         final Container exited = containerService.get(container.databaseId());
@@ -1023,18 +1051,20 @@ public class CommandLaunchIntegrationTest {
                     if (swarmMode) {
                         final Service serviceResponse = CLIENT.inspectService(container.serviceId());
                         final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
-                        if (tasks.size() != 1) {
+                        if (tasks.size() == 0) {
                             return false;
                         }
-                        final Task task = tasks.get(0);
-                        final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
-                        if (serviceTask.hasNotStarted()) {
-                            return false;
+                        for (final Task task : tasks) {
+                            final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
+                            if (!serviceTask.hasNotStarted()) {
+                                // if it's not a "before running" status (aka running or some exit status)
+                                return true;
+                            }
                         }
-                        return true;
+                        return false;
                     } else {
                         final ContainerInfo containerInfo = CLIENT.inspectContainer(container.containerId());
-                        return (!containerInfo.state().status().equals("created"));
+                        return (!containerInfo.state().status().equals("CREATED"));
                     }
                 } catch (ContainerNotFoundException ignored) {
                     // Ignore exception. If container is not found, it is not running.
@@ -1064,11 +1094,9 @@ public class CommandLaunchIntegrationTest {
                             final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
                             if (serviceTask.isExitStatus()) {
                                 return false;
-                            } else if (serviceTask.status().equals("running")) {
-                                return true;
                             }
                         }
-                        return false;
+                        return true; // consider it "running" until it's an exit status
                     } else {
                         final ContainerInfo containerInfo = CLIENT.inspectContainer(container.containerId());
                         return containerInfo.state().running();
@@ -1077,6 +1105,15 @@ public class CommandLaunchIntegrationTest {
                     // Ignore exception. If container is not found, it is not running.
                     return false;
                 }
+            }
+        };
+    }
+
+    private Callable<Boolean> containerIsFinalizingOrFailed(final Container container) {
+        return new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                String status = containerService.get(container.databaseId()).status();
+                return status.equals(ContainerServiceImpl.FINALIZING) || status.contains(PersistentWorkflowUtils.FAILED);
             }
         };
     }
@@ -1101,21 +1138,21 @@ public class CommandLaunchIntegrationTest {
         };
     }
 
-    private Callable<Boolean> containerHistoryHasItemFromSystem(final long containerDatabaseId) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                try {
-                    final Container container = containerService.get(containerDatabaseId);
-                    for (final Container.ContainerHistory historyItem : container.history()) {
-                        if (historyItem.entityType() != null && historyItem.entityType().equals("system")) {
-                            return true;
-                        }
-                    }
-                } catch (Exception ignored) {
-                    // ignored
-                }
-                return false;
-            }
-        };
-    }
+    //private Callable<Boolean> containerHistoryHasItemFromSystem(final long containerDatabaseId) {
+    //    return new Callable<Boolean>() {
+    //        public Boolean call() throws Exception {
+    //            try {
+    //                final Container container = containerService.get(containerDatabaseId);
+    //                for (final Container.ContainerHistory historyItem : container.history()) {
+    //                    if (historyItem.entityType() != null && historyItem.entityType().equals("system")) {
+    //                        return true;
+    //                    }
+    //                }
+    //            } catch (Exception ignored) {
+    //                // ignored
+    //            }
+    //            return false;
+    //        }
+    //    };
+    //}
 }

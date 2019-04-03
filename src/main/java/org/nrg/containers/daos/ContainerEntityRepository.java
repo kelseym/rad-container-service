@@ -133,7 +133,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.like("status", ContainerServiceImpl.waiting))
+                        .add(Restrictions.like("status", ContainerServiceImpl.WAITING))
                 )
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
@@ -161,7 +161,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.like("status", ContainerServiceImpl.finalizing))
+                        .add(Restrictions.like("status", ContainerServiceImpl.FINALIZING))
                 )
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);

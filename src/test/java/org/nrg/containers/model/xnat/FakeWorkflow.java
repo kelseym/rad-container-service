@@ -17,7 +17,7 @@ public class FakeWorkflow implements PersistentWorkflowI {
     and thus it cannot populate attributes of any ItemWrapper-extending objects (WrkWorkflowData, XnatMrsessionData, etc)
     -- ItemWrapper attributes like id, etc are actually properties of the corresponding XFTItem.
 
-    Since container service with staging preferences no longer returns the container object upon launch (instead, it queues
+    Since container service with staging queue no longer returns the container object upon launch (instead, it queues
     the request for launch and then a consumer does the launching asynchronously), we need a workflow object to get
     the containerId for our tests.
      */

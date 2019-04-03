@@ -30,7 +30,7 @@ public class HibernateContainerEntityService
     @Nonnull
     public ContainerEntity save(final ContainerEntity toCreate, final UserI userI) {
         final ContainerEntity created = create(toCreate);
-        final ContainerEntityHistory historyItem = ContainerEntityHistory.fromUserAction("Created", userI.getLogin(), created);
+        final ContainerEntityHistory historyItem = ContainerEntityHistory.fromUserAction(ContainerServiceImpl.CREATED, userI.getLogin(), created);
         addContainerHistoryItem(created, historyItem, userI);
         return created;
     }

@@ -3,8 +3,9 @@ package org.nrg.containers.model.server.docker;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 
-import javax.persistence.Entity;
+import javax.persistence.*;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -18,6 +19,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     private String pathTranslationDockerPrefix;
     private Boolean pullImagesOnXnatInit;
     private String containerUser;
+    private List<String> constraints;
 
     public static DockerServerEntity create(final DockerServer dockerServer) {
         return new DockerServerEntity().update(dockerServer);
@@ -33,6 +35,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.pathTranslationDockerPrefix = dockerServer.pathTranslationDockerPrefix();
         this.pullImagesOnXnatInit = dockerServer.pullImagesOnXnatInit();
         this.containerUser = dockerServer.containerUser();
+        this.constraints = dockerServer.constraints();
         return this;
     }
 
@@ -108,6 +111,15 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.containerUser = containerUser;
     }
 
+    @ElementCollection
+    public List<String> getConstraints() {
+        return constraints;
+    }
+
+    public void setConstraints(final List<String> constraints) {
+        this.constraints = constraints;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -122,13 +134,14 @@ public class DockerServerEntity extends AbstractHibernateEntity {
                 Objects.equals(this.pathTranslationXnatPrefix, that.pathTranslationXnatPrefix) &&
                 Objects.equals(this.pathTranslationDockerPrefix, that.pathTranslationDockerPrefix) &&
                 Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit) &&
-                Objects.equals(this.containerUser, that.containerUser);
+                Objects.equals(this.containerUser, that.containerUser) &&
+                Objects.equals(this.constraints, that.constraints);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, host, certPath, lastEventCheckTime, swarmMode,
-                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser);
+                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, constraints);
     }
 
 }

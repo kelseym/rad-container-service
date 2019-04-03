@@ -197,6 +197,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             addClass: 'path-prefix',
                             description: 'Enter the Docker Server path to the XNAT_HOME mount, i.e. "/docker/my-data/XNAT"'
                         }),
+                        XNAT.ui.panel.input.list({
+                            name: 'swarm-node-constraints',
+                            label: 'Node constraints',
+                            description: 'Comma-separated list of node constraints (only relevant in Swarm mode) e.g.: "node.role == worker, node.labels.region == east". See <a href="https://docs.docker.com/engine/swarm/services/#placement-constraints">Swarm documentation</a>.'
+                        }),
                         spawn('p.divider', '<strong>Re-Pull Images on Init (Optional)</strong><br> Use this setting to force the Docker server to re-pull your images whenever the Apache Tomcat server is restarted. Images are only pulled if they are missing.'),
                         XNAT.ui.panel.input.switchbox({
                             name: 'pull-images-on-xnat-init',

@@ -639,10 +639,22 @@ public class DockerControlApi implements ContainerControlApi {
         } else {
             containerSpecBuilder.args(ShellSplitter.shellSplit(runCommand));
         }
-       //add constraints to the container command and pass all the way here. hard code for today.
-        List<String> constraints =new ArrayList<String>();
-        constraints.add("node.role == worker");
 
+        //TODO allow addl constraints from the container command.json
+        List<String> constraints = null;
+        List<String> constList = server.constraints();
+        if (constList != null) {
+            constraints = new ArrayList<>();
+            for (String item : constList) {
+                if (StringUtils.isNotBlank(item)) {
+                    constraints.add(item);
+                }
+            }
+
+            if (constraints.isEmpty()) {
+                constraints = null;
+            }
+        }
 
         final TaskSpec taskSpec = TaskSpec.builder()
                 .containerSpec(containerSpecBuilder.build())
@@ -710,7 +722,7 @@ public class DockerControlApi implements ContainerControlApi {
             return serviceCreateResponse.id();
         } catch (DockerException | InterruptedException e) {
             log.error(e.getMessage());
-            throw new DockerServerException("Could not create service", e);
+            throw new DockerServerException("Could not create service: " + e.getMessage(), e);
         }
     }
 
@@ -755,7 +767,7 @@ public class DockerControlApi implements ContainerControlApi {
         } catch (DockerException | InterruptedException e) {
             log.error(e.getMessage());
             final String containerOrServiceStr = swarmMode ? "service" : "container";
-            throw new DockerServerException("Could not start " + containerOrServiceStr + " " + containerOrServiceId, e);
+            throw new DockerServerException("Could not start " + containerOrServiceStr + " " + containerOrServiceId + ": " + e.getMessage(), e);
         }
     }
 
