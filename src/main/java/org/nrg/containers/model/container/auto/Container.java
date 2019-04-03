@@ -76,6 +76,11 @@ public abstract class Container {
     }
 
     @JsonIgnore
+    public String containerOrServiceId() {
+        return isSwarmService() ? serviceId() : containerId();
+    }
+
+    @JsonIgnore
     private synchronized List<ContainerHistory> getSortedHistory() {
         if (sortedHist == null) {
             sortedHist = Ordering.natural().reverse().sortedCopy(this.history()); //Descending order (most recent first)

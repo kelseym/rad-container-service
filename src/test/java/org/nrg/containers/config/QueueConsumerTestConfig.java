@@ -133,11 +133,10 @@ public class QueueConsumerTestConfig {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean,
                                              @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(mockDockerControlApi, mockContainerEntityService,
                 commandResolutionService, mockCommandService, aliasTokenService, siteConfigPreferences,
-                containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
+                containerFinalizeService, mockXnatAppInfo);
     }
 
     @Bean

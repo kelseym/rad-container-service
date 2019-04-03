@@ -3,10 +3,10 @@ package org.nrg.containers.jms.requests;
 import java.io.Serializable;
 
 
-public class ContainerFinalizeRequest extends ContainerRequest implements Serializable {
+public class ContainerFinalizingRequest extends ContainerRequest implements Serializable {
    
 
-	final private String destination="containerFinalizeRequest"; 
+	final private String destination="containerFinalizingRequest";
 	
 	private static final long serialVersionUID = 1388953760707461670L;
 	private String exitCodeString;
@@ -14,7 +14,7 @@ public class ContainerFinalizeRequest extends ContainerRequest implements Serial
 	private String id;
 	private String username;
 	
-	public ContainerFinalizeRequest(String exitCodeString, boolean isSuccessful, String id, String username) {
+	public ContainerFinalizingRequest(String exitCodeString, boolean isSuccessful, String id, String username) {
 		 this.setExitCodeString(exitCodeString);
 		 this.setSuccessful(isSuccessful); 
 		 this.setId(id);

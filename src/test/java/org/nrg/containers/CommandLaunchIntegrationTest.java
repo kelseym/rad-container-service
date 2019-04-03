@@ -197,7 +197,8 @@ public class CommandLaunchIntegrationTest {
             }
         }
 
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, null, false, null, null, null, false, null));
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
+                false, null, null, null, false, null));
 
         // Mock the userI
         mockUser = mock(UserI.class);
@@ -777,12 +778,13 @@ public class CommandLaunchIntegrationTest {
         log.debug("Waiting until task has finished");
         await().until(containerIsRunning(container), is(false));
         log.debug("Waiting until status updater has picked up finished task and added item to history");
-        await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
+        //await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
+        await().until(containerIsFinalized(container), is(true));
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
         assertThat(exited.exitCode(), is("1"));
-        assertThat(exited.status(), is("Failed"));
+        assertThat(exited.status(), is(PersistentWorkflowUtils.FAILED));
     }
 
     @Test
@@ -1075,6 +1077,17 @@ public class CommandLaunchIntegrationTest {
                     // Ignore exception. If container is not found, it is not running.
                     return false;
                 }
+            }
+        };
+    }
+
+    private Callable<Boolean> containerIsFinalized(final Container container) {
+        return new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(mockUser, container.workflowId());
+                return wrk != null &&
+                        wrk.getStatus().equals(PersistentWorkflowUtils.COMPLETE) ||
+                        wrk.getStatus().contains(PersistentWorkflowUtils.FAILED);
             }
         };
     }

@@ -7,17 +7,14 @@ import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.model.container.auto.Container;
-import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.framework.exceptions.NotFoundException;
-import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.nrg.containers.services.impl.ContainerServiceImpl;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;

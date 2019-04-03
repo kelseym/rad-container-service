@@ -185,7 +185,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                             return input.getMessage();
                         }
                     }));
-                    final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED + " (upload)",
+                    final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED + " (Upload)",
                             details);
                     status = failedHistoryItem.status();
                     statusTime = failedHistoryItem.timeRecorded();
@@ -300,10 +300,11 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
                 final String archivePath = siteConfigPreferences.getArchivePath(); // TODO find a place to upload this thing. Root of the archive if sitewide, else under the archive path of the root object
                 if (StringUtils.isNotBlank(archivePath)) {
+                    final String subtype = StringUtils.defaultIfBlank(toFinalize.subtype(), "");
                     final SimpleDateFormat formatter = new SimpleDateFormat(XNATRestConstants.PREARCHIVE_TIMESTAMP);
                     final String datestamp = formatter.format(new Date());
                     final String containerExecPath = FileUtils.AppendRootPath(archivePath, "CONTAINER_EXEC/");
-                    final String destinationPath = containerExecPath + datestamp + "/LOGS/";
+                    final String destinationPath = containerExecPath + datestamp + "/LOGS/" + subtype;
                     final File destination = new File(destinationPath);
                     destination.mkdirs();
 
@@ -329,9 +330,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 }
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug("Adding log paths to container");
-            }
+            log.debug("Adding log paths to container");
             return logPaths;
         }
 

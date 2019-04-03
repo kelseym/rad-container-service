@@ -1274,13 +1274,5 @@ public class DockerControlApi implements ContainerControlApi {
                         null
         );
     }
-    
-    public Integer getContainerFinalizationPoolLimit() {
-    	try{
-    		return this.getServer().containerFinalizationPoolLimit();
-    	}catch(NoDockerServerException ex){
-    		return DockerServerBase.getContainerFinalizationPoolLimitDefault();
-    	}
-    }
 
 }

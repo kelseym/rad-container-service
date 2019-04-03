@@ -60,7 +60,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     }
     function queueCount($list){
         var numChecked = $list.find('input[type=checkbox]:checked').not('.selectable-select-all').length;
-        $(document).find('#queue-targets').html(numChecked);
+        $(document).find('#preferences-targets').html(numChecked);
     }
 
     projectSearchLauncher.confirmTargets = function(targetList, config){
@@ -97,7 +97,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     }
                     
                     inputArea.append(spawn('!',[
-                        spawn('h3', '<b id="queue-targets">' + targetList.length + '</b> '+config['root-element-name']+s+' queued for this container launch.'),
+                        spawn('h3', '<b id="preferences-targets">' + targetList.length + '</b> '+config['root-element-name']+s+' queued for this container launch.'),
                         spawn('p','Select some or all to launch on, or add filters to your search table.')
                         ]));
 

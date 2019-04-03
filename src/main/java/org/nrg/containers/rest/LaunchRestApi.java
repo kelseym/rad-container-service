@@ -31,6 +31,7 @@ import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -445,7 +446,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
 
         } catch (Throwable t) {
             if (workflow != null) {
-                String failedStatus = "Failed (Staging queue)";
+                String failedStatus = PersistentWorkflowUtils.FAILED + " (Staging)";
                 workflow.setStatus(failedStatus);
                 workflow.setDetails(t.getMessage());
                 try {
@@ -455,7 +456,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
                 }
             }
             if (log.isInfoEnabled()) {
-                log.error("Launch failed for command wrapper name {}.", wrapperName);
+                log.error("Unable to queue container launch for command wrapper name {}.", wrapperName);
                 log.error(mapLogString("Params: ", allRequestParams));
                 log.error("Exception: ", t);
             }

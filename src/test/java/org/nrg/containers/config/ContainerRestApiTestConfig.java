@@ -42,10 +42,9 @@ public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final CommandService commandService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
-                                             final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+                                             final ContainerFinalizeService containerFinalizeService) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService,
-                commandService, aliasTokenService, siteConfigPreferences, containerFinalizeService, executorFactoryBean,
+                commandService, aliasTokenService, siteConfigPreferences, containerFinalizeService,
                 null);
     }
 

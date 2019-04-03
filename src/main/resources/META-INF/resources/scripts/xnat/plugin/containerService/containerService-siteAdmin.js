@@ -184,12 +184,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             onText: 'ON',
                             offText: 'OFF',
                             value: 'true'
-                        }),XNAT.ui.panel.input.text({
-                            name: 'container-finalization-pool-limit',
-                            label: 'Container Finalization Pool Limit',
-                            value: '0'
-                        }).element,
-                        spawn('p.divider', '<strong>Path Translation (Optional)</strong><br> Use these settings to resolve differences between your XNAT archive mount point and the Docker Server mount point for your XNAT data.'),
+                        }),
                         XNAT.ui.panel.input.text({
                             name: 'path-translation-xnat-prefix',
                             label: 'XNAT Path Prefix',

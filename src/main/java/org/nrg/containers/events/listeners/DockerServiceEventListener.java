@@ -51,7 +51,7 @@ public class DockerServiceEventListener implements Consumer<Event<ServiceTaskEve
                 case Waiting:
                     Container service = event.service();
                     ServiceTask task = event.task();
-                    containerService.queuedFinalize(service.exitCode(), ServiceTask.isSuccessfulStatus(task.status()),
+                    containerService.queueFinalize(service.exitCode(), ServiceTask.isSuccessfulStatus(task.status()),
                             service, Users.getAdminUser());
                     break;
                 case Restart:

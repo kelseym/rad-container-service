@@ -62,9 +62,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -137,7 +135,7 @@ public class CommandResolutionTest {
         buildDir = folder.newFolder().getAbsolutePath();
         when(mockSiteConfigPreferences.getBuildPath()).thenReturn(buildDir);
 
-        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null, null, false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false, null));
+        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null, false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false, null));
     }
 
     @Test

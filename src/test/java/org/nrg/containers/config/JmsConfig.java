@@ -1,30 +1,27 @@
 package org.nrg.containers.config;
 
 import org.apache.activemq.command.ActiveMQQueue;
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.nrg.containers.jms.listeners.ContainerFinalizingRequestListener;
 import org.nrg.containers.jms.listeners.ContainerStagingRequestListener;
+import org.nrg.containers.jms.requests.ContainerFinalizingRequest;
 import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.xdat.security.services.UserManagementServiceI;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
-import org.springframework.jms.connection.CachingConnectionFactory;
+import org.springframework.jms.core.BrowserCallback;
 import org.springframework.jms.core.JmsTemplate;
 
-import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
 import javax.jms.JMSException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @Configuration
 public class JmsConfig {
@@ -61,9 +58,22 @@ public class JmsConfig {
     }
 
     @Bean
-    public JmsTemplate jmsTemplate(Destination containerStagingRequest,
-                                   final ContainerStagingRequestListener containerStagingRequestListener) {
-        JmsTemplate jmsTemplate = Mockito.mock(JmsTemplate.class);
+    public ContainerFinalizingRequestListener containerFinalizingRequestListener(ContainerService containerService,
+                                                                                 UserManagementServiceI mockUserManagementServiceI) {
+        return new ContainerFinalizingRequestListener(containerService, mockUserManagementServiceI);
+    }
+
+    @Bean(name = "containerFinalizingRequest")
+    public Destination containerFinalizingRequest(@Value("containerFinalizingRequest") String containerFinalizingRequest) throws JMSException {
+        return new ActiveMQQueue(containerFinalizingRequest);
+    }
+
+    @Bean
+    public JmsTemplate mockJmsTemplate(Destination containerStagingRequest,
+                                   final ContainerStagingRequestListener containerStagingRequestListener,
+                                   Destination containerFinalizingRequest,
+                                   final ContainerFinalizingRequestListener containerFinalizingRequestListener) {
+        JmsTemplate mockJmsTemplate = Mockito.mock(JmsTemplate.class);
         doAnswer(
                 new Answer() {
                     public Object answer(InvocationOnMock invocation) {
@@ -77,7 +87,27 @@ public class JmsConfig {
                         return true;
                     }
                 }
-        ).when(jmsTemplate).convertAndSend(eq(containerStagingRequest), any(ContainerStagingRequest.class));
-        return jmsTemplate;
+        ).when(mockJmsTemplate).convertAndSend(eq(containerStagingRequest), any(ContainerStagingRequest.class));
+
+        doAnswer(
+                new Answer() {
+                    public Object answer(InvocationOnMock invocation) {
+                        Object[] args = invocation.getArguments();
+                        ContainerFinalizingRequest request = (ContainerFinalizingRequest) args[1];
+                        try {
+                            containerFinalizingRequestListener.onRequest(request);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                        return true;
+                    }
+                }
+        ).when(mockJmsTemplate).convertAndSend(eq(containerFinalizingRequest), any(ContainerFinalizingRequest.class));
+
+        // Mock counts
+        doReturn(0).when(mockJmsTemplate).browse(eq("containerStagingRequest"), (BrowserCallback<Integer>) any(BrowserCallback.class));
+        doReturn(0).when(mockJmsTemplate).browse(eq("containerFinalizingRequest"), (BrowserCallback<Integer>) any(BrowserCallback.class));
+
+        return mockJmsTemplate;
     }
 }

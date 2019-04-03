@@ -36,13 +36,13 @@ public class RestApiTestConfig extends WebMvcConfigurerAdapter {
         return mockXnatAppInfo;
     }
 
-    @Bean
-    public ThreadPoolExecutorFactoryBean syncThreadPoolExecutorFactoryBean() {
-        ThreadPoolExecutorFactoryBean tBean = Mockito.mock(ThreadPoolExecutorFactoryBean.class);
-        ExecutorService ec = MoreExecutors.newDirectExecutorService(); //synchronous execution for testing
-        when(tBean.getObject()).thenReturn(ec);
-        return tBean;
-    }
+    //@Bean
+    //public ThreadPoolExecutorFactoryBean syncThreadPoolExecutorFactoryBean() {
+    //    ThreadPoolExecutorFactoryBean tBean = Mockito.mock(ThreadPoolExecutorFactoryBean.class);
+    //    ExecutorService ec = MoreExecutors.newDirectExecutorService(); //synchronous execution for testing
+    //    when(tBean.getObject()).thenReturn(ec);
+    //    return tBean;
+    //}
 
     @Bean
     public MailService mockMailService() {

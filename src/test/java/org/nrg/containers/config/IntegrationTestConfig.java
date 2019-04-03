@@ -145,11 +145,10 @@ public class IntegrationTestConfig {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean,
                                              @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                         commandResolutionService, commandService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, executorFactoryBean, mockXnatAppInfo);
+                        containerFinalizeService, mockXnatAppInfo);
     }
 
     @Bean

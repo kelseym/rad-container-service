@@ -4,27 +4,19 @@ import java.util.Enumeration;
 
 import javax.jms.JMSException;
 import javax.jms.Message;
-import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
 
 import org.nrg.xdat.XDAT;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.core.BrowserCallback;
 import org.springframework.jms.core.JmsTemplate;
-import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class QueueUtils {
-	
-
-	
-	
 	/*
-	 * Get the count of the current messages from this queue.
+	 * Get the count of the current messages in this queue.
 	 */
      static public int count(String destination){
 
@@ -41,9 +33,8 @@ public class QueueUtils {
             }
         });
 
-        log.info("There are {} messages in queue {}", count,destination);
+        log.debug("There are {} messages in queue {}", count, destination);
         return count;
-
     }
 }
 	

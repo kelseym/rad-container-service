@@ -12,7 +12,6 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     private String name;
     private String host;
     private String certPath;
-    private Integer containerFinalizationPoolLimit;
     private Date lastEventCheckTime;
     private boolean swarmMode;
     private String pathTranslationXnatPrefix;
@@ -28,7 +27,6 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.host = dockerServer.host();
         this.name = dockerServer.name();
         this.certPath = dockerServer.certPath();
-        this.containerFinalizationPoolLimit = dockerServer.containerFinalizationPoolLimit();
         this.swarmMode = dockerServer.swarmMode();
         this.lastEventCheckTime = dockerServer.lastEventCheckTime();
         this.pathTranslationXnatPrefix = dockerServer.pathTranslationXnatPrefix();
@@ -57,12 +55,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     public String getCertPath() {
         return certPath;
     }
-    public Integer getContainerFinalizationPoolLimit() {
-        return containerFinalizationPoolLimit;
-    }
-    public void setContainerFinalizationPoolLimit(Integer containerFinalizationPoolLimit) {
-         this.containerFinalizationPoolLimit=containerFinalizationPoolLimit;
-    }
+
     public void setCertPath(final String certPath) {
         this.certPath = certPath;
     }

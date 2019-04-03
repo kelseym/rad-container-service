@@ -94,21 +94,6 @@ public class DockerServerPrefsBean extends AbstractPreferenceBean {
         }
     }
 
-    
-    public Integer getContainerFinalizationPoolLimit() {
-        return getIntegerValue("containerFinalizationPoolLimit");
-    }
-    
-    public void setContainerFinalizationPoolLimit(final Integer containerFinalizationPoolLimit) {
-        if (containerFinalizationPoolLimit != null) {
-            try {
-                setIntegerValue(containerFinalizationPoolLimit, "containerFinalizationPoolLimit");
-            } catch (InvalidPreferenceName e) {
-                _log.error("Error setting Docker server preference \"containerFinalizationPoolLimit\".", e.getMessage());
-            }
-        }
-    }
-
     @NrgPreference(key = "containerUser")
     public String getContainerUser() {
         return getValue("containerUser");
