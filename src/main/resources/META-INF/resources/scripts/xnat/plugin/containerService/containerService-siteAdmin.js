@@ -160,8 +160,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         XNAT.dialog.open({
             title: doWhat + ' Container Server Host',
             content: spawn('form'),
-            width: 450,
+            maxBtn: true,
+            width: 600,
             beforeShow: function(obj){
+                containerHostManager.nconstraints = 0;
                 var $formContainer = obj.$modal.find('.xnat-dialog-content');
                 $formContainer.addClass('panel');
                 obj.$modal.find('form').append(
@@ -185,6 +187,20 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             offText: 'OFF',
                             value: 'true'
                         }),
+                        spawn('div.swarm-constraints', [
+                            spawn('p.divider.swarm-constraints-divider', '<strong>Swarm Node Constraints (Optional, only relevant when Swarm mode = ON)</strong>' +
+                                '<br> Use these settings to add site-wide and user-settable swarm node constraints. See the ' +
+                                '<a href="https://docs.docker.com/engine/swarm/services/#placement-constraints">Swarm documentation</a> ' +
+                                'for more information about constraints.'),
+                            spawn('button.new-swarm-constraint.btn.btn-sm.submit', {
+                                html: 'Add Swarm node constraint',
+                                onclick: function(){
+                                    containerHostManager.addSwarmConstraint();
+                                    return false;
+                                }
+                            })
+                        ]),
+                        spawn('p.divider', '<strong>Path Translation (Optional)</strong><br> Use these settings to resolve differences between your XNAT archive mount point and the Docker Server mount point for your XNAT data.'),
                         XNAT.ui.panel.input.text({
                             name: 'path-translation-xnat-prefix',
                             label: 'XNAT Path Prefix',
@@ -196,11 +212,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             label: 'Docker Server Path Prefix',
                             addClass: 'path-prefix',
                             description: 'Enter the Docker Server path to the XNAT_HOME mount, i.e. "/docker/my-data/XNAT"'
-                        }),
-                        XNAT.ui.panel.input.list({
-                            name: 'swarm-node-constraints',
-                            label: 'Node constraints',
-                            description: 'Comma-separated list of node constraints (only relevant in Swarm mode) e.g.: "node.role == worker, node.labels.region == east". See <a href="https://docs.docker.com/engine/swarm/services/#placement-constraints">Swarm documentation</a>.'
                         }),
                         spawn('p.divider', '<strong>Re-Pull Images on Init (Optional)</strong><br> Use this setting to force the Docker server to re-pull your images whenever the Apache Tomcat server is restarted. Images are only pulled if they are missing.'),
                         XNAT.ui.panel.input.switchbox({
@@ -222,8 +233,13 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
                 if (item && isDefined(item.host)) {
                     if (item['cert-path'] === 'null') item['cert-path'] = null;
+                    for (var i = 0; i < item['swarm-constraints'].length; i++) {
+                        containerHostManager.addSwarmConstraint();
+                    }
                     $formContainer.find('form').setValues(item);
                 }
+
+                $('input[name="swarm-mode"]').change();
             },
             buttons: [
                 {
@@ -301,6 +317,68 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         });
     }
+
+    $(document).on('change', 'input[name="swarm-mode"]', function(){
+        if ($(this).prop('checked')) {
+            $('.swarm-constraints').show();
+        } else {
+            $('.swarm-constraints').hide();
+        }
+    });
+
+    containerHostManager.addSwarmConstraint = function() {
+        var element = spawn('div#swarm-constraint-'+containerHostManager.nconstraints+'.swarm-constraint', [
+            spawn('a#close-'+containerHostManager.nconstraints+'.close', {
+                html: '<i class="fa fa-close"/>',
+                onclick: function(){
+                    var idx = parseInt($(this).prop('id').replace('close-',''));
+                    // Remove all of this constraint, then relabel
+                    $('div#swarm-constraint-'+idx).remove();
+                    // Relabel
+                    for (var i = idx+1; i < containerHostManager.nconstraints; i++){
+                        $('input[name^=swarm-constraints\\['+i+'\\]]').each(function(){
+                            $(this).attr('name', $(this).attr('name').replace(i,i-1));
+                            $(this).prop('id', $(this).prop('id').replace(i,i-1));
+                            if ($(this).data('name')) {
+                                $(this).data('name', $(this).data('name').replace(i,i-1));
+                            }
+                        });
+                        $('div#swarm-constraint-'+i).prop('id', 'swarm-constraint-'+(i-1));
+                    }
+                    containerHostManager.nconstraints--;
+                    return false;
+                }
+            }),
+            XNAT.ui.panel.input.switchbox({
+                name: 'swarm-constraints['+containerHostManager.nconstraints+']:user-settable',
+                label: 'User settable?',
+                onText: 'YES',
+                offText: 'NO',
+                value: 'true',
+                description: 'If "YES", the user launching the container service jobs will be able to set the constraint from the UI. ' +
+                    'If "NO", the constraint will apply to ALL container service jobs.'
+            }),
+            XNAT.ui.panel.input.text({
+                name: 'swarm-constraints['+containerHostManager.nconstraints+']:attribute',
+                label: 'Node attribute',
+                description: 'Attribute you wish to constrain. E.g., node.role or engine.instance.spot'
+            }),
+            XNAT.ui.panel.input.radioGroup({
+                name: 'swarm-constraints['+containerHostManager.nconstraints+']:comparator',
+                label: 'Comparator',
+                items: {0: {label: 'Equals', value: '=='}, 1: {label: 'Does not equal', value: '!='}},
+                value: '=='
+            }),
+            XNAT.ui.panel.input.list({
+                name: 'swarm-constraints['+containerHostManager.nconstraints+']:values',
+                label: 'Possible values for constraint',
+                description: 'Comma-separated list of values on which user can constrain the attribute (or a single value if not user-settable). E.g., "worker" or "spot,demand" (do not add quotes)'
+            })
+        ]);
+
+        containerHostManager.nconstraints++;
+        $('button.new-swarm-constraint').before($(element));
+    };
 
     // create table for Container Hosts
     containerHostManager.table = function(container, callback){

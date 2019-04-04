@@ -3,6 +3,7 @@ package org.nrg.containers.daos;
 import org.hibernate.Hibernate;
 import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerEntity;
+import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
 import org.nrg.framework.orm.hibernate.AbstractHibernateDAO;
 import org.springframework.stereotype.Repository;
 
@@ -18,7 +19,12 @@ public class DockerServerEntityRepository extends AbstractHibernateDAO<DockerSer
             return;
         }
         Hibernate.initialize(entity);
-        Hibernate.initialize(entity.getConstraints());
+        Hibernate.initialize(entity.getSwarmConstraints());
+        if (entity.getSwarmConstraints() != null) {
+            for (final DockerServerEntitySwarmConstraint constraint : entity.getSwarmConstraints()) {
+                Hibernate.initialize(constraint.getValues());
+            }
+        }
     }
 
     public static DockerServerEntity create(final DockerServerBase.DockerServer dockerServer) {

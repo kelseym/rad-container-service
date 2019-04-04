@@ -13,6 +13,7 @@ import org.nrg.containers.events.listeners.DockerServiceEventListener;
 import org.nrg.containers.model.command.entity.*;
 import org.nrg.containers.model.container.entity.*;
 import org.nrg.containers.model.server.docker.DockerServerEntity;
+import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
 import org.nrg.containers.services.*;
 import org.nrg.containers.services.impl.*;
 import org.nrg.framework.services.ContextService;
@@ -221,6 +222,7 @@ public class QueueConsumerTestConfig {
         bean.setHibernateProperties(properties);
         bean.setAnnotatedClasses(
                 DockerServerEntity.class,
+                DockerServerEntitySwarmConstraint.class,
                 CommandEntity.class,
                 DockerCommandEntity.class,
                 DockerSetupCommandEntity.class,

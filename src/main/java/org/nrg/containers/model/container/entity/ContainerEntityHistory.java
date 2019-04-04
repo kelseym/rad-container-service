@@ -187,7 +187,7 @@ public class ContainerEntityHistory {
 
     @Override
     public int hashCode() {
-        return Objects.hash(containerEntity, status, externalTimestamp);
+        return Objects.hash(containerEntity, status, externalTimestamp, message);
     }
 
     @Override

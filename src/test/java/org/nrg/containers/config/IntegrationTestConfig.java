@@ -28,6 +28,7 @@ import org.nrg.containers.model.container.entity.ContainerEntityMount;
 import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 import org.nrg.containers.model.server.docker.DockerServerEntity;
+import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
 import org.nrg.containers.services.*;
 import org.nrg.containers.services.impl.*;
 import org.nrg.framework.services.ContextService;
@@ -229,6 +230,7 @@ public class IntegrationTestConfig {
         bean.setHibernateProperties(properties);
         bean.setAnnotatedClasses(
                 DockerServerEntity.class,
+                DockerServerEntitySwarmConstraint.class,
                 CommandEntity.class,
                 DockerCommandEntity.class,
                 DockerSetupCommandEntity.class,

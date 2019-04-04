@@ -649,21 +649,20 @@ public class DockerControlApi implements ContainerControlApi {
             containerSpecBuilder.args(ShellSplitter.shellSplit(runCommand));
         }
 
-        //TODO allow addl constraints from the container command.json
         List<String> constraints = null;
-        List<String> constList = server.constraints();
-        if (constList != null) {
-            constraints = new ArrayList<>();
-            for (String item : constList) {
-                if (StringUtils.isNotBlank(item)) {
-                    constraints.add(item);
-                }
-            }
-
-            if (constraints.isEmpty()) {
-                constraints = null;
-            }
-        }
+        //List<String> siteConstraints = server.siteConstraints();
+        //if (siteConstraints != null) {
+        //    constraints = new ArrayList<>();
+        //    for (String item : siteConstraints) {
+        //        if (StringUtils.isNotBlank(item)) {
+        //            constraints.add(item);
+        //        }
+        //    }
+        //
+        //    if (constraints.isEmpty()) {
+        //        constraints = null;
+        //    }
+        //}
 
         final TaskSpec taskSpec = TaskSpec.builder()
                 .containerSpec(containerSpecBuilder.build())
