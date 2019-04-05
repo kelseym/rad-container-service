@@ -10,6 +10,7 @@ import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCo
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
 import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
+import org.nrg.containers.model.server.docker.DockerServerBase;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,7 +26,78 @@ import java.util.Set;
 public abstract class LaunchUi {
 
     @JsonProperty("meta") public abstract LaunchUiMeta meta();
+    @JsonProperty("container-server-config") public abstract LaunchUiServer containerServerConfig();
     @JsonProperty("input-config") public abstract List<LaunchUiInputTree> inputTrees();
+
+    @AutoValue
+    public static abstract class LaunchUiServer {
+        @Nullable @JsonProperty("constraints") public abstract List<LaunchUiServerConstraint> constraints();
+
+        public static LaunchUiServer create(final DockerServerBase server) {
+            List<LaunchUiServerConstraint> uiconstraints = null;
+            List<DockerServerBase.DockerServerSwarmConstraint> constraints = server.swarmConstraints();
+            if (constraints != null) {
+                uiconstraints = new ArrayList<>();
+                for (DockerServerBase.DockerServerSwarmConstraint constraint : constraints) {
+                    if (constraint.userSettable()) {
+                        // Only add to UI json if user-settable
+                        uiconstraints.add(LaunchUiServerConstraint.create(constraint));
+                    }
+                }
+            }
+            return builder()
+                    .constraints(uiconstraints)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiServer.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder constraints(@Nullable List<LaunchUiServerConstraint> constraints);
+
+            public abstract LaunchUiServer build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class LaunchUiServerConstraint {
+        //@JsonProperty("user-settable") public abstract boolean userSettable();
+        @JsonProperty("attribute") public abstract String attribute();
+        @JsonProperty("comparator") public abstract String comparator();
+        @JsonProperty("values") public abstract List<String> values();
+
+        public static LaunchUiServerConstraint create(DockerServerBase.DockerServerSwarmConstraint constraint) {
+            return create(constraint.attribute(),
+                    constraint.comparator(),
+                    constraint.values());
+        }
+
+        public static LaunchUiServerConstraint create(final @Nonnull String attribute,
+                                            final @Nonnull String comparator,
+                                            final @Nonnull List<String> values) {
+            return builder()
+                    .attribute(attribute)
+                    .comparator(comparator)
+                    .values(values)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiServerConstraint.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder attribute(@Nonnull String attribute);
+            public abstract Builder comparator(@Nullable String comparator);
+            public abstract Builder values(@Nullable List<String> values);
+
+            public abstract LaunchUiServerConstraint build();
+        }
+    }
 
     @AutoValue
     public static abstract class LaunchUiMeta {
@@ -259,9 +331,11 @@ public abstract class LaunchUi {
         @JsonProperty("input-values") public abstract List<LaunchUiValueTree> valueTrees();
 
         public static SingleLaunchUi create(final @Nonnull PartiallyResolvedCommand partiallyResolvedCommand,
-                                            final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
+                                            final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
+                                            final @Nonnull DockerServerBase.DockerServer server) {
             return builder()
                     .meta(LaunchUiMeta.create(partiallyResolvedCommand))
+                    .containerServerConfig(LaunchUiServer.create(server))
                     .populateInputTreeAndInputValueTreeFromResolvedInputTrees(partiallyResolvedCommand.resolvedInputTrees(), inputConfigurationMap)
                     .build();
         }
@@ -276,6 +350,7 @@ public abstract class LaunchUi {
             public abstract Builder inputTrees(@Nonnull List<LaunchUiInputTree> inputTrees);
 
             public abstract Builder valueTrees(@Nonnull List<LaunchUiValueTree> valueTrees);
+            public abstract Builder containerServerConfig(@Nonnull LaunchUiServer server);
 
             public Builder populateInputTreeAndInputValueTreeFromResolvedInputTrees(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees,
                                                                                     final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {
@@ -310,6 +385,17 @@ public abstract class LaunchUi {
     public static abstract class BulkLaunchUi extends LaunchUi {
         @JsonProperty("input-values") public abstract List<List<LaunchUiValueTree>> listOfValueTrees();
 
+        public static BulkLaunchUi create(final @Nonnull PartiallyResolvedCommand partiallyResolvedCommand,
+                                          final @Nonnull List<List<ResolvedInputTreeNode<? extends Input>>> listOfResolvedInputTrees,
+                                          final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap,
+                                          final @Nonnull DockerServerBase.DockerServer server) {
+            return builder()
+                    .containerServerConfig(LaunchUiServer.create(server))
+                    .meta(LaunchUi.LaunchUiMeta.create(partiallyResolvedCommand))
+                    .populateInputTreeAndInputValueTreeFromResolvedInputTrees(listOfResolvedInputTrees,
+                            inputConfigurationMap)
+                    .build();
+        }
 
         public static Builder builder() {
             return new AutoValue_LaunchUi_BulkLaunchUi.Builder();
@@ -322,6 +408,7 @@ public abstract class LaunchUi {
             public abstract Builder inputTrees(@Nonnull List<LaunchUiInputTree> inputTrees);
 
             public abstract Builder listOfValueTrees(@Nonnull List<List<LaunchUiValueTree>> listOfValueTrees);
+            public abstract Builder containerServerConfig(@Nonnull LaunchUiServer server);
 
             public Builder populateInputTreeAndInputValueTreeFromResolvedInputTrees(final @Nonnull List<List<ResolvedInputTreeNode<? extends Input>>> listOfResolvedInputTrees,
                                                                                     final @Nonnull Map<String, CommandInputConfiguration> inputConfigurationMap) {

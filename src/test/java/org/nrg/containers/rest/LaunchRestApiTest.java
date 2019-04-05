@@ -331,7 +331,8 @@ public class LaunchRestApiTest {
         when(mockCommandResolutionService.preResolve(eq(project), eq(WRAPPER_ID), anyMapOf(String.class, String.class), eq(mockAdmin)))
                 .thenReturn(partiallyResolvedCommand);
 
-        final LaunchUi expectedLaunchUi = LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, mockCommandConfiguration.inputs());
+        final LaunchUi expectedLaunchUi = LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand,
+                mockCommandConfiguration.inputs(), mockDockerServerService.getServer());
 
         final String path = String.format(pathTemplate, project, WRAPPER_ID);
         final MockHttpServletRequestBuilder request = get(path)

@@ -380,6 +380,8 @@ public class ContainerServiceImpl implements ContainerService {
                                                         final UserI userI,
                                                         @Nullable final String workflowid) {
 
+        //TODO extract server constraints from inputValues, pass them through
+
         PersistentWorkflowI workflow = null;
         if (workflowid != null) {
             workflow = WorkflowUtils.getUniqueWorkflow(userI, workflowid);

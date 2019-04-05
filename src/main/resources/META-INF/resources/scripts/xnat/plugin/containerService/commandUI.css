@@ -49,3 +49,18 @@
     white-space: normal;
     width: 180px;
 }
+
+div.container-server-config .panel-element .element-label{
+    width:50%;
+}
+div.container-server-config .panel-element .element-wrapper {
+    width:50%;
+}
+span.container-server-config-heading {
+    background-color: #f0f0f0;
+    color: #848484;
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+}

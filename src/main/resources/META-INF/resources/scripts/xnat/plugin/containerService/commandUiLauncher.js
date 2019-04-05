@@ -81,6 +81,11 @@ var XNAT = getObject(XNAT || {});
     function getProjectLauncherUI(wrapperId,rootElementName,rootElementValue){
         return rootUrl('/xapi/projects/'+projectId+'/wrappers/'+wrapperId+'/launch?'+rootElementName+'='+rootElementValue);
     }
+    function getBulkLauncherUI(wrapperId,targetObj,project) {
+        return (project) ?
+             rootUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/bulklaunch?'+targetObj) :
+             rootUrl('/xapi/wrappers/'+wrapperId+'/bulklaunch?'+targetObj);
+    }
     function containerLaunchUrl(wrapperId,rootElementName){
         return csrfUrl('/xapi/wrappers/'+wrapperId+'/root/'+rootElementName+'/launch');
     }
@@ -473,6 +478,9 @@ var XNAT = getObject(XNAT || {});
         }
 
         function renderInput(input, $form, valueArr){
+            var $standardInputContainer = $form.find('.standard-settings');
+            var $advancedInputContainer = $form.find('.advanced-settings');
+
             var selectedVal,
                 selectedLabel,
                 inputValues = launcher.inputPresets,
@@ -561,7 +569,8 @@ var XNAT = getObject(XNAT || {});
                     configInput.childInputs = jsonPath(valueArr, "$..children[*].name")
                         .filter(uniqueArray); // build an array of the input names of all child inputs. Ensure the array is unique.
                 }
-                $form.append(launcher.formInputs(configInput));
+                var $addTo = configInput.advanced ? $advancedInputContainer : $standardInputContainer;
+                $addTo.append(launcher.formInputs(configInput));
             }
 
 
@@ -593,6 +602,23 @@ var XNAT = getObject(XNAT || {});
         });
     };
 
+    launcher.addServerConstrToForm = function($container, constraints) {
+        var confClass = 'container-server-config';
+        if (constraints.length > 0 && $container.find('.' + confClass).length === 0) {
+            var selects = [];
+            selects.push(spawn('span.' + confClass + '-heading', 'Swarm node constraints'));
+            $.each(constraints, function(i, conf) {
+                selects.push(configSelect({
+                    label: conf.attribute + ' ' + conf.comparator,
+                    name: confClass + '-' + conf.attribute,
+                    options: conf.values
+                }));
+            });
+            var serverConstrDiv = spawn('div.'  + confClass, selects);
+            $container.append($(serverConstrDiv));
+        }
+    };
+
     $(document).on('change','.has-children',function(){
         if ($(this).data('children')) {
             // var children = $(this).data('children').split(',');
@@ -621,7 +647,6 @@ var XNAT = getObject(XNAT || {});
         }
     });
 
-
     /*
      ** Launcher Options
      */
@@ -635,7 +660,7 @@ var XNAT = getObject(XNAT || {});
         var launcherContent = spawn('div.panel',[
             spawn('p','Please specify settings for this container.'),
             spawn('div.standard-settings'),
-            spawn('div.advanced-settings-container.hidden',[
+            spawn('div.advanced-settings-container',[
                 spawn('div.advanced-settings-toggle'),
                 spawn('div.advanced-settings')
             ])
@@ -654,11 +679,13 @@ var XNAT = getObject(XNAT || {});
                     launcher.errorMessages = [];
                     xmodal.loading.open({title: 'Configuring Container Launcher'});
                     var $panel = obj.$modal.find('.panel');
-                    var $standardInputContainer = $panel.find('.standard-settings');
                     var $advancedInputContainer = $panel.find('.advanced-settings');
 
                     launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
-
+                    launcher.addServerConstrToForm($advancedInputContainer, configData['container-server-config']['constraints']);
+                    if ($advancedInputContainer.children().length === 0) {
+                        $advancedInputContainer.hide();
+                    }
                 },
                 afterShow: function(obj){
                     xmodal.loading.close();
@@ -829,7 +856,7 @@ var XNAT = getObject(XNAT || {});
 
         var launcherContent = spawn('div.panel',[
             spawn('p','Please specify settings for this container.'),
-            spawn('div.target-list')
+            spawn('div.target-list.bulk-inputs')
         ]);
 
         if ( jsonPath(workList, "$..name").indexOf(rootElement) >=0 ) { // if the specified root element matches an input parameter, we can proceed
@@ -868,19 +895,22 @@ var XNAT = getObject(XNAT || {});
 
                             $panel.append(spawn('div',{ className: 'bulk-master bulk-inputs inputs-'+k },[
                                 spawn('div.standard-settings'),
-                                spawn('div.advanced-settings-container.hidden',[
+                                spawn('div.advanced-settings-container',[
                                     spawn('div.advanced-settings-toggle'),
                                     spawn('div.advanced-settings')
                                 ])
                             ]));
 
-                            var $standardInputContainer = $panel.find('.standard-settings'),
-                                $advancedInputContainer = $panel.find('.advanced-settings');
+                            var $advancedInputContainer = $panel.find('.advanced-settings');
 
                             // hide the root element since it has been displayed in the target list
                             workList.forEach(function(input){ if (input.name === rootElement) input['input-type'] = 'hidden' });
 
-                            launcher.populateForm($standardInputContainer, workList, launcher.inputPresets, rootElement);
+                            launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
+                            launcher.addServerConstrToForm($advancedInputContainer, configData['container-server-config']['constraints']);
+                            if ($advancedInputContainer.children().length === 0) {
+                                $advancedInputContainer.hide();
+                            }
 
                         } else {
                             // on 2nd - nth inputs, simply create hidden inputs whose values will be toggled by user changes to first set of inputs
@@ -1151,12 +1181,9 @@ var XNAT = getObject(XNAT || {});
         if (!targets || targets.length === 0) return false;
         if (!targetLabels || targetLabels.length !== targets.length) targetLabels = targets;
 
-        //TODO speed up the serialization of XNAT objects during command preresolution so we can use the bulklaunch UI generator
-        // var targetObj = rootElement + '=' + targets.toString();
-        // var launchUrl = (project) ?
-        //     rootUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/bulklaunch?'+targetObj) :
-        //     rootUrl('/xapi/wrappers/'+wrapperId+'/bulklaunch?'+targetObj);
-        var launchUrl = getCommandConfigUrl(wrapperId,commandId,project);
+        //var launchUrl = getCommandConfigUrl(wrapperId,commandId,project);
+        var targetObj = rootElement + '=' + targets.toString();
+        var launchUrl = getBulkLauncherUI(wrapperId,targetObj,project);
 
         xmodal.loading.open({ title: 'Configuring Container Launcher' });
         XNAT.xhr.getJSON({
@@ -1168,9 +1195,9 @@ var XNAT = getObject(XNAT || {});
                     responseText: 'Could not launch UI with value(s): "'+targets.toString()+'" for root element: "'+rootElement+'".'
                 });
             },
-            success: function(data){
+            success: function(configData){
                 xmodal.loading.close();
-                var configData = convertInputstoConfigData(data.inputs, targets, targetLabels, rootElement);
+                //var configData = convertInputstoConfigData(configData.inputs, targets, targetLabels, rootElement);
                 launchManyContainers(configData,rootElement,wrapperId,targets,targetLabels,project);
             }
         });

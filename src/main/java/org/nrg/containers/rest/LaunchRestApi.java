@@ -22,6 +22,7 @@ import org.nrg.containers.model.configuration.CommandConfiguration;
 import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerService;
+import org.nrg.containers.services.DockerServerService;
 import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
@@ -70,16 +71,19 @@ public class LaunchRestApi extends AbstractXapiRestController {
     private final CommandService commandService;
     private final ContainerService containerService;
     private final CommandResolutionService commandResolutionService;
+    private final DockerServerService dockerServerService;
 
     @Autowired
     public LaunchRestApi(final CommandService commandService,
                          final ContainerService containerService,
                          final CommandResolutionService commandResolutionService,
+                         final DockerServerService dockerServerService,
                          final UserManagementServiceI userManagementService,
                          final RoleHolder roleHolder) {
         super(userManagementService, roleHolder);
         this.commandService = commandService;
         this.containerService = containerService;
+        this.dockerServerService = dockerServerService;
         this.commandResolutionService = commandResolutionService;
     }
 
@@ -150,7 +154,9 @@ public class LaunchRestApi extends AbstractXapiRestController {
 
 
             log.debug("Creating launch UI.");
-            return LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, commandConfiguration.inputs());
+            return LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand,
+                    commandConfiguration.inputs(),
+                    dockerServerService.getServer());
         } catch (Throwable t) {
             log.error("Error getting launch UI.", t);
             if (Exception.class.isAssignableFrom(t.getClass())) {
@@ -295,10 +301,9 @@ public class LaunchRestApi extends AbstractXapiRestController {
             }
 
             log.debug("Creating launch UI.");
-            return LaunchUi.BulkLaunchUi.builder()
-                    .meta(LaunchUi.LaunchUiMeta.create(aPartiallyResolvedCommand))
-                    .populateInputTreeAndInputValueTreeFromResolvedInputTrees(listOfResolvedInputTrees, commandConfiguration.inputs())
-                    .build();
+            return LaunchUi.BulkLaunchUi.create(aPartiallyResolvedCommand, listOfResolvedInputTrees,
+                    commandConfiguration.inputs(),
+                    dockerServerService.getServer());
         } catch (Throwable t) {
             log.error("Error getting launch UI.", t);
             if (Exception.class.isAssignableFrom(t.getClass())) {
