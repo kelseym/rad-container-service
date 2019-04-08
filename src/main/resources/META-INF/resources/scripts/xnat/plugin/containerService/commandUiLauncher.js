@@ -45,6 +45,8 @@ var XNAT = getObject(XNAT || {});
     XNAT.plugin.containerService.launcher = launcher =
         getObject(XNAT.plugin.containerService.launcher || {});
 
+    launcher.swarmConstraintsStr = 'swarm-constraints'; // must match CommandResolutionServiceImpl>swarmConstraintsTag
+
 
     function errorHandler(e){
         console.log(e);
@@ -92,11 +94,10 @@ var XNAT = getObject(XNAT || {});
     function projectContainerLaunchUrl(project,wrapperId,rootElementName){
         return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/root/'+rootElementName+'/launch');
     }
-    function bulkLaunchUrl(wrapperId,rootElementName){
-        return csrfUrl('/xapi/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch');
-    }
-    function bulkProjectLaunchUrl(project,wrapperId,rootElementName){
-        return csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch');
+    function bulkLaunchUrl(wrapperId,rootElementName,project){
+        return (project)
+            ? csrfUrl('/xapi/projects/'+project+'/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch')
+            : csrfUrl('/xapi/wrappers/'+wrapperId+'/root/'+rootElementName+'/bulklaunch');
     }
     function sessionUrl(){
         var sessionId = (XNAT.data.context.isImageSession) ? XNAT.data.context.ID : null;
@@ -602,19 +603,22 @@ var XNAT = getObject(XNAT || {});
         });
     };
 
-    launcher.addServerConstrToForm = function($container, constraints) {
-        var confClass = 'container-server-config';
-        if (constraints.length > 0 && $container.find('.' + confClass).length === 0) {
+    launcher.addSwarmConstraintsToForm = function($container, constraints) {
+        if (constraints.length > 0 && $container.find('.' + launcher.swarmConstraintsStr).length === 0) {
             var selects = [];
-            selects.push(spawn('span.' + confClass + '-heading', 'Swarm node constraints'));
+            selects.push(spawn('span.' + launcher.swarmConstraintsStr + '-heading', 'Swarm node constraints'));
             $.each(constraints, function(i, conf) {
+                selects.push(hiddenConfigInput({
+                    name: launcher.swarmConstraintsStr + '['+i+']:attribute',
+                    value: conf.attribute
+                }));
                 selects.push(configSelect({
                     label: conf.attribute + ' ' + conf.comparator,
-                    name: confClass + '-' + conf.attribute,
+                    name: launcher.swarmConstraintsStr + '['+i+']:value',
                     options: conf.values
                 }));
             });
-            var serverConstrDiv = spawn('div.'  + confClass, selects);
+            var serverConstrDiv = spawn('div.'  + launcher.swarmConstraintsStr, selects);
             $container.append($(serverConstrDiv));
         }
     };
@@ -657,14 +661,14 @@ var XNAT = getObject(XNAT || {});
         launcher.inputList = configData['input-config'];
         launcher.inputPresets = configData['input-values'];
 
-        var launcherContent = spawn('div.panel',[
+        var launcherContent = spawn('div.panel',[spawn('form',[
             spawn('p','Please specify settings for this container.'),
             spawn('div.standard-settings'),
             spawn('div.advanced-settings-container',[
                 spawn('div.advanced-settings-toggle'),
                 spawn('div.advanced-settings')
             ])
-        ]);
+        ])]);
 
         if (workList.filter(function(input){ return input.name === rootElement }).length > 0) {
             // if the root element is specified in the list of inputs ...
@@ -682,7 +686,7 @@ var XNAT = getObject(XNAT || {});
                     var $advancedInputContainer = $panel.find('.advanced-settings');
 
                     launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
-                    launcher.addServerConstrToForm($advancedInputContainer, configData['container-server-config']['constraints']);
+                    launcher.addSwarmConstraintsToForm($advancedInputContainer, configData['container-server-config']['swarm-constraints']);
                     if ($advancedInputContainer.children().length === 0) {
                         $advancedInputContainer.hide();
                     }
@@ -702,11 +706,10 @@ var XNAT = getObject(XNAT || {});
                         isDefault: true,
                         close: false,
                         action: function(obj){
-                            var $panel = obj.$modal.find('.panel'),
-                                targetData = {};
+                            var $form = obj.$modal.find('.panel form');
 
                             // check all inputs for invalid characters
-                            var $inputs = $panel.find('input'),
+                            var $inputs = $form.find('input'),
                                 runContainer = true;
                             $inputs.each(function(){
                                 var input = $(this)[0];
@@ -717,30 +720,14 @@ var XNAT = getObject(XNAT || {});
                             });
 
                             if (runContainer) {
-                                // gather form input values
-                                targetData[rootElement] = $panel.find('input[name='+rootElement+']').val();
-
-                                $panel.find('input').not(':disabled').not('[type=checkbox]').not('[type=radio]').not('[name='+rootElement+']').each(function(){
-                                    // get the name and value from each text element and add it to our data to post
-                                    var key = $(this).prop('name');
-                                    targetData[key] = $(this).val();
-                                });
-
-                                $panel.find('input[type=checkbox]').not(':disabled').each(function(){
-                                    var key = $(this).prop('name');
-                                    var val = ($(this).is(':checked')) ? $(this).val() : false;
-                                    targetData[key] = val;
-                                });
-
-                                $panel.find('select').not(':disabled').each(function(){
-                                    var key = $(this).prop('name');
-                                    var val = $(this).find('option:selected').val();
-                                    targetData[key] = val;
-                                });
-
-                                var dataToPost = targetData;
-
                                 xmodal.loading.open({ title: 'Launching Container...' });
+                                // gather form input values
+                                var dataToPost = form2js($form.get(0), ':');
+                                // API method can only receive Map<String, String> so need to stringify more complex params
+                                // with plan to deserialize them deeper in the code
+                                if (dataToPost.hasOwnProperty(launcher.swarmConstraintsStr)) {
+                                    dataToPost[launcher.swarmConstraintsStr] = JSON.stringify(dataToPost[launcher.swarmConstraintsStr]);
+                                }
 
                                 var projectContext = XNAT.data.context.project;
                                 var launchUrl = (projectContext.length) ?
@@ -885,46 +872,69 @@ var XNAT = getObject(XNAT || {});
                     // standard inputs with children -- append the UI element and the child element(s) in a child element wrapper
                     // advanced inputs (that aren't children) -- append the UI element to the advanced input container
 
-                    targets.forEach(function(target,k){
-                        // iterate through each list of targets.
-                        // reset the stored preset values for each iteration
-                        launcher.inputPresets = configData['input-values'][k];
+                    // on first iteration, create all user-settable inputs
+                    var k = 0;
+                    launcher.inputPresets = configData['input-values'][k];
+                    $panel.append(spawn('div',{ className: 'bulk-master bulk-inputs inputs-'+k },[spawn('form',[
+                        spawn('div.standard-settings'),
+                        spawn('div.advanced-settings-container',[
+                            spawn('div.advanced-settings-toggle'),
+                            spawn('div.advanced-settings')
+                        ])
+                    ])]));
 
-                        if (k===0) {
-                            // on first iteration, create all user-settable inputs
+                    var $advancedInputContainer = $panel.find('.advanced-settings');
 
-                            $panel.append(spawn('div',{ className: 'bulk-master bulk-inputs inputs-'+k },[
-                                spawn('div.standard-settings'),
-                                spawn('div.advanced-settings-container',[
-                                    spawn('div.advanced-settings-toggle'),
-                                    spawn('div.advanced-settings')
-                                ])
-                            ]));
+                    // hide the root element since it has been displayed in the target list
+                    workList.forEach(function(input){ if (input.name === rootElement) input['input-type'] = 'hidden' });
 
-                            var $advancedInputContainer = $panel.find('.advanced-settings');
+                    launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
+                    launcher.addSwarmConstraintsToForm($advancedInputContainer, configData['container-server-config']['swarm-constraints']);
+                    if ($advancedInputContainer.children().length === 0) {
+                        $advancedInputContainer.hide();
+                    }
 
-                            // hide the root element since it has been displayed in the target list
-                            workList.forEach(function(input){ if (input.name === rootElement) input['input-type'] = 'hidden' });
-
-                            launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
-                            launcher.addServerConstrToForm($advancedInputContainer, configData['container-server-config']['constraints']);
-                            if ($advancedInputContainer.children().length === 0) {
-                                $advancedInputContainer.hide();
-                            }
-
-                        } else {
-                            // on 2nd - nth inputs, simply create hidden inputs whose values will be toggled by user changes to first set of inputs
-                            $panel.append(spawn('div',{ className: 'hidden bulk-controls bulk-inputs inputs-'+k }));
-                            var $bulkInputContainer = $panel.find('.inputs-'+k);
-
-                            var bulkInputs = [].concat(workList);
-                            bulkInputs.forEach(function(bulkInput){ bulkInput['input-type'] = 'hidden' });
-
-                            launcher.populateForm($bulkInputContainer, bulkInputs, launcher.inputPresets, rootElement);
-
-                        }
-
-                    });
+                    // For now, there are no parameters that will differ target-to-target but that are related in some way
+                    // so that changing one implies some predictable change for others
+                    // targets.forEach(function(target,k){
+                    //     // iterate through each list of targets.
+                    //     // reset the stored preset values for each iteration
+                    //     launcher.inputPresets = configData['input-values'][k];
+                    //
+                    //     if (k===0) {
+                    //         // on first iteration, create all user-settable inputs
+                    //
+                    //         $panel.append(spawn('div',{ className: 'bulk-master bulk-inputs inputs-'+k },[spawn('form',[
+                    //             spawn('div.standard-settings'),
+                    //             spawn('div.advanced-settings-container',[
+                    //                 spawn('div.advanced-settings-toggle'),
+                    //                 spawn('div.advanced-settings')
+                    //             ])
+                    //         ])]));
+                    //
+                    //         var $advancedInputContainer = $panel.find('.advanced-settings');
+                    //
+                    //         // hide the root element since it has been displayed in the target list
+                    //         workList.forEach(function(input){ if (input.name === rootElement) input['input-type'] = 'hidden' });
+                    //
+                    //         launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
+                    //         launcher.addSwarmConstraintsToForm($advancedInputContainer, configData['container-server-config']['swarm-constraints']);
+                    //         if ($advancedInputContainer.children().length === 0) {
+                    //             $advancedInputContainer.hide();
+                    //         }
+                    //
+                    //     } else {
+                    //         // on 2nd - nth inputs, simply create hidden inputs whose values will be toggled by user changes to first set of inputs
+                    //         $panel.append(spawn('div',{ className: 'hidden bulk-controls bulk-inputs inputs-'+k }, spawn('form')));
+                    //         var $bulkInputContainer = $panel.find('.inputs-' + k + ' form');
+                    //
+                    //         var bulkInputs = [].concat(workList);
+                    //         bulkInputs.forEach(function(bulkInput){ bulkInput['input-type'] = 'hidden' });
+                    //
+                    //         launcher.populateForm($bulkInputContainer, bulkInputs, launcher.inputPresets, rootElement);
+                    //
+                    //     }
+                    // });
 
                 },
                 afterShow: function(obj){
@@ -942,8 +952,7 @@ var XNAT = getObject(XNAT || {});
                         isDefault: true,
                         close: false,
                         action: function(obj){
-                            var $panel = obj.$modal.find('.panel'),
-                                bulkData = [];
+                            var $panel = obj.$modal.find('.panel form');
 
                             // check all inputs for invalid characters
                             var $inputs = $panel.find('input'),
@@ -957,39 +966,47 @@ var XNAT = getObject(XNAT || {});
                             });
 
                             if (runContainer) {
-                                $panel.find('.bulk-inputs').each(function(){
-                                    // iterate over each set of inputs and add an object of inputs and values to the bulkData array
-                                    var targetData = {},
-                                        $thisPanel = $(this);
+                                // gather form input values
+                                var dataToPost = form2js($panel.get(0), ':');
+                                // API method can only receive Map<String, String> so need to stringify more complex params
+                                // with plan to deserialize them deeper in the code
+                                if (dataToPost.hasOwnProperty(launcher.swarmConstraintsStr)) {
+                                    dataToPost[launcher.swarmConstraintsStr] = JSON.stringify(dataToPost[launcher.swarmConstraintsStr]);
+                                }
+                                // Add targetlist to root element
+                                dataToPost[rootElement] = JSON.stringify(targets);
 
-                                    // gather form input values
-                                    targetData[rootElement] = $thisPanel.find('input[name='+rootElement+']').val();
+                                // $panel.find('.bulk-inputs').each(function(){
+                                //     // iterate over each set of inputs and add an object of inputs and values to the bulkData array
+                                //     var targetData = {},
+                                //         $thisPanel = $(this);
+                                //
+                                //     // gather form input values
+                                //     targetData[rootElement] = $thisPanel.find('input[name='+rootElement+']').val();
+                                //
+                                //     $thisPanel.find('input').not(':disabled').not('[type=checkbox]').not('[type=radio]').not('[name='+rootElement+']').each(function(){
+                                //         // get the name and value from each text element and add it to our data to post
+                                //         var key = $(this).prop('name');
+                                //         targetData[key] = $(this).val();
+                                //     });
+                                //
+                                //     $thisPanel.find('input[type=checkbox]').not(':disabled').each(function(){
+                                //         var key = $(this).prop('name');
+                                //         var val = ($(this).is(':checked')) ? $(this).val() : false;
+                                //         targetData[key] = val;
+                                //     });
+                                //
+                                //     $thisPanel.find('select').not(':disabled').each(function(){
+                                //         var key = $(this).prop('name');
+                                //         var val = $(this).find('option:selected').val();
+                                //         targetData[key] = val;
+                                //     });
+                                //
+                                //     bulkData.push(targetData);
+                                // });
+                                // var dataToPost = bulkData;
 
-                                    $thisPanel.find('input').not(':disabled').not('[type=checkbox]').not('[type=radio]').not('[name='+rootElement+']').each(function(){
-                                        // get the name and value from each text element and add it to our data to post
-                                        var key = $(this).prop('name');
-                                        targetData[key] = $(this).val();
-                                    });
-
-                                    $thisPanel.find('input[type=checkbox]').not(':disabled').each(function(){
-                                        var key = $(this).prop('name');
-                                        var val = ($(this).is(':checked')) ? $(this).val() : false;
-                                        targetData[key] = val;
-                                    });
-
-                                    $thisPanel.find('select').not(':disabled').each(function(){
-                                        var key = $(this).prop('name');
-                                        var val = $(this).find('option:selected').val();
-                                        targetData[key] = val;
-                                    });
-
-                                    bulkData.push(targetData);
-                                });
-
-                                var dataToPost = bulkData;
-                                var launchUrl = (project) ?
-                                    bulkProjectLaunchUrl(project,wrapperId,rootElement) :
-                                    bulkLaunchUrl(wrapperId,rootElement);
+                                var launchUrl = bulkLaunchUrl(wrapperId,rootElement, project);
 
                                 XNAT.xhr.postJSON({
                                     beforeSend: function() {

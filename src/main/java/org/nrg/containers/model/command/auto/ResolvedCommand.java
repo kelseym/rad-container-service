@@ -44,6 +44,7 @@ public abstract class ResolvedCommand {
     @JsonProperty("reserve-memory") @Nullable public abstract Long reserveMemory();
     @JsonProperty("limit-memory") @Nullable public abstract Long limitMemory();
     @JsonProperty("limit-cpu") @Nullable public abstract Double limitCpu();
+    @JsonProperty("swarm-constraints") @Nullable public abstract List<String> swarmConstraints();
     @JsonProperty("parent-source-object-name") @Nullable public abstract String parentSourceObjectName();
 
     @JsonProperty("external-wrapper-input-values")
@@ -291,6 +292,7 @@ public abstract class ResolvedCommand {
         public abstract Builder reserveMemory(Long reserveMemory);
         public abstract Builder limitMemory(Long limitMemory);
         public abstract Builder limitCpu(Double limitCpu);
+        public abstract Builder swarmConstraints(List<String> swarmConstraints);
         public abstract Builder parentSourceObjectName(String parentSourceObjectName);
 
         public abstract ResolvedCommand build();

@@ -31,22 +31,22 @@ public abstract class LaunchUi {
 
     @AutoValue
     public static abstract class LaunchUiServer {
-        @Nullable @JsonProperty("constraints") public abstract List<LaunchUiServerConstraint> constraints();
+        @Nullable @JsonProperty("swarm-constraints") public abstract List<LaunchUiServerSwarmConstraint> swarmConstraints();
 
         public static LaunchUiServer create(final DockerServerBase server) {
-            List<LaunchUiServerConstraint> uiconstraints = null;
+            List<LaunchUiServerSwarmConstraint> uiconstraints = null;
             List<DockerServerBase.DockerServerSwarmConstraint> constraints = server.swarmConstraints();
             if (constraints != null) {
                 uiconstraints = new ArrayList<>();
                 for (DockerServerBase.DockerServerSwarmConstraint constraint : constraints) {
                     if (constraint.userSettable()) {
                         // Only add to UI json if user-settable
-                        uiconstraints.add(LaunchUiServerConstraint.create(constraint));
+                        uiconstraints.add(LaunchUiServerSwarmConstraint.create(constraint));
                     }
                 }
             }
             return builder()
-                    .constraints(uiconstraints)
+                    .swarmConstraints(uiconstraints)
                     .build();
         }
 
@@ -56,28 +56,28 @@ public abstract class LaunchUi {
 
         @AutoValue.Builder
         public abstract static class Builder {
-            public abstract Builder constraints(@Nullable List<LaunchUiServerConstraint> constraints);
+            public abstract Builder swarmConstraints(@Nullable List<LaunchUiServerSwarmConstraint> swarmConstraints);
 
             public abstract LaunchUiServer build();
         }
     }
 
     @AutoValue
-    public static abstract class LaunchUiServerConstraint {
+    public static abstract class LaunchUiServerSwarmConstraint {
         //@JsonProperty("user-settable") public abstract boolean userSettable();
         @JsonProperty("attribute") public abstract String attribute();
         @JsonProperty("comparator") public abstract String comparator();
         @JsonProperty("values") public abstract List<String> values();
 
-        public static LaunchUiServerConstraint create(DockerServerBase.DockerServerSwarmConstraint constraint) {
+        public static LaunchUiServerSwarmConstraint create(DockerServerBase.DockerServerSwarmConstraint constraint) {
             return create(constraint.attribute(),
                     constraint.comparator(),
                     constraint.values());
         }
 
-        public static LaunchUiServerConstraint create(final @Nonnull String attribute,
-                                            final @Nonnull String comparator,
-                                            final @Nonnull List<String> values) {
+        public static LaunchUiServerSwarmConstraint create(final @Nonnull String attribute,
+                                                      final @Nonnull String comparator,
+                                                      final @Nonnull List<String> values) {
             return builder()
                     .attribute(attribute)
                     .comparator(comparator)
@@ -86,7 +86,7 @@ public abstract class LaunchUi {
         }
 
         public static Builder builder() {
-            return new AutoValue_LaunchUi_LaunchUiServerConstraint.Builder();
+            return new AutoValue_LaunchUi_LaunchUiServerSwarmConstraint.Builder();
         }
 
         @AutoValue.Builder
@@ -95,7 +95,34 @@ public abstract class LaunchUi {
             public abstract Builder comparator(@Nullable String comparator);
             public abstract Builder values(@Nullable List<String> values);
 
-            public abstract LaunchUiServerConstraint build();
+            public abstract LaunchUiServerSwarmConstraint build();
+        }
+    }
+
+    @AutoValue
+    public static abstract class LaunchUiServerConstraintSelected {
+        @JsonProperty("attribute") public abstract String attribute();
+        @JsonProperty("value") public abstract String value();
+
+        @JsonCreator
+        public static LaunchUiServerConstraintSelected create(@JsonProperty("attribute") final @Nonnull String attribute,
+                                                              @JsonProperty("value") final @Nonnull String value) {
+            return builder()
+                    .attribute(attribute)
+                    .value(value)
+                    .build();
+        }
+
+        public static Builder builder() {
+            return new AutoValue_LaunchUi_LaunchUiServerConstraintSelected.Builder();
+        }
+
+        @AutoValue.Builder
+        public abstract static class Builder {
+            public abstract Builder attribute(@Nonnull String attribute);
+            public abstract Builder value(@Nonnull String value);
+
+            public abstract LaunchUiServerConstraintSelected build();
         }
     }
 

@@ -372,7 +372,9 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             XNAT.ui.panel.input.list({
                 name: 'swarm-constraints['+containerHostManager.nconstraints+']:values',
                 label: 'Possible values for constraint',
-                description: 'Comma-separated list of values on which user can constrain the attribute (or a single value if not user-settable). E.g., "worker" or "spot,demand" (do not add quotes)'
+                description: 'Comma-separated list of values on which user can constrain the attribute ' +
+                    '(or a single value if not user-settable). E.g., "worker" or "spot,demand" (do not add quotes). ' +
+                    'The first value listed will be the default.'
             })
         ]);
 

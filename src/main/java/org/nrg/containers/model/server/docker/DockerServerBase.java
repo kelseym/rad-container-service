@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Date;
 import java.util.List;
@@ -310,8 +311,23 @@ public abstract class DockerServerBase {
                     .build();
         }
 
+        @JsonIgnore
+        @Nullable
+        public String asStringConstraint() {
+            return asStringConstraint(values().get(0));
+        }
+
+        @JsonIgnore
+        @Nullable
+        public String asStringConstraint(@Nonnull String selectedValue) {
+            if (!values().contains(selectedValue)) {
+                return null;
+            }
+            return attribute() + comparator() + selectedValue;
+        }
+
         public static Builder builder() {
-            return new AutoValue_DockerServerBase_DockerServerSwarmConstraint.Builder();
+                return new AutoValue_DockerServerBase_DockerServerSwarmConstraint.Builder();
         }
 
         public abstract Builder toBuilder();
@@ -327,4 +343,5 @@ public abstract class DockerServerBase {
             public abstract DockerServerSwarmConstraint build();
         }
     }
+
 }

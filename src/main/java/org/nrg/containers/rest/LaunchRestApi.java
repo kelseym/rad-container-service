@@ -1,5 +1,7 @@
 package org.nrg.containers.rest;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.swagger.annotations.Api;
@@ -48,6 +50,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +75,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
     private final ContainerService containerService;
     private final CommandResolutionService commandResolutionService;
     private final DockerServerService dockerServerService;
+    private final ObjectMapper mapper;
 
     @Autowired
     public LaunchRestApi(final CommandService commandService,
@@ -79,12 +83,14 @@ public class LaunchRestApi extends AbstractXapiRestController {
                          final CommandResolutionService commandResolutionService,
                          final DockerServerService dockerServerService,
                          final UserManagementServiceI userManagementService,
-                         final RoleHolder roleHolder) {
+                         final RoleHolder roleHolder,
+                         final ObjectMapper mapper) {
         super(userManagementService, roleHolder);
         this.commandService = commandService;
         this.containerService = containerService;
         this.dockerServerService = dockerServerService;
         this.commandResolutionService = commandResolutionService;
+        this.mapper = mapper;
     }
 
     /*
@@ -502,7 +508,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
     public LaunchReport.BulkLaunchReport bulklaunch(final @PathVariable long commandId,
                                                     final @PathVariable String wrapperName,
                                                     final @PathVariable String rootElement,
-                                                    final @RequestBody List<Map<String, String>> allRequestParams) {
+                                                    final @RequestBody Map<String, String> allRequestParams) throws IOException {
         log.info("Launch requested for command {}, wrapper name {}.", commandId, wrapperName);
         return bulkLaunch(null, commandId, wrapperName, 0L, rootElement, allRequestParams);
     }
@@ -512,7 +518,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
     @ResponseBody
     public LaunchReport.BulkLaunchReport bulklaunch(final @PathVariable long wrapperId,
                                                     final @PathVariable String rootElement,
-                                                    final @RequestBody List<Map<String, String>> allRequestParams) {
+                                                    final @RequestBody Map<String, String> allRequestParams) throws IOException {
         log.info("Launch requested for wrapper id {}.", wrapperId);
         return bulkLaunch(null, 0L, null, wrapperId, rootElement, allRequestParams);
     }
@@ -524,7 +530,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
                                                     final @PathVariable long commandId,
                                                     final @PathVariable String wrapperName,
                                                     final @PathVariable String rootElement,
-                                                    final @RequestBody List<Map<String, String>> allRequestParams) {
+                                                    final @RequestBody Map<String, String> allRequestParams) throws IOException {
         log.info("Launch requested for command {}, wrapper name {}, project {}.", commandId, wrapperName, project);
         return bulkLaunch(project, commandId, wrapperName, 0L, rootElement, allRequestParams);
     }
@@ -535,7 +541,7 @@ public class LaunchRestApi extends AbstractXapiRestController {
     public LaunchReport.BulkLaunchReport bulklaunch(final @PathVariable @ProjectId String project,
                                                     final @PathVariable long wrapperId,
                                                     final @PathVariable String rootElement,
-                                                    final @RequestBody List<Map<String, String>> allRequestParams) {
+                                                    final @RequestBody Map<String, String> allRequestParams) throws IOException {
         log.info("Launch requested for wrapper id {}, project {}.", wrapperId, project);
         return bulkLaunch(project, 0L, null, wrapperId, rootElement, allRequestParams);
     }
@@ -545,10 +551,13 @@ public class LaunchRestApi extends AbstractXapiRestController {
                                                      final String wrapperName,
                                                      final long wrapperId,
                                                      final String rootElement,
-                                                     final List<Map<String, String>> allRequestParams) {
+                                                     final Map<String, String> allRequestParams) throws IOException {
 
         final LaunchReport.BulkLaunchReport.Builder reportBuilder = LaunchReport.BulkLaunchReport.builder();
-        for (final Map<String, String> paramsSet : allRequestParams) {
+        List<String> targets = mapper.readValue(allRequestParams.get(rootElement), new TypeReference<List<String>>() {});
+        for (final String target : targets) {
+            Map<String, String> paramsSet = Maps.newHashMap(allRequestParams);
+            paramsSet.put(rootElement, target);
             reportBuilder.addReport(launchContainer(project, commandId, wrapperName, wrapperId, rootElement, paramsSet));
         }
 

@@ -76,6 +76,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     private Long reserveMemory;
     private Long limitMemory;
     private Double limitCpu;
+    private List<String> swarmConstraints;
     private String project;
 
     public ContainerEntity() {}
@@ -148,6 +149,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.setReserveMemory(containerPojo.reserveMemory());
         this.setLimitMemory(containerPojo.limitMemory());
         this.setLimitCpu(containerPojo.limitCpu());
+        this.setSwarmConstraints(containerPojo.swarmConstraints());
 
         return this;
     }
@@ -451,9 +453,6 @@ public class ContainerEntity extends AbstractHibernateEntity {
     	 
     }
 
-   
-    
-    
     @ElementCollection
     public List<String> getLogPaths() {
         return logPaths;
@@ -469,6 +468,16 @@ public class ContainerEntity extends AbstractHibernateEntity {
 
     public void setProject(final String project) {
         this.project = project;
+    }
+
+
+    @ElementCollection
+    public List<String> getSwarmConstraints() {
+        return swarmConstraints;
+    }
+
+    public void setSwarmConstraints(List<String> swarmConstraints) {
+        this.swarmConstraints = swarmConstraints;
     }
 
     @Override
@@ -518,6 +527,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
                 .add("reserveMemory", reserveMemory)
                 .add("limitMemory", limitMemory)
                 .add("limitCpu", limitCpu)
+                .add("swarmConstraints", swarmConstraints)
                 .toString();
     }
 }

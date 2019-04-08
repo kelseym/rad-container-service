@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
+@Table(uniqueConstraints = {@UniqueConstraint(columnNames = {"attribute", "docker_server_entity"})})
 public class DockerServerEntitySwarmConstraint implements Serializable {
     private long id;
     @JsonIgnore
@@ -44,6 +45,7 @@ public class DockerServerEntitySwarmConstraint implements Serializable {
     }
 
     @ManyToOne
+    @JoinColumn(name="docker_server_entity")
     public DockerServerEntity getDockerServerEntity() {
         return dockerServerEntity;
     }
@@ -85,16 +87,13 @@ public class DockerServerEntitySwarmConstraint implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final DockerServerEntitySwarmConstraint that = (DockerServerEntitySwarmConstraint) o;
-        return userSettable == that.userSettable &&
-                Objects.equals(this.dockerServerEntity, that.dockerServerEntity) &&
-                Objects.equals(this.attribute, that.attribute) &&
-                Objects.equals(this.comparator, that.comparator) &&
-                Objects.equals(this.values, that.values);
+        return Objects.equals(this.dockerServerEntity, that.dockerServerEntity) &&
+                Objects.equals(this.attribute, that.attribute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dockerServerEntity, userSettable, attribute, comparator, values);
+        return Objects.hash(dockerServerEntity, attribute);
     }
 
 }

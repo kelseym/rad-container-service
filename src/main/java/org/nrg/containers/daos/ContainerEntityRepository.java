@@ -40,6 +40,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
         Hibernate.initialize(entity.getInputs());
         Hibernate.initialize(entity.getOutputs());
         Hibernate.initialize(entity.getLogPaths());
+        Hibernate.initialize(entity.getSwarmConstraints());
 
         initialize(entity.getParentContainerEntity());
     }

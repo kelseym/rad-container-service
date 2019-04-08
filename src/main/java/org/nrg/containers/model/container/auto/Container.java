@@ -68,6 +68,7 @@ public abstract class Container {
     @Nullable @JsonProperty("reserve-memory") public abstract Long reserveMemory();
     @Nullable @JsonProperty("limit-memory") public abstract Long limitMemory();
     @Nullable @JsonProperty("limit-cpu") public abstract Double limitCpu();
+    @Nullable @JsonProperty("swarm-constraints") public abstract List<String> swarmConstraints();
 
     @JsonIgnore
     public boolean isSwarmService() {
@@ -159,7 +160,8 @@ public abstract class Container {
                                    @JsonProperty("log-paths") final List<String> logPaths,
                                    @JsonProperty("reserve-memory") final Long reserveMemory,
                                    @JsonProperty("limit-memory") final Long limitMemory,
-                                   @JsonProperty("limit-cpu") final Double limitCpu) {
+                                   @JsonProperty("limit-cpu") final Double limitCpu,
+                                   @JsonProperty("swarm-constraints") final List<String> swarmConstraints) {
 
         return builder()
                 .databaseId(databaseId)
@@ -191,6 +193,7 @@ public abstract class Container {
                 .reserveMemory(reserveMemory)
                 .limitMemory(limitMemory)
                 .limitCpu(limitCpu)
+                .swarmConstraints(swarmConstraints)
                 .build();
     }
 
@@ -261,6 +264,7 @@ public abstract class Container {
                 .reserveMemory(containerEntity.getReserveMemory())
                 .limitMemory(containerEntity.getLimitMemory())
                 .limitCpu(containerEntity.getLimitCpu())
+                .swarmConstraints(containerEntity.getSwarmConstraints())
                 .build();
     }
 
@@ -304,6 +308,7 @@ public abstract class Container {
                 .reserveMemory(resolvedCommand.reserveMemory())
                 .limitMemory(resolvedCommand.limitMemory())
                 .limitCpu(resolvedCommand.limitCpu())
+                .swarmConstraints(resolvedCommand.swarmConstraints())
                 .parentSourceObjectName(resolvedCommand.parentSourceObjectName());
     }
 
@@ -445,6 +450,7 @@ public abstract class Container {
         public abstract Builder reserveMemory(Long reserveMemory);
         public abstract Builder limitMemory(Long limitMemory);
         public abstract Builder limitCpu(Double limitCpu);
+        public abstract Builder swarmConstraints(List<String> swarmConstraints);
 
         public abstract Builder environmentVariables(Map<String, String> environmentVariables);
         abstract ImmutableMap.Builder<String, String> environmentVariablesBuilder();

@@ -455,48 +455,63 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         });
 
-        // add table header row
-        pheTable.tr()
-            .th({addClass: 'left', html: '<b>Key</b>'})
-            .th({addClass: 'left', html: '<b>Value</b>'});
+        var allTables = [spawn('h3', 'Container information'), pheTable.table];
 
         for (var key in historyEntry) {
-            var val = historyEntry[key], formattedVal = '';
-            if (Array.isArray(val) && key!="log-paths") {
-                var items = [];
-                var uniqueKeys=[];
-                val.forEach(function (item) {
-                	Object.keys(item).forEach(function(key){
-                		if(uniqueKeys.indexOf(key)===-1){
-                			uniqueKeys.push(key);
-                		}
-                	});
-                });
-                
-                formattedVal="<span><table><tr>";
-                uniqueKeys.forEach(function(key){
-                	formattedVal+="<th>"+key+"</th>";
-                });
-                formattedVal+="</tr>";
+            var val = historyEntry[key], formattedVal = '', putInTable = true;
 
-                val.sort(function(obj1,obj2){
-                   var date1=Date.parse(obj1["time-recorded"]),date2=Date.parse(obj2["time-recorded"])
-                   return date1-date2;
-                })
-                
+            if (Array.isArray(val) && val.length > 0) {
+                // Display a table
+                var columns = [];
                 val.forEach(function (item) {
-                	formattedVal+="<tr>";
-                    uniqueKeys.forEach(function(key){
-                    	formattedVal+="<td nowrap>";
-                    	var temp = item[key];
-                    	if (typeof temp === 'object') temp = JSON.stringify(temp);
-                    	
-                        formattedVal+=temp;
-                    	formattedVal+="</td>";
+                    if (typeof item === 'object') {
+                        Object.keys(item).forEach(function(itemKey){
+                            if(columns.indexOf(itemKey)===-1){
+                                columns.push(itemKey);
+                            }
+                        });
+                    }
+                });
+
+
+                formattedVal="<table class='xnat-table'>";
+                if (columns.length > 0) {
+                    formattedVal+="<tr>";
+                    columns.forEach(function(colName){
+                        formattedVal+="<th>"+colName+"</th>";
                     });
                     formattedVal+="</tr>";
+
+                    val.sort(function(obj1,obj2){
+                        // Sort by time recorded (if we have it)
+                        var date1 = Date.parse(obj1["time-recorded"]), date2 = Date.parse(obj2["time-recorded"]);
+                        return date1 - date2;
+                    });
+                } else {
+                    // skip header if we just have one column
+                    // sort alphabetically
+                    val.sort()
+                }
+
+                val.forEach(function (item) {
+                	formattedVal+="<tr>";
+                    if (typeof item === 'object') {
+                        columns.forEach(function (itemKey) {
+                            formattedVal += "<td nowrap>";
+                            var temp = item[itemKey];
+                            if (typeof temp === 'object') temp = JSON.stringify(temp);
+                            formattedVal += temp;
+                            formattedVal += "</td>";
+                        });
+                    } else {
+                        formattedVal += "<td nowrap>";
+                        formattedVal += item;
+                        formattedVal += "</td>";
+                    }
+                    formattedVal+="</tr>";
                 });
-                formattedVal+="</table></span>"
+                formattedVal+="</table>"
+                putInTable = false;
             } else if (typeof val === 'object') {
                 formattedVal = spawn('code', JSON.stringify(val));
             } else if (!val) {
@@ -505,56 +520,63 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 formattedVal = spawn('code', val);
             }
 
-            pheTable.tr()
-                .td('<b>' + key + '</b>')
-                .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px','overflow':'auto'}}, formattedVal)]);
-
-                // check logs and populate buttons at bottom of modal
-                if (key === 'log-paths') {
-                    historyDialogButtons.push({
-                        label: 'View StdOut.log',
-                        close: false,
-                        action: function(){
-                            var jobid = historyEntry['container-id'];
-                            if (!jobid || jobid === "") {
-                                jobid = historyEntry['service-id'];
-                            }
-                            historyTable.viewLog(jobid,'stdout')
-                        }
-                    });
-
-                    historyDialogButtons.push({
-                        label: 'View StdErr.log',
-                        close: false,
-                        action: function(){
-                            var jobid = historyEntry['container-id'];
-                            if (!jobid || jobid === "") {
-                                jobid = historyEntry['service-id'];
-                            }
-                            historyTable.viewLog(jobid,'stderr')
-                        }
-                    })
-                }
-                if (key === 'setup-container-id') {
-                    historyDialogButtons.push({
-                        label: 'View Setup Container',
-                        close: true,
-                        action: function () {
-                            historyTable.viewHistory(historyEntry[key]);
-                        }
-                    })
-                }
-                if (key === 'parent-database-id' && historyEntry[key]) {
-                    var parentId = historyEntry[key];
-                    historyDialogButtons.push({
-                        label: 'View Parent Container',
-                        close: true,
-                        action: function () {
-                            historyTable.viewHistory(parentId);
-                        }
-                    })
+            if (putInTable) {
+                pheTable.tr()
+                    .td('<b>' + key + '</b>')
+                    .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px', 'overflow':'auto'}}, formattedVal)]);
+            } else {
+                allTables.push(
+                    spawn('div', {style: {'word-break': 'break-all', 'overflow':'auto', 'margin-bottom': '10px', 'max-width': 'max-content'}},
+                        [spawn('div.data-table-actionsrow', {}, spawn('strong', {class: "textlink-sm data-table-action"},
+                            'Container ' + key)), formattedVal])
+                );
             }
 
+            // check logs and populate buttons at bottom of modal
+            if (key === 'log-paths') {
+                historyDialogButtons.push({
+                    label: 'View StdOut.log',
+                    close: false,
+                    action: function(){
+                        var jobid = historyEntry['container-id'];
+                        if (!jobid || jobid === "") {
+                            jobid = historyEntry['service-id'];
+                        }
+                        historyTable.viewLog(jobid,'stdout')
+                    }
+                });
+
+                historyDialogButtons.push({
+                    label: 'View StdErr.log',
+                    close: false,
+                    action: function(){
+                        var jobid = historyEntry['container-id'];
+                        if (!jobid || jobid === "") {
+                            jobid = historyEntry['service-id'];
+                        }
+                        historyTable.viewLog(jobid,'stderr')
+                    }
+                })
+            }
+            if (key === 'setup-container-id') {
+                historyDialogButtons.push({
+                    label: 'View Setup Container',
+                    close: true,
+                    action: function () {
+                        historyTable.viewHistory(historyEntry[key]);
+                    }
+                })
+            }
+            if (key === 'parent-database-id' && historyEntry[key]) {
+                var parentId = historyEntry[key];
+                historyDialogButtons.push({
+                    label: 'View Parent Container',
+                    close: true,
+                    action: function () {
+                        historyTable.viewHistory(parentId);
+                    }
+                })
+            }
         }
 
         // display history
@@ -562,7 +584,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             title: historyEntry['wrapper-name'],
             width: 800,
             scroll: true,
-            content: pheTable.table,
+            content: spawn('div', allTables),
             buttons: historyDialogButtons,
             header: true,
             maxBtn: true

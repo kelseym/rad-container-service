@@ -155,10 +155,12 @@ public class IntegrationTestConfig {
     @Bean
     public CommandResolutionService commandResolutionService(final CommandService commandService,
                                                              final ConfigService configService,
+                                                             final DockerServerService serverService,
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final ObjectMapper objectMapper,
                                                              final DockerService dockerService) {
-        return new CommandResolutionServiceImpl(commandService, configService, siteConfigPreferences, objectMapper, dockerService);
+        return new CommandResolutionServiceImpl(commandService, configService, serverService,
+                siteConfigPreferences, objectMapper, dockerService);
     }
 
     @Bean
