@@ -136,7 +136,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                                 var commandId = obj.$modal.find('input[name=command-id]').val();
                                 var projectId = obj.$modal.find('input[name=project-id]').val();
                                 XNAT.ui.dialog.closeAll();
-                                XNAT.plugin.containerService.launcher.bulkLaunchDialog(wrapperId,rootElementName,targets,targetLabels,projectId,commandId);
+                                XNAT.plugin.containerService.launcher.bulkLaunchDialog(wrapperId,rootElementName,targets,targetLabels,projectId);
                             }
                         }
                     },
