@@ -6,6 +6,7 @@ import org.nrg.prefs.annotations.NrgPreference;
 import org.nrg.prefs.annotations.NrgPreferenceBean;
 import org.nrg.prefs.beans.AbstractPreferenceBean;
 import org.nrg.prefs.exceptions.InvalidPreferenceName;
+import org.nrg.prefs.exceptions.UnknownToolId;
 import org.nrg.prefs.services.NrgPreferenceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
@@ -55,7 +56,7 @@ public class QueuePrefsBean extends AbstractPreferenceBean {
 
         // Populate "cache"
         this.desiredPrefs = new HashMap<>();
-        refreshCache();
+        refreshCache(true);
     }
 
     /**
@@ -147,11 +148,22 @@ public class QueuePrefsBean extends AbstractPreferenceBean {
         needsUpdate.clear();
     }
 
-    private synchronized void refreshCache() {
+    private synchronized void refreshCache(boolean init) {
         for (Queue queue : Queue.values()) {
             for (Bound bound : Bound.values()) {
                 QueueBound qb = new QueueBound(queue, bound);
-                Integer value = qb.invokeGetter();
+                Integer value;
+                try {
+                    value = qb.invokeGetter();
+                } catch (UnknownToolId e) {
+                    if (init) {
+                        // Might be first time this tool is being added to XNAT,
+                        // so upon init, it may not have a db row yet
+                        value = qb.defaultValue;
+                    } else {
+                        throw e;
+                    }
+                }
                 desiredPrefs.put(qb, value);
             }
         }
@@ -182,7 +194,7 @@ public class QueuePrefsBean extends AbstractPreferenceBean {
     private synchronized void validatePrefsAndUpdateListenerFactories(boolean refresh) throws InvalidPreferenceName {
         if (refresh) {
             // We're refreshing from db
-            refreshCache(); // pull db values into desiredPrefs
+            refreshCache(false); // pull db values into desiredPrefs
             for (Queue queue : Queue.values()) {
                 markNeedsUpdate(queue);
             }
