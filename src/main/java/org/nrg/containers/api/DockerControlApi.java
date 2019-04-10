@@ -162,7 +162,7 @@ public class DockerControlApi implements ContainerControlApi {
             throws DockerServerException, NoDockerServerException {
         int status = 500;
         try (final DockerClient client = getClient()) {
-            status = client.auth(registryAuth(hub, username, password));
+            status = client.auth(registryAuth(hub, username, password, true));
         } catch (Exception e) {
             log.error(e.getMessage());
             throw new DockerServerException(e);
@@ -172,13 +172,22 @@ public class DockerControlApi implements ContainerControlApi {
 
     @Nullable
     private RegistryAuth registryAuth(final @Nullable DockerHub hub, final @Nullable String username, final @Nullable String password) {
-        if (hub == null || username == null || password == null) {
+        return registryAuth(hub, username, password, false);
+    }
+
+    @Nullable
+    private RegistryAuth registryAuth(final @Nullable DockerHub hub, final @Nullable String username,
+                                      final @Nullable String password, boolean forPing) {
+        // TODO "forPing" is a hack. client.auth() needs a RegistryAuth object; it doesn't default to config.json
+        //  as client.pull() does. This is because the RegistryAuthSupplier associates RegistryAuth objects with
+        //  image names, not hubs
+        if (hub == null || !forPing && (username == null || password == null)) {
             return null;
         }
         return RegistryAuth.builder()
                 .serverAddress(hub.url())
-                .username(username)
-                .password(password)
+                .username(username == null ? "" : username)
+                .password(password == null ? "" : password)
                 .build();
     }
 
