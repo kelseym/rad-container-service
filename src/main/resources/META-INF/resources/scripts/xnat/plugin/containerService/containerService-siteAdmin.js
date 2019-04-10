@@ -1570,9 +1570,12 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         });
 
-        function basicConfigInput(name,value,required) {
+        function basicConfigInput(name,value) {
             value = (value === undefined || value === null || value == 'null') ? '' : value;
-            return '<input type="text" name="'+name+'" value="'+value+'" />';
+            // Workaround to handle quotes in value string
+            var $input = $(spawn('input', {name: name, type: 'text'}));
+            $input.attr('value', value);
+            return $input.get(0);
         }
 
         function configCheckbox(name,checked,onText,offText){
@@ -1671,7 +1674,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     content: tmpl.html(),
                     width: 850,
                     beforeShow: function(obj){
-                        var $panel = obj.$modal.find('#config-viewer-panel');
+                        var $panel = obj.$modal.find('#config-viewer');
                         $panel.find('input[type=checkbox]').each(function(){
                             $(this).prop('checked',$(this).data('checked'));
                         })
@@ -1682,7 +1685,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             isDefault: true,
                             close: false,
                             action: function(obj){
-                                var $panel = obj.$modal.find('#config-viewer-panel');
+                                var $panel = obj.$modal.find('#config-viewer');
                                 var configObj = { inputs: {}, outputs: {} };
 
                                 // gather input items from table
