@@ -172,13 +172,13 @@ public class DockerControlApi implements ContainerControlApi {
 
     @Nullable
     private RegistryAuth registryAuth(final @Nullable DockerHub hub, final @Nullable String username, final @Nullable String password) {
-        if (hub == null) {
+        if (hub == null || username == null || password == null) {
             return null;
         }
         return RegistryAuth.builder()
                 .serverAddress(hub.url())
-                .username(username == null ? "" : username)
-                .password(password == null ? "" : password)
+                .username(username)
+                .password(password)
                 .build();
     }
 
