@@ -8,7 +8,6 @@ import com.jayway.jsonpath.spi.json.JsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.exceptions.ContainerNotFoundException;
 import com.spotify.docker.client.messages.swarm.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -30,9 +29,7 @@ import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
-import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.containers.utils.TestingUtils;
-import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Users;
@@ -63,7 +60,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -95,8 +91,6 @@ public class SwarmRestartIntegrationTest {
     private final String FAKE_SECRET = "secret";
     private final String FAKE_HOST = "mock://url";
     private FakeWorkflow fakeWorkflow = new FakeWorkflow();
-
-    private boolean testIsOnCircleCi;
 
     private final List<String> containersToCleanUp = new ArrayList<>();
     private final List<String> imagesToCleanUp = new ArrayList<>();
@@ -138,9 +132,6 @@ public class SwarmRestartIntegrationTest {
                 return Sets.newHashSet(Option.DEFAULT_PATH_LEAF_TO_NULL);
             }
         });
-
-        final String circleCiEnv = System.getenv("CIRCLECI");
-        testIsOnCircleCi = StringUtils.isNotBlank(circleCiEnv) && Boolean.parseBoolean(circleCiEnv);
 
         // Mock out the prefs bean
         // Mock the userI
@@ -230,7 +221,7 @@ public class SwarmRestartIntegrationTest {
                 .name("long-running")
                 .image("busybox:latest")
                 .version("0")
-                .commandLine("/bin/sh -c \"sleep 60\"")
+                .commandLine("/bin/sh -c \"sleep 30\"")
                 .addCommandWrapper(CommandWrapper.builder()
                         .name("placeholder")
                         .build())
@@ -271,7 +262,7 @@ public class SwarmRestartIntegrationTest {
     public void testRestartShutdown() throws Exception {
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = getContainerFromWorkflow(fakeWorkflow);
+        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         String serviceId = service.serviceId();
         containersToCleanUp.add(serviceId);
 
@@ -280,11 +271,11 @@ public class SwarmRestartIntegrationTest {
         TestTransaction.start();
 
         log.debug("Waiting until task has started");
-        await().until(getServiceNode(service), is(notNullValue()));
+        await().until(TestingUtils.getServiceNode(CLIENT, service), is(notNullValue()));
 
         // Restart
         log.debug("Kill node on which service is running to cause a restart");
-        String nodeId = getServiceNode(service).call();
+        String nodeId = TestingUtils.getServiceNode(CLIENT, service).call();
         NodeInfo nodeInfo = CLIENT.inspectNode(nodeId);
         ManagerStatus managerStatus = nodeInfo.managerStatus();
         Boolean isManager;
@@ -308,7 +299,7 @@ public class SwarmRestartIntegrationTest {
         containersToCleanUp.add(restartedService.serviceId());
         assertThat(restartedService.countRestarts(), is(1));
         log.debug("Waiting until task has restarted");
-        await().until(serviceIsRunning(restartedService)); //Running again = success!
+        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedService)); //Running again = success!
     }
 
     @Test
@@ -316,7 +307,7 @@ public class SwarmRestartIntegrationTest {
     public void testRestartClearedTask() throws Exception {
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = getContainerFromWorkflow(fakeWorkflow);
+        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         String serviceId = service.serviceId();
         containersToCleanUp.add(serviceId);
 
@@ -325,10 +316,10 @@ public class SwarmRestartIntegrationTest {
         TestTransaction.start();
 
         log.debug("Waiting until task has started");
-        await().until(serviceIsRunning(service));
+        await().until(TestingUtils.serviceIsRunning(CLIENT, service));
 
         // Restart
-        log.debug("Removing running service to throw a restart event");
+        log.debug("Removing service to throw a restart event");
         CLIENT.removeService(serviceId);
         Thread.sleep(500L); // Sleep long enough for status updater to run
 
@@ -336,7 +327,7 @@ public class SwarmRestartIntegrationTest {
         final Container restartedContainer = containerService.get(service.databaseId());
         containersToCleanUp.add(restartedContainer.serviceId());
         assertThat(restartedContainer.countRestarts(), is(1));
-        await().until(serviceIsRunning(restartedContainer)); //Running again = success!
+        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running again = success!
     }
 
     @Test
@@ -344,7 +335,7 @@ public class SwarmRestartIntegrationTest {
     public void testRestartClearedBeforeRunTask() throws Exception {
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = getContainerFromWorkflow(fakeWorkflow);
+        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
 
         TestTransaction.flagForCommit();
         TestTransaction.end();
@@ -359,7 +350,7 @@ public class SwarmRestartIntegrationTest {
         final Container restartedContainer = containerService.get(service.databaseId());
         containersToCleanUp.add(restartedContainer.serviceId());
         assertThat(restartedContainer.countRestarts(), is(1));
-        await().until(serviceIsRunning(restartedContainer)); //Running = success!
+        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running = success!
     }
 
 
@@ -368,7 +359,7 @@ public class SwarmRestartIntegrationTest {
     public void testRestartFailure() throws Exception {
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        Container service = getContainerFromWorkflow(fakeWorkflow);
+        Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
 
         // Restart
         int i = 1;
@@ -381,7 +372,7 @@ public class SwarmRestartIntegrationTest {
             TestTransaction.start();
 
             log.debug("Waiting until task has started");
-            await().until(serviceIsRunning(service));
+            await().until(TestingUtils.serviceIsRunning(CLIENT, service));
 
             log.debug("Removing service to throw a restart event");
             CLIENT.removeService(serviceId);
@@ -399,89 +390,5 @@ public class SwarmRestartIntegrationTest {
         PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(mockUser, service.workflowId());
         assertThat(wrk.getStatus(), is(PersistentWorkflowUtils.FAILED + " (Swarm)"));
         assertThat(wrk.getDetails().contains(ServiceTask.swarmNodeErrMsg), is(true));
-    }
-
-    private Callable<String> getServiceNode(final Container container) {
-        return new Callable<String>() {
-            public String call() {
-                try {
-                    final Service serviceResponse = CLIENT.inspectService(container.serviceId());
-                    final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
-                    if (tasks.size() == 0) {
-                        return null;
-                    }
-                    for (final Task task : tasks) {
-                        if (task.status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
-                            return task.nodeId();
-                        }
-                    }
-                    return null;
-                } catch (Exception ignored) {
-                    // Ignore exceptions
-                    return null;
-                }
-            }
-        };
-    }
-
-    private Container getContainerFromWorkflow(final PersistentWorkflowI workflow) throws NotFoundException {
-        await().until(new Callable<String>(){
-            public String call() {
-                return workflow.getComments();
-            }
-        }, is(not(isEmptyOrNullString())));
-        return containerService.get(workflow.getComments());
-    }
-
-    private Callable<Boolean> serviceIsRunning(final Container container) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                try {
-                    final Service serviceResponse = CLIENT.inspectService(container.serviceId());
-                    final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
-                    if (tasks.size() == 0) {
-                        return false;
-                    }
-                    for (final Task task : tasks) {
-                        if (task.status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                } catch (ContainerNotFoundException ignored) {
-                    // Ignore exception. If container is not found, it is not running.
-                    return false;
-                }
-            }
-        };
-    }
-
-    private Callable<Boolean> containerIsFinalizingOrFailed(final Container container) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                String status = containerService.get(container.databaseId()).status();
-                return status.equals(ContainerServiceImpl.FINALIZING) || status.contains(PersistentWorkflowUtils.FAILED);
-            }
-        };
-    }
-
-    private Callable<Boolean> containerIsFinalized(final Container container) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(mockUser, container.workflowId());
-                return wrk != null &&
-                        wrk.getStatus().equals(PersistentWorkflowUtils.COMPLETE) ||
-                        wrk.getStatus().contains(PersistentWorkflowUtils.FAILED);
-            }
-        };
-    }
-
-    private Callable<Boolean> containerHasLogPaths(final long containerDbId) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                final Container container = containerService.get(containerDbId);
-                return container.logPaths().size() > 0;
-            }
-        };
     }
 }
