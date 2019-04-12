@@ -197,6 +197,7 @@ public class QueueConsumerTest {
         when(mockCommandService.getWrapper(WRAPPER_ID)).thenReturn(COMMAND_WRAPPER);
         when(mockCommandService.retrieveWrapper(WRAPPER_ID)).thenReturn(COMMAND_WRAPPER);
         when(mockCommandService.getAndConfigure(WRAPPER_ID)).thenReturn(mockConfiguredCommand);
+        when(mockCommandService.getAndConfigure(null, 0L, null, WRAPPER_ID)).thenReturn(mockConfiguredCommand);
 
         when(mockCommandResolutionService.resolve(
                 mockConfiguredCommand,

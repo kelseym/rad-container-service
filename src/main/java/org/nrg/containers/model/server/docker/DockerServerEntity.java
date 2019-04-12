@@ -1,5 +1,7 @@
 package org.nrg.containers.model.server.docker;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 
@@ -19,7 +21,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     private String pathTranslationDockerPrefix;
     private Boolean pullImagesOnXnatInit;
     private String containerUser;
-    private List<String> constraints;
+    private List<DockerServerEntitySwarmConstraint> swarmConstraints;
 
     public static DockerServerEntity create(final DockerServer dockerServer) {
         return new DockerServerEntity().update(dockerServer);
@@ -35,7 +37,16 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.pathTranslationDockerPrefix = dockerServer.pathTranslationDockerPrefix();
         this.pullImagesOnXnatInit = dockerServer.pullImagesOnXnatInit();
         this.containerUser = dockerServer.containerUser();
-        this.constraints = dockerServer.constraints();
+        this.setSwarmConstraints(
+                dockerServer.swarmConstraints() == null ? null : Lists.newArrayList(
+                        Lists.transform(dockerServer.swarmConstraints(),
+                                new Function<DockerServerBase.DockerServerSwarmConstraint, DockerServerEntitySwarmConstraint>() {
+                            @Override
+                            public DockerServerEntitySwarmConstraint apply(final DockerServerBase.DockerServerSwarmConstraint input) {
+                                return DockerServerEntitySwarmConstraint.fromPojo(input);
+                            }
+                        }))
+        );
         return this;
     }
 
@@ -111,13 +122,18 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.containerUser = containerUser;
     }
 
-    @ElementCollection
-    public List<String> getConstraints() {
-        return constraints;
+    @OneToMany(mappedBy = "dockerServerEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    public List<DockerServerEntitySwarmConstraint> getSwarmConstraints() {
+        return swarmConstraints;
     }
 
-    public void setConstraints(final List<String> constraints) {
-        this.constraints = constraints;
+    public void setSwarmConstraints(final List<DockerServerEntitySwarmConstraint> swarmConstraints) {
+        this.swarmConstraints = swarmConstraints;
+        if (this.swarmConstraints != null) {
+            for (final DockerServerEntitySwarmConstraint constraint : this.swarmConstraints) {
+                constraint.setDockerServerEntity(this);
+            }
+        }
     }
 
     @Override
@@ -134,14 +150,13 @@ public class DockerServerEntity extends AbstractHibernateEntity {
                 Objects.equals(this.pathTranslationXnatPrefix, that.pathTranslationXnatPrefix) &&
                 Objects.equals(this.pathTranslationDockerPrefix, that.pathTranslationDockerPrefix) &&
                 Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit) &&
-                Objects.equals(this.containerUser, that.containerUser) &&
-                Objects.equals(this.constraints, that.constraints);
+                Objects.equals(this.containerUser, that.containerUser);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, host, certPath, lastEventCheckTime, swarmMode,
-                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, constraints);
+                pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser);
     }
 
 }

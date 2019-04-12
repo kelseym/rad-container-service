@@ -386,14 +386,7 @@ public class ContainerServiceImpl implements ContainerService {
         }
 
         try {
-            ConfiguredCommand configuredCommand =
-                    project == null ?
-                            (commandId == 0L && wrapperName == null ?
-                                    commandService.getAndConfigure(wrapperId) :
-                                    commandService.getAndConfigure(commandId, wrapperName)) :
-                            (commandId == 0L && wrapperName == null ?
-                                    commandService.getAndConfigure(project, wrapperId) :
-                                    commandService.getAndConfigure(project, commandId, wrapperName));
+            ConfiguredCommand configuredCommand = commandService.getAndConfigure(project, commandId, wrapperName, wrapperId);
 
             ResolvedCommand resolvedCommand = commandResolutionService.resolve(configuredCommand, inputValues, userI);
             if (StringUtils.isNotBlank(project)) {

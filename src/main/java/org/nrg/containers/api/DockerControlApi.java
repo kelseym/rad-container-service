@@ -351,7 +351,8 @@ public class DockerControlApi implements ContainerControlApi {
                             workingDirectory,
                             reserveMemory,
                             limitMemory,
-                            limitCpu),
+                            limitCpu,
+                            resolvedCommand.swarmConstraints()),
                     userI.getLogin()
             );
         } else {
@@ -441,7 +442,8 @@ public class DockerControlApi implements ContainerControlApi {
                     workingDirectory,
                     reserveMemory,
                     limitMemory,
-                    limitCpu);
+                    limitCpu,
+                    container.swarmConstraints());
             return container.toBuilder()
                     .serviceId(serviceId)
                     .swarm(true)
@@ -586,7 +588,8 @@ public class DockerControlApi implements ContainerControlApi {
                                  final String workingDirectory,
                                  final Long reserveMemory,
                                  final Long limitMemory,
-                                 final Double limitCpu)
+                                 final Double limitCpu,
+                                 @Nullable List<String> swarmConstraints)
             throws DockerServerException, ContainerException {
 
         final List<PortConfig> portConfigs = Lists.newArrayList();
@@ -649,25 +652,9 @@ public class DockerControlApi implements ContainerControlApi {
             containerSpecBuilder.args(ShellSplitter.shellSplit(runCommand));
         }
 
-        //TODO allow addl constraints from the container command.json
-        List<String> constraints = null;
-        List<String> constList = server.constraints();
-        if (constList != null) {
-            constraints = new ArrayList<>();
-            for (String item : constList) {
-                if (StringUtils.isNotBlank(item)) {
-                    constraints.add(item);
-                }
-            }
-
-            if (constraints.isEmpty()) {
-                constraints = null;
-            }
-        }
-
         final TaskSpec taskSpec = TaskSpec.builder()
                 .containerSpec(containerSpecBuilder.build())
-                .placement(Placement.create(constraints))
+                .placement(Placement.create(swarmConstraints))
                 .restartPolicy(RestartPolicy.builder()
                         .condition("none")
                         .build())

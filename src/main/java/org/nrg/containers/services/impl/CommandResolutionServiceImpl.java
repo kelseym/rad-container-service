@@ -1,6 +1,7 @@
 package org.nrg.containers.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
@@ -25,7 +26,7 @@ import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerMountResolutionException;
 import org.nrg.containers.exceptions.IllegalInputException;
 import org.nrg.containers.exceptions.UnauthorizedException;
-import org.nrg.containers.model.command.auto.Command;
+import org.nrg.containers.model.command.auto.*;
 import org.nrg.containers.model.command.auto.Command.CommandInput;
 import org.nrg.containers.model.command.auto.Command.CommandMount;
 import org.nrg.containers.model.command.auto.Command.CommandOutput;
@@ -36,15 +37,10 @@ import org.nrg.containers.model.command.auto.Command.CommandWrapperInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperOutput;
 import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
 import org.nrg.containers.model.command.auto.Command.Input;
-import org.nrg.containers.model.command.auto.PreresolvedInputTreeNode;
-import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommandMount;
 import org.nrg.containers.model.command.auto.ResolvedCommand.ResolvedCommandOutput;
-import org.nrg.containers.model.command.auto.ResolvedCommandMount;
-import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
-import org.nrg.containers.model.command.auto.ResolvedInputValue;
 import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
@@ -59,6 +55,7 @@ import org.nrg.containers.model.xnat.XnatFile;
 import org.nrg.containers.model.xnat.XnatModelObject;
 import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
+import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.services.DockerService;
 import org.nrg.framework.constants.Scope;
 import org.nrg.framework.exceptions.NotFoundException;
@@ -102,19 +99,25 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SU
 public class CommandResolutionServiceImpl implements CommandResolutionService {
 
     private final CommandService commandService;
+
+    private final DockerServerService dockerServerService;
     private final ConfigService configService;
     private final SiteConfigPreferences siteConfigPreferences;
     private final ObjectMapper mapper;
     private final DockerService dockerService;
 
+    private static final String swarmConstraintsTag = "swarm-constraints";
+
     @Autowired
     public CommandResolutionServiceImpl(final CommandService commandService,
                                         final ConfigService configService,
+                                        final DockerServerService dockerServerService,
                                         final SiteConfigPreferences siteConfigPreferences,
                                         final ObjectMapper mapper,
                                         final DockerService dockerService) {
         this.commandService = commandService;
         this.configService = configService;
+        this.dockerServerService = dockerServerService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.mapper = mapper;
         this.dockerService = dockerService;
@@ -365,6 +368,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                               .build());
             }
 
+            final List<String> swarmConstraints = resolveSwarmConstraints();
+
             final ResolvedCommand resolvedCommand = ResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
                     .wrapperName(commandWrapper.name())
@@ -388,6 +393,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     .reserveMemory(command.reserveMemory())
                     .limitMemory(command.limitMemory())
                     .limitCpu(command.limitCpu())
+                    .swarmConstraints(swarmConstraints)
                     .build();
 
             log.info("Done resolving command.");
@@ -2404,6 +2410,61 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
             }
             return null;
+        }
+
+        @Nullable
+        private List<String> resolveSwarmConstraints() {
+            DockerServerBase server;
+            try {
+                server = dockerServerService.getServer();
+            } catch (NotFoundException e) {
+                log.error(e.getMessage(), e);
+                return null;
+            }
+            if (!server.swarmMode()) {
+                return null;
+            }
+            List<DockerServerBase.DockerServerSwarmConstraint> constraints = server.swarmConstraints();
+            if (constraints == null || constraints.isEmpty()) {
+                return null;
+            }
+
+            log.debug("Checking for swarm node constraints");
+            List<String> constraintsList = new ArrayList<>();
+
+            // Get user inputs
+            Map<String, String> userConstraintsMap = null;
+            String constraintsJson = inputValues.get(swarmConstraintsTag);
+            if (constraintsJson != null) {
+                try {
+                    List<LaunchUi.LaunchUiServerConstraintSelected> userConstraints = mapper.readValue(constraintsJson,
+                            new TypeReference<List<LaunchUi.LaunchUiServerConstraintSelected>>() {});
+                    userConstraintsMap = new HashMap<>();
+                    for (LaunchUi.LaunchUiServerConstraintSelected c : userConstraints) {
+                        userConstraintsMap.put(c.attribute(), c.value());
+                    }
+
+                } catch (IOException e) {
+                    log.error(e.getMessage(), e);
+                }
+            }
+
+            // Populate list from user inputs & server "defaults"
+            for (DockerServerBase.DockerServerSwarmConstraint constraint : constraints) {
+                if (constraint.userSettable() && userConstraintsMap != null) {
+                    // If the constraint is user settable, only add it if we have non-empty values from user input map
+                    // don't default to first value or whatever, just let Swarm do its default thing
+                    String value = userConstraintsMap.get(constraint.attribute());
+                    if (StringUtils.isNotBlank(value)) {
+                        constraintsList.add(constraint.asStringConstraint(value));
+                    }
+                } else {
+                    constraintsList.add(constraint.asStringConstraint());
+                }
+            }
+
+            constraintsList = constraintsList.isEmpty() ? null : constraintsList;
+            return constraintsList;
         }
     }
 

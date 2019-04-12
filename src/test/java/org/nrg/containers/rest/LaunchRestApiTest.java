@@ -48,6 +48,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -260,23 +261,18 @@ public class LaunchRestApiTest {
     @Test
     public void testBulkLaunch() throws Exception {
         final String pathTemplate = "/wrappers/%d/root/%s/bulklaunch";
+        final String badId = "BAD";
 
-        final Map<String, String> input1 = Maps.newHashMap();
-        input1.put(INPUT_NAME, INPUT_VALUE);
-        input1.put(FAKE_ROOT, FAKE_XNAT_ID);
-        final Map<String, String> input2 = Maps.newHashMap();
-        final String badInputValue = "a bad value";
-        input2.put(INPUT_NAME, badInputValue);
-        input2.put(FAKE_ROOT, FAKE_XNAT_ID);
-        final List<Map<String, String>> bulkInputs = Lists.newArrayList();
-        bulkInputs.add(input1);
-        bulkInputs.add(input2);
-        final String bulkInputJson = mapper.writeValueAsString(bulkInputs);
+        final Map<String, String> input = Maps.newHashMap();
+        input.put(INPUT_NAME, INPUT_VALUE);
+        input.put(FAKE_ROOT, mapper.writeValueAsString(Arrays.asList(FAKE_XNAT_ID, badId)));
+        final String bulkInputJson = mapper.writeValueAsString(input);
 
-        final String exceptionMessage = "Exception thrown during queueing";
-        Mockito.doThrow(new Exception(exceptionMessage)).when(mockContainerService).queueResolveCommandAndLaunchContainer(
-                isNull(String.class), eq(WRAPPER_ID), eq(0L), isNull(String.class),
-                argThat(TestingUtils.isMapWithEntry(INPUT_NAME, badInputValue)), eq(mockAdmin), eq(mockWorkflow));
+        final String exceptionMessage = "Unable to queue container launch";
+        // Can go back to using the below when we allow different inputs for different targets
+        //Mockito.doThrow(new Exception(exceptionMessage)).when(mockContainerService).queueResolveCommandAndLaunchContainer(
+        //        isNull(String.class), eq(WRAPPER_ID), eq(0L), isNull(String.class),
+        //        argThat(TestingUtils.isMapWithEntry(FAKE_ROOT, badId)), eq(mockAdmin), eq(mockWorkflow));
 
 
         final String path = String.format(pathTemplate, WRAPPER_ID, FAKE_ROOT);
@@ -296,10 +292,11 @@ public class LaunchRestApiTest {
         assertThat(bulkLaunchReport.successes(), hasSize(1));
         assertThat(bulkLaunchReport.failures(), hasSize(1));
         final LaunchReport.Failure failure = bulkLaunchReport.failures().get(0);
-        assertThat(failure.launchParams(), hasEntry(INPUT_NAME, badInputValue));
+        assertThat(failure.launchParams(), hasEntry(FAKE_ROOT, badId));
         assertThat(failure.message(), is(exceptionMessage));
 
         final LaunchReport.Success success = bulkLaunchReport.successes().get(0);
+        assertThat(success.launchParams(), hasEntry(FAKE_ROOT, FAKE_XNAT_ID));
         assertThat(success.launchParams(), hasEntry(INPUT_NAME, INPUT_VALUE));
         assertThat(success, instanceOf(LaunchReport.ContainerSuccess.class));
         assertThat(((LaunchReport.ContainerSuccess) success).containerId(), is(QUEUED_WF_MSG));
@@ -331,7 +328,8 @@ public class LaunchRestApiTest {
         when(mockCommandResolutionService.preResolve(eq(project), eq(WRAPPER_ID), anyMapOf(String.class, String.class), eq(mockAdmin)))
                 .thenReturn(partiallyResolvedCommand);
 
-        final LaunchUi expectedLaunchUi = LaunchUi.SingleLaunchUi.create(partiallyResolvedCommand, mockCommandConfiguration.inputs());
+        final LaunchUi expectedLaunchUi = LaunchUi.create(partiallyResolvedCommand,
+                mockCommandConfiguration.inputs(), mockDockerServerService.getServer(), false);
 
         final String path = String.format(pathTemplate, project, WRAPPER_ID);
         final MockHttpServletRequestBuilder request = get(path)

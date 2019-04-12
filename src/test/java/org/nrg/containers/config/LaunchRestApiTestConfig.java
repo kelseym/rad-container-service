@@ -1,5 +1,6 @@
 package org.nrg.containers.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mockito.Mockito;
 import org.nrg.containers.api.ContainerControlApi;
 import org.nrg.containers.rest.LaunchRestApi;
@@ -30,9 +31,12 @@ public class LaunchRestApiTestConfig extends WebSecurityConfigurerAdapter {
     public LaunchRestApi launchRestApi(final CommandService commandService,
                                        final ContainerService containerService,
                                        final CommandResolutionService commandResolutionService,
+                                       final DockerServerService mockDockerServerService,
                                        final UserManagementServiceI mockUserManagementServiceI,
-                                       final RoleHolder roleHolder) {
-        return new LaunchRestApi(commandService, containerService, commandResolutionService, mockUserManagementServiceI, roleHolder);
+                                       final RoleHolder roleHolder,
+                                       final ObjectMapper mapper) {
+        return new LaunchRestApi(commandService, containerService, commandResolutionService,
+                mockDockerServerService, mockUserManagementServiceI, roleHolder, mapper);
     }
 
     @Bean

@@ -230,7 +230,7 @@ public class SwarmRestartIntegrationTest {
                 .name("long-running")
                 .image("busybox:latest")
                 .version("0")
-                .commandLine("/bin/sh -c \"sleep 30\"")
+                .commandLine("/bin/sh -c \"sleep 60\"")
                 .addCommandWrapper(CommandWrapper.builder()
                         .name("placeholder")
                         .build())
@@ -328,7 +328,7 @@ public class SwarmRestartIntegrationTest {
         await().until(serviceIsRunning(service));
 
         // Restart
-        log.debug("Removing service to throw a restart event");
+        log.debug("Removing running service to throw a restart event");
         CLIENT.removeService(serviceId);
         Thread.sleep(500L); // Sleep long enough for status updater to run
 
@@ -337,6 +337,29 @@ public class SwarmRestartIntegrationTest {
         containersToCleanUp.add(restartedContainer.serviceId());
         assertThat(restartedContainer.countRestarts(), is(1));
         await().until(serviceIsRunning(restartedContainer)); //Running again = success!
+    }
+
+    @Test
+    @DirtiesContext
+    public void testRestartClearedBeforeRunTask() throws Exception {
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container service = getContainerFromWorkflow(fakeWorkflow);
+
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        TestTransaction.start();
+
+        // Restart
+        log.debug("Removing service before it starts running to throw a restart event");
+        CLIENT.removeService(service.serviceId());
+        Thread.sleep(500L); // Sleep long enough for status updater to run
+
+        // ensure that container restarted & status updates, etc
+        final Container restartedContainer = containerService.get(service.databaseId());
+        containersToCleanUp.add(restartedContainer.serviceId());
+        assertThat(restartedContainer.countRestarts(), is(1));
+        await().until(serviceIsRunning(restartedContainer)); //Running = success!
     }
 
 
