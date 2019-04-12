@@ -28,7 +28,7 @@ public abstract class ServiceTask {
     public static String swarmNodeErrMsg = "Swarm node error";
 
     public abstract String serviceId();
-    public abstract String taskId();
+    @Nullable public abstract String taskId();
     @Nullable public abstract String nodeId();
     public abstract Boolean swarmNodeError();
     public abstract String status();

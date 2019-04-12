@@ -147,28 +147,34 @@ public class DockerStatusUpdater   implements Runnable {
         final UpdateReport report = UpdateReport.create();
         //TODO : Optimize this code so that waiting ones are handled first
         for (final Container service : containerService.retrieveNonfinalizedServices()) {
-            log.debug("Getting Task info for Service {}.", service.serviceId());
-            log.debug("DIAGNOSTICS:"+service.toString());
             try {
-                controlApi.throwTaskEventForService(dockerServer, service);
-                report.add(UpdateReportEntry.success(service.serviceId()));
-            } catch (ServiceNotFoundException e) {
-            	if (containerService.isFinalizing(service)){
-            		log.debug("ignoring failed service retrieval for finalizing job");
-            		continue;
-            	}
-            	
-            	if (containerService.isWaiting(service)){
-                    controlApi.throwWaitingEventForService(service);
-            		continue;
-            	}
+                log.debug("Getting Task info for Service {}.", service.serviceId());
+                log.debug("DIAGNOSTICS:" + service.toString());
+                try {
+                    controlApi.throwTaskEventForService(dockerServer, service);
+                    report.add(UpdateReportEntry.success(service.serviceId()));
+                } catch (ServiceNotFoundException e) {
+                    if (containerService.isFinalizing(service)) {
+                        log.debug("ignoring failed service retrieval for finalizing job");
+                        continue;
+                    }
 
-            	// Throw a restart event so that we hit the "in processing" queue in DockerServiceEventListener
-            	controlApi.throwRestartEventForService(service);
-            	report.add(UpdateReportEntry.success(service.serviceId()));
+                    if (containerService.isWaiting(service)) {
+                        controlApi.throwWaitingEventForService(service);
+                        continue;
+                    }
 
-            } catch (DockerServerException e) {
-                log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
+                    // Throw a restart event so that we hit the "in processing" queue in DockerServiceEventListener
+                    controlApi.throwRestartEventForService(service);
+                    report.add(UpdateReportEntry.success(service.serviceId()));
+
+                } catch (DockerServerException e) {
+                    log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
+                    report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));
+                }
+
+            } catch (Exception e) {
+                log.error(String.format("Unexpected exception trying to update service %s.", service.serviceId()), e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));
             }
         }
