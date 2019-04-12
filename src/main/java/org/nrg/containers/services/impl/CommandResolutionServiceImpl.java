@@ -106,7 +106,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
     private final ObjectMapper mapper;
     private final DockerService dockerService;
 
-    private static final String swarmConstraintsTag = "swarm-constraints";
+    public static final String swarmConstraintsTag = "swarm-constraints";
 
     @Autowired
     public CommandResolutionServiceImpl(final CommandService commandService,
