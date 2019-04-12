@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 public abstract class DockerServerBase {
     @JsonProperty("id")
@@ -342,6 +343,28 @@ public abstract class DockerServerBase {
 
             public abstract DockerServerSwarmConstraint build();
         }
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final DockerServerBase that = (DockerServerBase) o;
+        return swarmMode() == that.swarmMode() &&
+                Objects.equals(this.name(), that.name()) &&
+                Objects.equals(this.host(), that.host()) &&
+                Objects.equals(this.certPath(), that.certPath()) &&
+                Objects.equals(this.pathTranslationXnatPrefix(), that.pathTranslationXnatPrefix()) &&
+                Objects.equals(this.pathTranslationDockerPrefix(), that.pathTranslationDockerPrefix()) &&
+                Objects.equals(this.pullImagesOnXnatInit(), that.pullImagesOnXnatInit()) &&
+                Objects.equals(this.containerUser(), that.containerUser()) &&
+                Objects.equals(this.swarmConstraints(), that.swarmConstraints());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name(), host(), certPath(), swarmMode(),
+                pathTranslationXnatPrefix(), pathTranslationDockerPrefix(), pullImagesOnXnatInit(), containerUser(), swarmConstraints());
     }
 
 }

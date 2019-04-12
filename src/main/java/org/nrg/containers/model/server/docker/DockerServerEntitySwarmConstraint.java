@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,7 +45,7 @@ public class DockerServerEntitySwarmConstraint implements Serializable {
         this.id = id;
     }
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="docker_server_entity")
     public DockerServerEntity getDockerServerEntity() {
         return dockerServerEntity;
@@ -87,13 +88,23 @@ public class DockerServerEntitySwarmConstraint implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final DockerServerEntitySwarmConstraint that = (DockerServerEntitySwarmConstraint) o;
-        return Objects.equals(this.dockerServerEntity, that.dockerServerEntity) &&
-                Objects.equals(this.attribute, that.attribute);
+        boolean valsEqual = this.values == null && that.values == null;
+        if (!valsEqual) {
+            if (this.values == null || that.values == null || this.values.size() != that.values.size()) {
+                valsEqual = false;
+            } else {
+                // we do care about order since default is first
+                valsEqual = this.values.toString().equals(that.values.toString());
+            }
+        }
+
+        return Objects.equals(this.attribute, that.attribute) &&
+                Objects.equals(this.comparator, that.comparator) &&
+                valsEqual;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dockerServerEntity, attribute);
+        return Objects.hash(attribute, comparator, values.toString());
     }
-
 }

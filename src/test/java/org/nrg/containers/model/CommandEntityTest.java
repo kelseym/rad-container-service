@@ -25,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -160,7 +159,7 @@ public class CommandEntityTest {
     public void testPersistCommandWithWrapper() throws Exception {
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrievedCommandEntity = commandEntityService.retrieve(created.getId());
 
@@ -181,11 +180,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         commandEntityService.delete(created);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.retrieve(created.getId()), is(nullValue()));
     }
@@ -196,7 +195,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
         final long wrapperId = createdWrapper.getId();
@@ -214,11 +213,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity added = commandEntityService.addWrapper(created, toAdd);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(COMMAND_ENTITY.getId());
         assertThat(retrieved.getCommandWrapperEntities().get(0), is(added));
@@ -232,7 +231,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
 
@@ -240,7 +239,7 @@ public class CommandEntityTest {
         createdWrapper.setDescription(newDescription);
 
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
         final CommandWrapperEntity retrievedWrapper = retrieved.getCommandWrapperEntities().get(0);
@@ -255,7 +254,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandInput inputToAdd = CommandInput.builder()
                 .name("this_is_new")
@@ -267,7 +266,7 @@ public class CommandEntityTest {
         created.addInput(CommandInputEntity.fromPojo(inputToAdd));
 
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
 
@@ -299,12 +298,12 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final long wrapperId = created.getCommandWrapperEntities().get(0).getId();
         commandEntityService.deleteWrapper(wrapperId);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.retrieveWrapper(wrapperId), is(nullValue()));
     }
@@ -370,7 +369,7 @@ public class CommandEntityTest {
                 .build();
 
         CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         //update with addl input and output and mount and wrapper
         Command cmd = COMMAND.toBuilder()
@@ -382,7 +381,7 @@ public class CommandEntityTest {
 
         created.update(cmd);
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
         CommandEntity retrieved = commandEntityService.retrieve(created.getId());
         assertThat(retrieved.getInputs(), Matchers.<CommandInputEntity>hasSize(COMMAND.inputs().size() + 1));
         assertThat(retrieved.getOutputs(), Matchers.<CommandOutputEntity>hasSize(COMMAND.outputs().size() + 1));
@@ -393,7 +392,7 @@ public class CommandEntityTest {
         //remove them
         retrieved.update(COMMAND);
         commandEntityService.update(retrieved);
-        commitTransaction();
+        TestingUtils.commitTransaction();
         CommandEntity retrievedAnew = commandEntityService.retrieve(created.getId());
         assertThat(retrievedAnew.getInputs(), Matchers.<CommandInputEntity>hasSize(COMMAND.inputs().size()));
         assertThat(retrievedAnew.getOutputs(), Matchers.<CommandOutputEntity>hasSize(COMMAND.outputs().size()));
@@ -506,7 +505,7 @@ public class CommandEntityTest {
                 .build();
 
         CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         //update with new wrapper
         Command cmd = COMMAND.toBuilder()
@@ -514,7 +513,7 @@ public class CommandEntityTest {
                 .build();
         created.update(cmd);
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
         CommandEntity retrieved = commandEntityService.retrieve(created.getId());
         CommandWrapperEntity commandWrapperEntityRetrieved = null;
         for (CommandWrapperEntity entity : retrieved.getCommandWrapperEntities()) {
@@ -645,14 +644,8 @@ public class CommandEntityTest {
                         .build())
         );
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.get(command.getId()).getCommandLine(), is(longString));
-    }
-
-    public void commitTransaction() {
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
     }
 }
