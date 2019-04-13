@@ -1,5 +1,6 @@
 package org.nrg.containers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.Option;
@@ -8,27 +9,38 @@ import com.jayway.jsonpath.spi.json.JsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.ManagerStatus;
+import com.spotify.docker.client.messages.swarm.Node;
+import com.spotify.docker.client.messages.swarm.NodeInfo;
+import com.spotify.docker.client.messages.swarm.NodeSpec;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
+import org.nrg.containers.model.command.auto.LaunchUi;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.ServiceTask;
+import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
-import org.nrg.containers.model.xnat.*;
+import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
+import org.nrg.containers.model.xnat.FakeWorkflow;
+import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
+import org.nrg.containers.services.impl.CommandResolutionServiceImpl;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.containers.utils.TestingUtils;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -55,6 +67,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -65,7 +78,6 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,8 +90,13 @@ import static org.powermock.api.mockito.PowerMockito.*;
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Transactional
-public class SwarmRestartIntegrationTest {
+public class SwarmConstraintsIntegrationTest {
     private boolean swarmMode = true;
+
+    private String certPath;
+    private String containerHost;
+    private Node managerNode = null;
+    private Map<String, String> managerNodeLabels = null;
 
     private UserI mockUser;
     private String buildDir;
@@ -104,6 +121,7 @@ public class SwarmRestartIntegrationTest {
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private UserManagementServiceI mockUserManagementServiceI;
     @Autowired private PermissionsServiceI mockPermissionsServiceI;
+    @Autowired private ObjectMapper mapper;
 
     private CommandWrapper sleeperWrapper;
 
@@ -138,7 +156,7 @@ public class SwarmRestartIntegrationTest {
         when(mockUser.getLogin()).thenReturn(FAKE_USER);
 
         // Permissions
-        when(mockPermissionsServiceI.canEdit(any(UserI.class), any(ItemI.class))).thenReturn(Boolean.TRUE);
+        when(mockPermissionsServiceI.canEdit(Mockito.any(UserI.class), Mockito.any(ItemI.class))).thenReturn(Boolean.TRUE);
 
         // Mock the user management service
         when(mockUserManagementServiceI.getUser(FAKE_USER)).thenReturn(mockUser);
@@ -172,10 +190,10 @@ public class SwarmRestartIntegrationTest {
         mockStatic(WorkflowUtils.class);
         when(WorkflowUtils.getUniqueWorkflow(mockUser, fakeWorkflow.getWorkflowId().toString()))
                 .thenReturn(fakeWorkflow);
-        doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
+        doNothing().when(WorkflowUtils.class, "save", Mockito.any(PersistentWorkflowI.class), isNull(EventMetaI.class));
         PowerMockito.spy(PersistentWorkflowUtils.class);
         doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
-                eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+                eq(mockUser), Mockito.any(XFTItem.class), Mockito.any(EventDetails.class));
 
         // Setup docker server
         final String defaultHost = "unix:///var/run/docker.sock";
@@ -184,7 +202,6 @@ public class SwarmRestartIntegrationTest {
         final String tlsVerify = System.getenv("DOCKER_TLS_VERIFY");
 
         final boolean useTls = tlsVerify != null && tlsVerify.equals("1");
-        final String certPath;
         if (useTls) {
             if (StringUtils.isBlank(certPathEnv)) {
                 throw new Exception("Must set DOCKER_CERT_PATH if DOCKER_TLS_VERIFY=1.");
@@ -194,7 +211,6 @@ public class SwarmRestartIntegrationTest {
             certPath = "";
         }
 
-        final String containerHost;
         if (StringUtils.isBlank(hostEnv)) {
             containerHost = defaultHost;
         } else {
@@ -207,14 +223,6 @@ public class SwarmRestartIntegrationTest {
                 containerHost = hostEnv;
             }
         }
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, null));
-
-        CLIENT = controlApi.getClient();
-        CLIENT.pull("busybox:latest");
-
-        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
-        assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
 
         final Command sleeper = commandService.create(Command.builder()
                 .name("long-running")
@@ -253,133 +261,192 @@ public class SwarmRestartIntegrationTest {
         }
         imagesToCleanUp.clear();
 
+        if (managerNode != null) {
+            NodeInfo nodeInfo = CLIENT.inspectNode(managerNode.id());
+            NodeSpec origSpec = NodeSpec.builder(managerNode.spec())
+                    .labels(managerNodeLabels)
+                    .build();
+            CLIENT.updateNode(managerNode.id(), nodeInfo.version().index(), origSpec);
+        }
+        managerNode = null;
+        managerNodeLabels = null;
+
         CLIENT.close();
     }
 
-    @Test
-    @DirtiesContext
-    public void testRestartShutdown() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
-        String serviceId = service.serviceId();
-        containersToCleanUp.add(serviceId);
-
-        TestingUtils.commitTransaction();
-
-        log.debug("Waiting until task has started");
-        await().until(TestingUtils.getServiceNode(CLIENT, service), is(notNullValue()));
-
-        // Restart
-        log.debug("Kill node on which service is running to cause a restart");
-        String nodeId = TestingUtils.getServiceNode(CLIENT, service).call();
-        NodeInfo nodeInfo = CLIENT.inspectNode(nodeId);
-        ManagerStatus managerStatus = nodeInfo.managerStatus();
-        Boolean isManager;
-        if (managerStatus != null && (isManager = managerStatus.leader()) != null && isManager) {
-            NodeSpec nodeSpec = NodeSpec.builder(nodeInfo.spec()).availability("drain").build();
-            // drain the manager
-            CLIENT.updateNode(nodeId, nodeInfo.version().index(), nodeSpec);
-            Thread.sleep(1000L); // Sleep long enough for status updater to run
-            // readd manager
-            nodeInfo = CLIENT.inspectNode(nodeId);
-            nodeSpec = NodeSpec.builder(nodeInfo.spec()).availability("active").build();
-            CLIENT.updateNode(nodeId, nodeInfo.version().index(), nodeSpec);
-        } else {
-            // delete the node
-            CLIENT.deleteNode(nodeId, true);
-            Thread.sleep(500L); // Sleep long enough for status updater to run
-        }
-
-        // ensure that container restarted & status updates, etc
-        final Container restartedService = containerService.get(service.databaseId());
-        containersToCleanUp.add(restartedService.serviceId());
-        assertThat(restartedService.countRestarts(), is(1));
-        log.debug("Waiting until task has restarted");
-        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedService)); //Running again = success!
+    private void setClient() throws Exception {
+        CLIENT = controlApi.getClient();
+        CLIENT.pull("busybox:latest");
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
+        assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
     }
 
     @Test
     @DirtiesContext
-    public void testRestartClearedTask() throws Exception {
+    public void testThatServicesRunWithoutConstraints() throws Exception {
+        DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
+                swarmMode, null, null, null, false, null, null);
+        dockerServerService.setServer(server);
+        setClient();
+
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
-        String serviceId = service.serviceId();
-        containersToCleanUp.add(serviceId);
-
         TestingUtils.commitTransaction();
-
-        log.debug("Waiting until task has started");
-        await().until(TestingUtils.serviceIsRunning(CLIENT, service));
-
-        // Restart
-        log.debug("Removing service to throw a restart event");
-        CLIENT.removeService(serviceId);
-        Thread.sleep(500L); // Sleep long enough for status updater to run
-
-        // ensure that container restarted & status updates, etc
-        final Container restartedContainer = containerService.get(service.databaseId());
-        containersToCleanUp.add(restartedContainer.serviceId());
-        assertThat(restartedContainer.countRestarts(), is(1));
-        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running again = success!
-    }
-
-    @Test
-    @DirtiesContext
-    public void testRestartClearedBeforeRunTask() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
-        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
-
-        TestingUtils.commitTransaction();
-
-        // Restart
-        log.debug("Removing service before it starts running to throw a restart event");
-        CLIENT.removeService(service.serviceId());
-        Thread.sleep(500L); // Sleep long enough for status updater to run
-
-        // ensure that container restarted & status updates, etc
-        final Container restartedContainer = containerService.get(service.databaseId());
-        containersToCleanUp.add(restartedContainer.serviceId());
-        assertThat(restartedContainer.countRestarts(), is(1));
-        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running = success!
-    }
-
-
-    @Test
-    @DirtiesContext
-    public void testRestartFailure() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
+    }
 
-        // Restart
-        int i = 1;
-        while (true) {
-            String serviceId = service.serviceId();
-            containersToCleanUp.add(serviceId);
+    @Test
+    @DirtiesContext
+    public void testThatServicesRunWithoutConstraintsAlt() throws Exception {
+        DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
+                swarmMode, null, null, null, false, null, Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList());
+        dockerServerService.setServer(server);
+        setClient();
 
-            TestingUtils.commitTransaction();
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        TestingUtils.commitTransaction();
+        Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
+    }
 
-            log.debug("Waiting until task has started");
-            await().until(TestingUtils.serviceIsRunning(CLIENT, service));
+    @Test
+    @DirtiesContext
+    public void testThatServicesRunWithCorrectConstraintsAndNotOtherwise() throws Exception {
+        // We need a client so we have to create a server, we'll update it shortly
+        DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
+                swarmMode, null, null, null, false, null, null);
+        DockerServerBase.DockerServer curServer = dockerServerService.setServer(server);
+        setClient();
 
-            log.debug("Removing service to throw a restart event");
-            CLIENT.removeService(serviceId);
-            Thread.sleep(1000L); // Sleep long enough for status updater to run
+        // target manager bc every swarm has one and we want to test a non-label constraint
+        DockerServerBase.DockerServerSwarmConstraint constraintNotSettable = DockerServerBase.DockerServerSwarmConstraint.builder()
+                .id(0L)
+                .attribute("node.role")
+                .comparator("==")
+                .values(Collections.singletonList("manager"))
+                .userSettable(false)
+                .build();
 
-            // ensure that container restarted & status updates, etc
-            service = containerService.get(service.databaseId());
-            if (i == 6) {
-                break;
-            }
-            assertThat(service.countRestarts(), is(i++));
+        DockerServerBase.DockerServerSwarmConstraint constraintSettable = DockerServerBase.DockerServerSwarmConstraint.builder()
+                .id(0L)
+                .attribute("node.labels.type")
+                .comparator("==")
+                .values(Arrays.asList("Fun","Boring"))
+                .userSettable(true)
+                .build();
+
+        List<DockerServerBase.DockerServerSwarmConstraint> constraints = Arrays.asList(constraintNotSettable, constraintSettable);
+
+        // target manager bc every swarm has one, some test ones may not have workers
+        List<Node> nodes = CLIENT.listNodes(Node.Criteria.builder().nodeRole("manager").build());
+        assertThat(nodes.size(), greaterThan(0));
+        managerNode = nodes.get(0);
+        managerNodeLabels = managerNode.spec().labels();
+
+        if (nodes.size() > 1) {
+            // we have to add a new criterion to isolate this particular node
+            DockerServerBase.DockerServerSwarmConstraint addlConstr = DockerServerBase.DockerServerSwarmConstraint.builder()
+                    .id(0L)
+                    .attribute("node.labels.addllabeltest")
+                    .comparator("==")
+                    .values(Collections.singletonList("iamatester"))
+                    .userSettable(false)
+                    .build();
+            constraints.add(addlConstr);
+
+            NodeSpec addlSpec = NodeSpec.builder(managerNode.spec())
+                    .addLabel(addlConstr.attribute().replace("node.labels.", ""),
+                            addlConstr.values().get(0))
+                    .build();
+
+            // Update single manager node so we can isolate it
+            CLIENT.updateNode(managerNode.id(), managerNode.version().index(), addlSpec);
         }
 
-        // ensure that container failed
-        PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(mockUser, service.workflowId());
-        assertThat(wrk.getStatus(), is(PersistentWorkflowUtils.FAILED + " (Swarm)"));
-        assertThat(wrk.getDetails().contains(ServiceTask.swarmNodeErrMsg), is(true));
+        dockerServerService.update(curServer.toBuilder().swarmConstraints(constraints).build());
+        TestingUtils.commitTransaction();
+
+        Map<String, String> userInputs = new HashMap<>();
+        LaunchUi.LaunchUiServerConstraintSelected selConstr = LaunchUi.LaunchUiServerConstraintSelected.builder()
+                .attribute(constraintSettable.attribute())
+                .value(constraintSettable.values().get(0))
+                .build();
+        userInputs.put(CommandResolutionServiceImpl.swarmConstraintsTag,
+                mapper.writeValueAsString(Collections.singletonList(selConstr)));
+
+        NodeSpec runSpec = NodeSpec.builder(managerNode.spec())
+                .addLabel(selConstr.attribute().replace("node.labels.", ""),
+                        selConstr.value())
+                .build();
+
+        // Update manager node to match constraints
+        CLIENT.updateNode(managerNode.id(), managerNode.version().index(), runSpec);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, userInputs, mockUser, fakeWorkflow);
+        TestingUtils.commitTransaction();
+        Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
+
+        // Now update it so that it fails
+        NodeInfo nodeInfo = CLIENT.inspectNode(managerNode.id());
+        NodeSpec noRunSpec = NodeSpec.builder(managerNode.spec())
+                .addLabel(selConstr.attribute().replace("node.labels.", ""),
+                        "NOT" + selConstr.value())
+                .build();
+        CLIENT.updateNode(managerNode.id(), nodeInfo.version().index(), noRunSpec);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, userInputs, mockUser, fakeWorkflow);
+        TestingUtils.commitTransaction();
+        Container service2 = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        Thread.sleep(11000L); // > 10s since that seems to be enough for a service to get running
+        assertThat(TestingUtils.serviceIsRunning(CLIENT, service2).call(), is(false));
+        assertThat(containerService.get(service2.serviceId()).status(), is(ContainerServiceImpl.CREATED));
     }
+
+    @Test
+    @DirtiesContext
+    public void testThatStandaloneContainersRunRegardlessOfConstraints() throws Exception {
+        // target manager bc every swarm has one and we want to test a non-label constraint
+        DockerServerBase.DockerServerSwarmConstraint constraintNotSettable = DockerServerBase.DockerServerSwarmConstraint.builder()
+                .id(0L)
+                .attribute("node.role")
+                .comparator("==")
+                .values(Collections.singletonList("manager"))
+                .userSettable(false)
+                .build();
+
+        DockerServerBase.DockerServerSwarmConstraint constraintSettable = DockerServerBase.DockerServerSwarmConstraint.builder()
+                .id(0L)
+                .attribute("node.labels.type")
+                .comparator("==")
+                .values(Arrays.asList("Fun","Boring"))
+                .userSettable(true)
+                .build();
+
+        List<DockerServerBase.DockerServerSwarmConstraint> constraints = Arrays.asList(constraintNotSettable, constraintSettable);
+
+        DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
+                false, null, null, null, false, null, constraints);
+        dockerServerService.setServer(server);
+        setClient();
+
+        Map<String, String> userInputs = new HashMap<>();
+        LaunchUi.LaunchUiServerConstraintSelected selConstr = LaunchUi.LaunchUiServerConstraintSelected.builder()
+                .attribute(constraintSettable.attribute())
+                .value(constraintSettable.values().get(0))
+                .build();
+        userInputs.put(CommandResolutionServiceImpl.swarmConstraintsTag,
+                mapper.writeValueAsString(Collections.singletonList(selConstr)));
+
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, userInputs, mockUser, fakeWorkflow);
+        TestingUtils.commitTransaction();
+        Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        await().until(TestingUtils.containerIsRunning(CLIENT, false, container)); //Running = success!
+    }
+
 }

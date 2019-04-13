@@ -176,7 +176,7 @@ public class DockerServerEntityTest {
 
     @Test
     @DirtiesContext
-    public void testHibernate() throws Exception {
+    public void testCreateUpdateHibernate() throws Exception {
         for (DockerServerEntity dockerServerEntity :
                 Arrays.asList(dockerServerStandaloneEntity,
                         dockerServerSwarmNoConstraintsEntity,
@@ -214,7 +214,7 @@ public class DockerServerEntityTest {
 
     @Test
     @DirtiesContext
-    public void testCreateUpdate() throws Exception {
+    public void testCreateUpdateServerService() throws Exception {
         for (DockerServerBase.DockerServer dockerServer :
                 Arrays.asList(dockerServerStandalone,
                         dockerServerSwarmNoConstraints,
