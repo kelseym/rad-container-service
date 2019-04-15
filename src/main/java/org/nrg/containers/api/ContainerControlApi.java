@@ -65,6 +65,7 @@ public interface ContainerControlApi {
     void throwContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
 
     void killContainer(final String id) throws NoDockerServerException, DockerServerException, NotFoundException;
+    void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
 
     ServiceTask getTaskForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     ServiceTask getTaskForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
@@ -72,6 +73,5 @@ public interface ContainerControlApi {
     void throwTaskEventForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     void throwRestartEventForService(Container service);
     void throwWaitingEventForService(Container service);
-    
-	void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
+
 }

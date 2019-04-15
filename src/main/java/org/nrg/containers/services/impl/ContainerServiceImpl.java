@@ -847,6 +847,17 @@ public class ContainerServiceImpl implements ContainerService {
     public boolean isFinalizing(Container containerOrService){
     	return FINALIZING.equals(containerOrService.status());
     }
+    @Override
+    public boolean isFailedOrComplete(Container containerOrService, UserI user){
+        ContainerEntity entity = ContainerEntity.fromPojo(containerOrService);
+        if (entity.statusIsTerminal()) {
+            return true;
+        }
+        final PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(user, containerOrService.workflowId());
+        String status;
+        return workflow != null && (status = workflow.getStatus()) != null &&
+                (status.contains(PersistentWorkflowUtils.FAILED) || status.contains(PersistentWorkflowUtils.COMPLETE));
+    }
 
     @Override
     public void finalize(final String containerId, final UserI userI)

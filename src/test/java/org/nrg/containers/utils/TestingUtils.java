@@ -13,6 +13,7 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.ServiceTask;
+import org.nrg.containers.model.xnat.FakeWorkflow;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.exceptions.NotFoundException;
@@ -252,6 +253,24 @@ public class TestingUtils {
             public Boolean call() throws Exception {
                 final Container container = containerService.get(containerDbId);
                 return container.logPaths().size() > 0;
+            }
+        };
+    }
+
+    public static Callable<Boolean> containerHasStatus(final ContainerService containerService,
+                                                       final long databaseId, final String status) {
+        return new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                final Container container = containerService.get(databaseId);
+                return container.status().equals(status);
+            }
+        };
+    }
+
+    public static Callable<Boolean> workflowHasStatus(final PersistentWorkflowI workflow, final String status) {
+        return new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                return workflow.getStatus().equals(status);
             }
         };
     }

@@ -12,6 +12,7 @@ import com.spotify.docker.client.messages.swarm.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
+import org.hibernate.NonUniqueObjectException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -20,10 +21,12 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
+import org.nrg.containers.events.DockerStatusUpdater;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.ServiceTask;
+import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.CommandService;
@@ -45,6 +48,7 @@ import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -104,6 +108,7 @@ public class SwarmRestartIntegrationTest {
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private UserManagementServiceI mockUserManagementServiceI;
     @Autowired private PermissionsServiceI mockPermissionsServiceI;
+    @Autowired private XnatAppInfo mockAppInfo;
 
     private CommandWrapper sleeperWrapper;
 
@@ -381,5 +386,34 @@ public class SwarmRestartIntegrationTest {
         PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(mockUser, service.workflowId());
         assertThat(wrk.getStatus(), is(PersistentWorkflowUtils.FAILED + " (Swarm)"));
         assertThat(wrk.getDetails().contains(ServiceTask.swarmNodeErrMsg), is(true));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testNoRestartOnAPIKill() throws Exception {
+        containerService.consumeResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow.getWorkflowId().toString());
+        final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+
+        TestingUtils.commitTransaction();
+
+        log.debug("Kill service as if through API");
+        try {
+            containerService.kill(service.serviceId(), mockUser);
+        } catch (NonUniqueObjectException e) {
+            log.error(e.getMessage());
+        }
+
+        String failureStatus = ContainerEntity.STANDARD_STATUS_MAP.get(ContainerEntity.KILL_STATUS);
+        assertThat(fakeWorkflow.getStatus(), is(failureStatus));
+        assertThat(containerService.get(service.databaseId()).status(), is(failureStatus));
+        // The below doesn't work, perhaps because of the NonUniqueObjectException
+        //await().until(TestingUtils.containerHasStatus(containerService, service.databaseId(), failureStatus));
+
+        // ensure that container did NOT restart
+        Thread.sleep(500L); // Sleep long enough for status updater to run
+        Container updatedService = containerService.get(service.databaseId());
+        assertThat(updatedService.countRestarts(), is(0));
+        assertThat(updatedService.status(), is(failureStatus));
     }
 }

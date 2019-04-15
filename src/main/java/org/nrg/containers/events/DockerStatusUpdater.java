@@ -11,6 +11,7 @@ import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -146,7 +147,7 @@ public class DockerStatusUpdater   implements Runnable {
     private UpdateReport updateServices(final DockerServer dockerServer) {
         final UpdateReport report = UpdateReport.create();
         //TODO : Optimize this code so that waiting ones are handled first
-        for (final Container service : containerService.retrieveNonfinalizedServices()) {
+        for (Container service : containerService.retrieveNonfinalizedServices()) {
             try {
                 log.debug("Getting Task info for Service {}.", service.serviceId());
                 log.debug("DIAGNOSTICS:" + service.toString());
@@ -154,8 +155,11 @@ public class DockerStatusUpdater   implements Runnable {
                     controlApi.throwTaskEventForService(dockerServer, service);
                     report.add(UpdateReportEntry.success(service.serviceId()));
                 } catch (ServiceNotFoundException e) {
-                    if (containerService.isFinalizing(service)) {
-                        log.debug("ignoring failed service retrieval for finalizing job");
+                    // Refresh service status etc.
+                    service = containerService.get(service.databaseId());
+                    if (containerService.isFinalizing(service) ||
+                            containerService.isFailedOrComplete(service, Users.getAdminUser())) {
+                        log.debug("ignoring failed service retrieval for finalizing/failed/complete job");
                         continue;
                     }
 
