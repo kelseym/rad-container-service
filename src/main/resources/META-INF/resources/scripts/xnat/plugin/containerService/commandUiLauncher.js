@@ -336,7 +336,7 @@ var XNAT = getObject(XNAT || {});
                 spawn('input',{
                     type: 'hidden',
                     name: name,
-                    value: value
+                    value: JSON.stringify(value)
                 }),
                 spawn('br.clear')
             ]
