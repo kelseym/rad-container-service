@@ -402,38 +402,107 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         }
     }
 
+    var containerModalId = function(containerId, logFile) {
+        return 'container-'+containerId+'-log-'+logFile;
+    };
 
-    historyTable.viewLog = viewLog = function (containerId, logFile) {
-        XNAT.xhr.get({
-            url: rootUrl('/xapi/containers/' + containerId + '/logs/' + logFile),
-            success: function (data) {
-                // split the output into lines
-                data = data.split('\n');
+    historyTable.refreshLog = refreshLog = function(containerId, logFile, refreshLogSince, startTime) {
+        var refreshPrm = {};
+        if (refreshLogSince) {
+            if (refreshLogSince === -1) return;
 
+            refreshPrm = {since: refreshLogSince};
+        }
+        if (!startTime) {
+            startTime = new Date();
+        } else {
+            var maxUptime = 900; //sec
+            var uptime = Math.round((new Date() - startTime)/1000);
+            if (uptime >= maxUptime) {
+                // This will stop making ajax requests until the user clicks "continue"
+                // thus allowing the session timeout to handle an expiring session
                 XNAT.dialog.open({
-                    title: 'View ' + logFile,
-                    width: 850,
-                    header: true,
-                    maxBtn: true,
-                    content: null,
-                    beforeShow: function (obj) {
-                        data.forEach(function (newLine) {
-                            obj.$modal.find('.xnat-dialog-content').append(spawn('pre', {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, newLine));
-                        });
-                    },
+                    width: 360,
+                    content: '' +
+                        '<div style="font-size:14px;">' +
+                        'Are you still watching this log?' +
+                        '<br><br>'+
+                        'Click <b>"Continue"</b> to continue tailing the log ' +
+                        'or <b>"Close"</b> to close it.' +
+                        '</div>',
                     buttons: [
                         {
-                            label: 'OK',
+                            label: 'Close',
+                            close: true,
+                            action: function(){
+                                XNAT.dialog.closeAll();
+                            }
+                        },
+                        {
+                            label: 'Continue',
                             isDefault: true,
-                            close: true
+                            close: true,
+                            action: function(){
+                                refreshLog(containerId, logFile, refreshLogSince);
+                            }
                         }
                     ]
-                })
+                });
+                return;
+            }
+        }
+
+        XNAT.xhr.getJSON({
+            url: rootUrl('/xapi/containers/' + containerId + '/logSince/' + logFile),
+            data: refreshPrm,
+            success: function (dataJson) {
+                var timestamp = dataJson.timestamp;
+                var $container = $('#' + containerModalId(containerId, logFile) + ' .xnat-dialog-body');
+                // Ensure that user didn't close modal
+                if ($container.length === 0) {
+                    return;
+                }
+                var currentScrollPos = $container.scrollTop(),
+                    containerHeight = $container[0].scrollHeight,
+                    autoScroll = $container.height() + currentScrollPos >= containerHeight; //user has not scrolled
+
+                //append content
+                var lines = dataJson.content.split('\n').filter(function(line){return line;}); // remove empty lines
+                if (lines.length > 0) {
+                    $container.find('.xnat-dialog-content').append(spawn('pre',
+                        {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, lines.join('<br/>')));
+                }
+
+                //scroll to bottom
+                if (autoScroll) $container.scrollTop($container[0].scrollHeight);
+
+                refreshLog(containerId, logFile, timestamp, startTime);
             },
             fail: function (e) {
                 errorHandler(e, 'Cannot retrieve ' + logFile);
             }
-        })
+        });
+    };
+
+    historyTable.viewLog = viewLog = function (containerId, logFile) {
+        XNAT.dialog.open({
+            title: 'View ' + logFile,
+            id: containerModalId(containerId, logFile),
+            width: 850,
+            header: true,
+            maxBtn: true,
+            content: null,
+            beforeShow: function() {
+                refreshLog(containerId, logFile);
+            },
+            buttons: [
+                {
+                    label: 'Done',
+                    isDefault: true,
+                    close: true
+                }
+            ]
+        });
     };
 
     historyTable.viewHistoryEntry = function(historyEntry) {

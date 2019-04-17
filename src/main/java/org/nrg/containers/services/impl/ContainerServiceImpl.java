@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.api.ContainerControlApi;
@@ -1117,20 +1118,19 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     @Nonnull
     public Map<String, InputStream> getLogStreams(final long id)
-            throws NotFoundException, NoDockerServerException, DockerServerException {
+            throws NotFoundException {
         return getLogStreams(get(id));
     }
 
     @Override
     @Nonnull
     public Map<String, InputStream> getLogStreams(final String containerId)
-            throws NotFoundException, NoDockerServerException, DockerServerException {
+            throws NotFoundException {
         return getLogStreams(get(containerId));
     }
 
     @Nonnull
-    private Map<String, InputStream> getLogStreams(final Container container)
-            throws NotFoundException, NoDockerServerException, DockerServerException {
+    private Map<String, InputStream> getLogStreams(final Container container) {
         final Map<String, InputStream> logStreams = Maps.newHashMap();
         for (final String logName : ContainerService.LOG_NAMES) {
             final InputStream logStream = getLogStream(container, logName);
@@ -1144,35 +1144,54 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
     @Nullable
     public InputStream getLogStream(final long id, final String logFileName)
-            throws NotFoundException, NoDockerServerException, DockerServerException {
+            throws NotFoundException {
         return getLogStream(get(id), logFileName);
+    }
+
+    @Nullable
+    private InputStream getLogStream(final Container container, final String logFileName) {
+        return getLogStream(container, logFileName, false, null);
     }
 
     @Override
     @Nullable
     public InputStream getLogStream(final String containerId, final String logFileName)
-            throws NotFoundException, NoDockerServerException, DockerServerException {
-        return getLogStream(get(containerId), logFileName);
+            throws NotFoundException {
+        return getLogStream(containerId, logFileName, false, null);
+    }
+
+    @Override
+    @Nullable
+    public InputStream getLogStream(final String containerId, final String logFileName,
+                                    boolean withTimestamps, final Integer since)
+            throws NotFoundException {
+        return getLogStream(get(containerId), logFileName, withTimestamps, since);
     }
 
     @Nullable
-    private InputStream getLogStream(final Container container, final String logFileName)
-            throws NoDockerServerException, DockerServerException {
+    private InputStream getLogStream(final Container container, final String logFileName,
+                                     boolean withTimestamps, final Integer since) {
         final String logPath = container.getLogPath(logFileName);
         if (StringUtils.isBlank(logPath)) {
             try {
+                DockerClient.LogsParam sincePrm = since != null ? DockerClient.LogsParam.since(since) : null;
+                DockerClient.LogsParam timestampPrm =  DockerClient.LogsParam.timestamps(withTimestamps);
                 // If log path is blank, that means we have not yet saved the logs from docker. Go fetch them now.
                 if (ContainerService.STDOUT_LOG_NAME.contains(logFileName)) {
                     if (container.isSwarmService()) {
-                        return new ByteArrayInputStream(containerControlApi.getServiceStdoutLog(container.serviceId()).getBytes());
+                        return new ByteArrayInputStream(containerControlApi.getServiceStdoutLog(container.serviceId(),
+                                timestampPrm, sincePrm).getBytes());
                     } else {
-                        return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId()).getBytes());
+                        return new ByteArrayInputStream(containerControlApi.getContainerStdoutLog(container.containerId(),
+                                timestampPrm, sincePrm).getBytes());
                     }
                 } else if (ContainerService.STDERR_LOG_NAME.contains(logFileName)) {
                     if (container.isSwarmService()) {
-                        return new ByteArrayInputStream(containerControlApi.getServiceStderrLog(container.serviceId()).getBytes());
+                        return new ByteArrayInputStream(containerControlApi.getServiceStderrLog(container.serviceId(),
+                                timestampPrm, sincePrm).getBytes());
                     } else {
-                        return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId()).getBytes());
+                        return new ByteArrayInputStream(containerControlApi.getContainerStderrLog(container.containerId(),
+                                timestampPrm, sincePrm).getBytes());
                     }
                 } else {
                     return null;
@@ -1181,7 +1200,7 @@ public class ContainerServiceImpl implements ContainerService {
                 log.debug("No {} log for {}", logFileName, container.databaseId());
             }
         } else {
-            // If log path is not blank, that means we have saved the logs to a file. Read it now.
+            // If log path is not blank, that means we have saved the logs to a file (processing has completed). Read it now.
             try {
                 return new FileInputStream(logPath);
             } catch (FileNotFoundException e) {

@@ -13,6 +13,7 @@ import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 
 import java.io.InputStream;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -81,10 +82,11 @@ public interface ContainerService {
     String kill(final String containerId, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException;
 
-    Map<String, InputStream> getLogStreams(long id) throws NotFoundException, NoDockerServerException, DockerServerException;
-    Map<String, InputStream> getLogStreams(String containerId) throws NotFoundException, NoDockerServerException, DockerServerException;
-    InputStream getLogStream(long id, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
-    InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
+    Map<String, InputStream> getLogStreams(long id) throws NotFoundException;
+    Map<String, InputStream> getLogStreams(String containerId) throws NotFoundException;
+    InputStream getLogStream(long id, String logFileName) throws NotFoundException;
+    InputStream getLogStream(String containerId, String logFileName) throws NotFoundException;
+    InputStream getLogStream(String containerId, String logFileName, boolean withTimestamps, Integer since) throws NotFoundException;
 	boolean isWaiting(Container service);
 	boolean isFinalizing(Container service);
     boolean isFailedOrComplete(Container service, UserI user);
