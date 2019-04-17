@@ -69,12 +69,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import static com.spotify.docker.client.DockerClient.EventsParam.since;
 import static com.spotify.docker.client.DockerClient.EventsParam.type;
@@ -952,8 +947,19 @@ public class DockerControlApi implements ContainerControlApi {
         return getContainerLog(containerId, LogsParam.stderr());
     }
 
-    private String getContainerLog(final String containerId, final LogsParam logType) throws NoDockerServerException, DockerServerException {
-        try (final LogStream logStream = getClient().logs(containerId, logType)) {
+    @Override
+    public String getContainerStdoutLog(final String containerId, LogsParam... logParams) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(containerId, LogsParam.stdout(), logParams);
+    }
+
+    @Override
+    public String getContainerStderrLog(final String containerId, LogsParam... logParams) throws NoDockerServerException, DockerServerException {
+        return getContainerLog(containerId, LogsParam.stderr(), logParams);
+    }
+
+    private String getContainerLog(final String containerId, final LogsParam logType, LogsParam... addlParams)
+            throws NoDockerServerException, DockerServerException {
+        try (final LogStream logStream = getClient().logs(containerId, collectLogsParams(logType, addlParams))) {
             return logStream.readFully();
         } catch (NoDockerServerException e) {
             throw e;
@@ -972,9 +978,19 @@ public class DockerControlApi implements ContainerControlApi {
     public String getServiceStderrLog(final String serviceId) throws NoDockerServerException, DockerServerException {
         return getServiceLog(serviceId, LogsParam.stderr());
     }
+    @Override
+    public String getServiceStdoutLog(final String serviceId, LogsParam... logParams) throws NoDockerServerException, DockerServerException {
+        return getServiceLog(serviceId, LogsParam.stdout(), logParams);
+    }
 
-    private String getServiceLog(final String serviceId, final LogsParam logType) throws DockerServerException, NoDockerServerException {
-        try (final LogStream logStream = getClient().serviceLogs(serviceId, logType)) {
+    @Override
+    public String getServiceStderrLog(final String serviceId, LogsParam... logParams) throws NoDockerServerException, DockerServerException {
+        return getServiceLog(serviceId, LogsParam.stderr(), logParams);
+    }
+
+    private String getServiceLog(final String serviceId, final LogsParam logType, LogsParam... addlParams)
+            throws DockerServerException, NoDockerServerException {
+        try (final LogStream logStream = getClient().serviceLogs(serviceId, collectLogsParams(logType, addlParams))) {
             return logStream.readFully();
         } catch (NoDockerServerException e) {
             throw e;
@@ -983,7 +999,21 @@ public class DockerControlApi implements ContainerControlApi {
             throw new DockerServerException(e);
         }
     }    
-    
+    private LogsParam[] collectLogsParams(LogsParam logType, LogsParam... addlParams) {
+        List<LogsParam> params = new ArrayList<>();
+        params.add(logType);
+        if (addlParams != null) {
+            for (LogsParam param : addlParams) {
+                if (param != null) {
+                    params.add(param);
+                }
+            }
+        }
+        LogsParam[] paramsArr = new LogsParam[params.size()];
+        paramsArr = params.toArray(paramsArr);
+        return paramsArr;
+    }
+
     @VisibleForTesting
     @Nonnull
     public DockerClient getClient() throws NoDockerServerException, DockerServerException {

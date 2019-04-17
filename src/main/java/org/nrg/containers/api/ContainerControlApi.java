@@ -1,5 +1,6 @@
 package org.nrg.containers.api;
 
+import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.ServiceNotFoundException;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.exceptions.ContainerException;
@@ -60,6 +61,10 @@ public interface ContainerControlApi {
     String getContainerStderrLog(String containerId) throws NoDockerServerException, DockerServerException;
     String getServiceStdoutLog(String serviceId) throws NoDockerServerException, DockerServerException;
     String getServiceStderrLog(String serviceId) throws NoDockerServerException, DockerServerException;
+    String getContainerStdoutLog(String containerId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getContainerStderrLog(String containerId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getServiceStdoutLog(String serviceId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getServiceStderrLog(String serviceId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
     
     List<DockerContainerEvent> getContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
     void throwContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
