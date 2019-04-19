@@ -854,9 +854,8 @@ public class ContainerServiceImpl implements ContainerService {
         if (entity.statusIsTerminal()) {
             return true;
         }
-        final PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(user, containerOrService.workflowId());
-        String status;
-        return workflow != null && (status = workflow.getStatus()) != null &&
+        final String status = containerOrService.getWorkflowStatus(user);
+        return status != null &&
                 (status.contains(PersistentWorkflowUtils.FAILED) || status.contains(PersistentWorkflowUtils.COMPLETE));
     }
 

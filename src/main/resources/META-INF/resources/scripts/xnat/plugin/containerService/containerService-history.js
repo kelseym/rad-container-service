@@ -1,5 +1,5 @@
 /*
- * web: containerServices-siteAdmin.js
+ * web: containerServices-history.js
  * XNAT http://www.xnat.org
  * Copyright (c) 2005-2017, Washington University School of Medicine and Howard Hughes Medical Institute
  * All Rights Reserved
@@ -402,6 +402,18 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         }
     }
 
+    historyTable.workflowModal = function(workflowIdOrEvent) {
+        var workflowId;
+        if (workflowIdOrEvent.hasOwnProperty("data")) {
+            // this is an event
+            workflowId = workflowIdOrEvent.data.wfid;
+        } else {
+            workflowId = workflowIdOrEvent;
+        }
+        // rptModal in xdat.js
+        rptModal.call(this, workflowId, "wrk:workflowData", "wrk:workflowData.wrk_workflowData_id");
+    };
+
     var containerModalId = function(containerId, logFile) {
         return 'container-'+containerId+'-log-'+logFile;
     };
@@ -508,7 +520,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
     historyTable.viewHistoryEntry = function(historyEntry) {
         var historyDialogButtons = [
             {
-                label: 'OK',
+                label: 'Done',
                 isDefault: true,
                 close: true
             }
@@ -585,6 +597,11 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 formattedVal = spawn('code', JSON.stringify(val));
             } else if (!val) {
                 formattedVal = spawn('code', 'false');
+            } else if (key === 'workflow-id') {
+                // Allow pulling up detailed workflow info (can contain addl info in details field)
+                var curid = '#wfmodal' + val;
+                formattedVal = spawn('a' + curid, {}, val);
+                $(document).on('click', curid, {wfid: val}, historyTable.workflowModal);
             } else {
                 formattedVal = spawn('code', val);
             }

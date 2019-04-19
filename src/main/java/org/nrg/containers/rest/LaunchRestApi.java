@@ -213,12 +213,12 @@ public class LaunchRestApi extends AbstractXapiRestController {
     @ApiOperation(value = "Get Bulk Launch UI for wrapper", notes = "DOES NOT WORK PROPERLY IN SWAGGER UI")
     @ResponseBody
     public LaunchUi getBulkLaunchUi(final @PathVariable long wrapperId,
-                                                 final @RequestParam("targetList") List<String> targets,
+                                                 final @RequestParam("sampleTarget") String target,
                                                  final @RequestParam("rootElement") String rootElement)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
         log.info("Launch UI requested for wrapper {}", wrapperId);
 
-        return getBulkLaunchUi(null, 0L, null, wrapperId, targets, rootElement);
+        return getBulkLaunchUi(null, 0L, null, wrapperId, target, rootElement);
     }
 
     @XapiRequestMapping(value = {"/commands/{commandId}/wrappers/{wrapperName}/bulklaunch"}, method = GET)
@@ -226,12 +226,12 @@ public class LaunchRestApi extends AbstractXapiRestController {
     @ResponseBody
     public LaunchUi getBulkLaunchUi(final @PathVariable long commandId,
                                                  final @PathVariable String wrapperName,
-                                                 final @RequestParam("targetList") List<String> targets,
+                                                 final @RequestParam("sampleTarget") String target,
                                                  final @RequestParam("rootElement") String rootElement)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
         log.info("Bulk Launch UI requested for command {}, wrapper {}", commandId, wrapperName);
 
-        return getBulkLaunchUi(null, commandId, wrapperName, 0L, targets, rootElement);
+        return getBulkLaunchUi(null, commandId, wrapperName, 0L, target, rootElement);
     }
 
     @XapiRequestMapping(value = {"/projects/{project}/wrappers/{wrapperId}/bulklaunch"}, method = GET, restrictTo = Edit)
@@ -239,12 +239,12 @@ public class LaunchRestApi extends AbstractXapiRestController {
     @ResponseBody
     public LaunchUi getBulkLaunchUi(final @PathVariable @ProjectId String project,
                                                  final @PathVariable long wrapperId,
-                                                 final @RequestParam("targetList") List<String> targets,
+                                                 final @RequestParam("sampleTarget") String target,
                                                  final @RequestParam("rootElement") String rootElement)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
         log.info("Launch UI requested for project {}, wrapper {}", project, wrapperId);
 
-        return getBulkLaunchUi(project, 0L, null, wrapperId, targets, rootElement);
+        return getBulkLaunchUi(project, 0L, null, wrapperId, target, rootElement);
     }
 
     @XapiRequestMapping(value = {"/projects/{project}/commands/{commandId}/wrappers/{wrapperName}/bulklaunch"}, method = GET, restrictTo = Edit)
@@ -253,29 +253,29 @@ public class LaunchRestApi extends AbstractXapiRestController {
     public LaunchUi getBulkLaunchUi(final @PathVariable @ProjectId String project,
                                                  final @PathVariable long commandId,
                                                  final @PathVariable String wrapperName,
-                                                 final @RequestParam("targetList") List<String> targets,
+                                                 final @RequestParam("sampleTarget") String target,
                                                  final @RequestParam("rootElement") String rootElement)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
         log.info("Launch UI requested for project {}, command {}, wrapper {}", project, commandId, wrapperName);
 
-        return getBulkLaunchUi(project, commandId, wrapperName, 0L, targets, rootElement);
+        return getBulkLaunchUi(project, commandId, wrapperName, 0L, target, rootElement);
     }
 
     private LaunchUi getBulkLaunchUi(final String project,
                                                   final long commandId,
                                                   final String wrapperName,
                                                   final long wrapperId,
-                                                  final List<String> targets,
+                                                  final String target,
                                                   final String rootElement)
             throws NotFoundException, CommandResolutionException, UnauthorizedException {
 
-        if (targets.isEmpty()) {
-            throw new CommandResolutionException("No targets specified");
+        if (StringUtils.isBlank(target)) {
+            throw new CommandResolutionException("No sample target specified");
         }
         
-        // For now, we just use the first target for command preresolution
+        // For now, we just use the sample target for command preresolution
         Map<String, String> prms = Maps.newHashMap();
-        prms.put(rootElement, targets.get(0));
+        prms.put(rootElement, target);
         
         try {
             log.debug("Getting {} configuration for command {}, wrapper name {}, wrapper id {}.",

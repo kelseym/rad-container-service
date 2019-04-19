@@ -23,6 +23,9 @@ import org.nrg.containers.utils.JsonDateSerializer;
 import org.nrg.containers.utils.JsonStringToDateSerializer;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.security.UserI;
+import org.nrg.xnat.utils.WorkflowUtils;
 
 import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
@@ -129,6 +132,13 @@ public abstract class Container {
             }
         }
         return restarts;
+    }
+
+    @JsonIgnore
+    @Nullable
+    public String getWorkflowStatus(UserI user) {
+        final PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(user, workflowId());
+        return workflow == null ? null : workflow.getStatus();
     }
 
     @JsonCreator
