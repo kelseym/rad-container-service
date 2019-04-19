@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.scheduling.config.TriggerTask;
 import org.springframework.scheduling.support.PeriodicTrigger;
 
@@ -111,6 +112,12 @@ public class ContainersConfig {
                 new PeriodicTrigger(10L, TimeUnit.SECONDS)
         );
     }
-    
 
+    @Bean
+    public ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean() {
+        ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
+        tBean.setCorePoolSize(5);
+        tBean.setThreadNamePrefix("container-");
+        return tBean;
+    }
 }

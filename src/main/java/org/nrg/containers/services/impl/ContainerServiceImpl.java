@@ -259,38 +259,39 @@ public class ContainerServiceImpl implements ContainerService {
     public void resetFinalizingStatusToWaitingOrFailed() {
     	List<ContainerEntity> finalizingContainerEntities =  containerEntityService.retrieveServicesInFinalizingState();
     	if (finalizingContainerEntities == null || finalizingContainerEntities.size() == 0) {
-    		log.info("Appears that no containers are in orphaned finalizing state");
+    		log.info("Appears that no containers are in orphaned {} state", FINALIZING);
     		return;
-    	}else {
-	    		List<Container> finalizingContainers  = toPojo(finalizingContainerEntities);
-	    		//Now update the finalizing state to Waiting or Failed
-	            for (final Container s : finalizingContainers) {
-		            	Container service = retrieve(s.databaseId()); 
-		                if (service != null) {
-		                	log.info("Found Service " + service.serviceId() + " Task: " + service.taskId() + " Workflow: " + service.workflowId() + " in possibly abandoned finalizing state");
-		                    final String userLogin = service.userId();
-			                try {    
-			                    final UserI userI = Users.getUser(userLogin);
-			                    Date now = new Date();
-			                    Date lastStatusTime = service.statusTime();
-			                    long diffHours = (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
-			                    if (diffHours < 72) {
-				                    addContainerHistoryItem(service, ContainerHistory.fromSystem(WAITING,
-                                            "Reset status from Finalizing to Waiting." ), userI);
-				                	log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
-                                            " Workflow: " + service.workflowId() + " to Waiting state");
-			                    }else {
-				                    addContainerHistoryItem(service, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED,
-                                            "Reset status from Finalizing to Failed. Has been finalizing for more than 72 Hours" ), userI);
-				                	log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
-                                            " Workflow: " + service.workflowId() + " to FAILED state");
-			                    }
-			                }catch(UserNotFoundException | UserInitException e) {
-			                    log.error("Could not update container status. Could not get user details for user " + userLogin, e);
-			        		}
-		                }
-	            }
     	}
+        List<Container> finalizingContainers  = toPojo(finalizingContainerEntities);
+        //Now update the finalizing state to Waiting or Failed
+        for (final Container s : finalizingContainers) {
+            Container service = retrieve(s.databaseId());
+            if (service == null) {
+                continue;
+            }
+            log.info("Found service {} task {} workflow {} in possibly abandoned {} state", service.serviceId(),
+                    service.taskId(), service.workflowId(), FINALIZING);
+            final String userLogin = service.userId();
+            try {
+                final UserI userI = Users.getUser(userLogin);
+                Date now = new Date();
+                Date lastStatusTime = service.statusTime();
+                long diffHours = (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
+                if (diffHours < 72) {
+                    addContainerHistoryItem(service, ContainerHistory.fromSystem(WAITING,
+                            "Reset status from Finalizing to Waiting." ), userI);
+                    log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
+                            " Workflow: " + service.workflowId() + " to Waiting state");
+                }else {
+                    addContainerHistoryItem(service, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED +
+                            "("+FINALIZING+")", FINALIZING + " for more than 72 Hours"), userI);
+                    log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
+                            " Workflow: " + service.workflowId() + " to FAILED state");
+                }
+            } catch(UserNotFoundException | UserInitException e) {
+                log.error("Could not update container status. Could not get user details for user " + userLogin, e);
+            }
+        }
     }
 
     @Override

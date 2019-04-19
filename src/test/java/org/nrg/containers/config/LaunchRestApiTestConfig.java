@@ -16,6 +16,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.security.authentication.TestingAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,9 +35,10 @@ public class LaunchRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                        final DockerServerService mockDockerServerService,
                                        final UserManagementServiceI mockUserManagementServiceI,
                                        final RoleHolder roleHolder,
-                                       final ObjectMapper mapper) {
+                                       final ObjectMapper mapper,
+                                       final ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean) {
         return new LaunchRestApi(commandService, containerService, commandResolutionService,
-                mockDockerServerService, mockUserManagementServiceI, roleHolder, mapper);
+                mockDockerServerService, mockUserManagementServiceI, roleHolder, mapper, threadPoolExecutorFactoryBean);
     }
 
     @Bean

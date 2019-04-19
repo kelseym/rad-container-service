@@ -1156,41 +1156,46 @@ public class DockerControlApi implements ContainerControlApi {
     public ServiceTask getTaskForService(final DockerServer dockerServer, final Container service)
             throws DockerServerException, ServiceNotFoundException {
         try (final DockerClient client = getClient(dockerServer)) {
-        	com.spotify.docker.client.messages.swarm.Service s=client.inspectService(service.serviceId());
-        	        
             Task task = null;
-            log.trace("Attempting task for service:"+ service.toString());
-            log.trace("Service details: SERVICE: " + service.serviceId() + " STATUS: " + service.status() + " TASK: " + service.taskId() + " NODE: " + service.nodeId() + " CONTAINER: " + service.containerId() + " DBID: " + service.databaseId() + " WOKKFLOW: " + service.workflowId() );
-            if (service.taskId() == null) {
-                log.trace("Service {} does not have task information yet.", service.serviceId());
-                final com.spotify.docker.client.messages.swarm.Service serviceResponse = client.inspectService(service.serviceId());
-                log.trace("Service {} has name {}. Finding tasks by service name.", service.serviceId(), serviceResponse.spec().name() );
+            final String serviceId = service.serviceId();
+            final String taskId = service.taskId();
+            log.trace("Attempting task for service: "+ service.toString());
+            log.trace("Service details: SERVICE: " + serviceId + " STATUS: " + service.status() +
+                    " TASK: " + service.taskId() + " NODE: " + service.nodeId() + " CONTAINER: " +
+                    service.containerId() + " DBID: " + service.databaseId() + " WOKKFLOW: " + service.workflowId() );
+
+            if (taskId == null) {
+                log.trace("Service {} does not have task information yet.", serviceId);
+                final com.spotify.docker.client.messages.swarm.Service serviceResponse = client.inspectService(serviceId);
+                final String serviceName = serviceResponse.spec().name();
+                log.trace("Service {} has name {}. Finding tasks by service name.", serviceId, serviceName);
                 log.trace(" SERVICERESPONSE: " + serviceResponse.toString());
-                final List<Task> tasks = client.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
+
+                final List<Task> tasks = client.listTasks(Task.Criteria.builder().serviceName(serviceName).build());
 
                 if (tasks.size() == 1) {
-                    log.trace("Found one task for service name {}.", serviceResponse.spec().name());
+                    log.trace("Found one task for service name {}.", serviceName);
                     task = tasks.get(0);
                 } else if (tasks.size() == 0) {
-                    log.trace("No tasks found for service name {}.", serviceResponse.spec().name());
+                    log.trace("No tasks found for service name {}.", serviceName);
                 } else {
-                    log.trace("Found {} tasks for service name {}. Not sure which to use.", serviceResponse.spec().name());
+                    log.trace("Found {} tasks for service name {}. Not sure which to use.", serviceName);
                 }
             } else {
-                log.trace("Service {} has task ID {}.", service.serviceId(), service.taskId());
-                final String taskId = service.taskId();
+                log.trace("Service {} has task ID {}.", serviceId, taskId);
                 task = client.inspectTask(taskId);
             }
 
             if (task != null) {
-                final ServiceTask serviceTask = ServiceTask.create(task, service.serviceId());
+                final ServiceTask serviceTask = ServiceTask.create(task, serviceId);
 
                 if (serviceTask.isExitStatus() && serviceTask.exitCode() == null) {
                     // The Task is supposed to have the container exit code, but docker doesn't report it where it should.
                     // So go get the container info and get the exit code
-                    log.debug("Looking up exit code for container {}.", serviceTask.containerId());
-                    if (serviceTask.containerId() != null) {
-                        final ContainerInfo containerInfo = client.inspectContainer(serviceTask.containerId());
+                    final String containerId = serviceTask.containerId();
+                    log.debug("Looking up exit code for container {}.", containerId);
+                    if (containerId != null) {
+                        final ContainerInfo containerInfo = client.inspectContainer(containerId);
                         if (containerInfo.state().exitCode() == null) {
                             log.debug("Welp. Container exit code is null on the container too.");
                         } else {

@@ -268,7 +268,7 @@ public class LaunchRestApiTest {
         input.put(FAKE_ROOT, mapper.writeValueAsString(Arrays.asList(FAKE_XNAT_ID, badId)));
         final String bulkInputJson = mapper.writeValueAsString(input);
 
-        final String exceptionMessage = "Unable to queue container launch";
+        //final String exceptionMessage = "Unable to queue container launch";
         // Can go back to using the below when we allow different inputs for different targets
         //Mockito.doThrow(new Exception(exceptionMessage)).when(mockContainerService).queueResolveCommandAndLaunchContainer(
         //        isNull(String.class), eq(WRAPPER_ID), eq(0L), isNull(String.class),
@@ -289,17 +289,19 @@ public class LaunchRestApiTest {
                 .getContentAsString();
 
         final LaunchReport.BulkLaunchReport bulkLaunchReport = mapper.readValue(response, LaunchReport.BulkLaunchReport.class);
-        assertThat(bulkLaunchReport.successes(), hasSize(1));
-        assertThat(bulkLaunchReport.failures(), hasSize(1));
-        final LaunchReport.Failure failure = bulkLaunchReport.failures().get(0);
-        assertThat(failure.launchParams(), hasEntry(FAKE_ROOT, badId));
-        assertThat(failure.message(), is(exceptionMessage));
+        assertThat(bulkLaunchReport.successes(), hasSize(2));
+        // We are needing to return from bulk UI ASAP so that we don't get a proxy replay of the request. This means we don't get status info (success/failures) in the launch report.
+        //assertThat(bulkLaunchReport.successes(), hasSize(1));
+        //assertThat(bulkLaunchReport.failures(), hasSize(1));
+        //final LaunchReport.Failure failure = bulkLaunchReport.failures().get(0);
+        //assertThat(failure.launchParams(), hasEntry(FAKE_ROOT, badId));
+        //assertThat(failure.message(), is(exceptionMessage));
 
         final LaunchReport.Success success = bulkLaunchReport.successes().get(0);
         assertThat(success.launchParams(), hasEntry(FAKE_ROOT, FAKE_XNAT_ID));
         assertThat(success.launchParams(), hasEntry(INPUT_NAME, INPUT_VALUE));
         assertThat(success, instanceOf(LaunchReport.ContainerSuccess.class));
-        assertThat(((LaunchReport.ContainerSuccess) success).containerId(), is(QUEUED_WF_MSG));
+        assertThat(((LaunchReport.ContainerSuccess) success).containerId(), is(QUEUED_MSG));
     }
 
     @Test
