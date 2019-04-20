@@ -24,7 +24,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class DockerStatusUpdater   implements Runnable {
+public class DockerStatusUpdater implements Runnable {
 
     private ContainerControlApi controlApi;
     private DockerServerService dockerServerService;

@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.nrg.containers.events.DockerStatusUpdater;
 import org.nrg.containers.jms.preferences.QueuePrefsBean;
+import org.nrg.containers.jms.tasks.QueueManager;
 import org.nrg.framework.annotations.XnatPlugin;
 import org.nrg.xnat.initialization.RootConfig;
 import org.nrg.xnat.services.XnatAppInfo;
@@ -110,6 +111,13 @@ public class ContainersConfig {
         return new TriggerTask(
                 dockerStatusUpdater,
                 new PeriodicTrigger(10L, TimeUnit.SECONDS)
+        );
+    }
+    @Bean
+    public TriggerTask queueManagerTask(final QueueManager queueManager) {
+        return new TriggerTask(
+                queueManager,
+                new PeriodicTrigger(15L, TimeUnit.MINUTES)
         );
     }
 

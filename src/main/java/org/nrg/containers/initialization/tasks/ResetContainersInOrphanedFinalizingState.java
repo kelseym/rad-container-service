@@ -32,7 +32,7 @@ public class ResetContainersInOrphanedFinalizingState extends AbstractInitializi
     @Override
     protected void callImpl() throws InitializingTaskException {
         if (!_appInfo.isPrimaryNode()) {
-            log.debug("This is not the  primary node. Skippping Reset Containers In Orphaned Finalizing State");
+            log.debug("This is not the primary node. Skippping Reset Containers In Orphaned Finalizing State");
             return;
         }
         //TODO containers can be finalized on non-primary node and this method inappropriately restarts them

@@ -6,7 +6,7 @@ import java.io.Serializable;
 public class ContainerFinalizingRequest extends ContainerRequest implements Serializable {
    
 
-	final private String destination="containerFinalizingRequest";
+	public static final String destination="containerFinalizingRequest";
 	
 	private static final long serialVersionUID = 1388953760707461670L;
 	private String exitCodeString;
