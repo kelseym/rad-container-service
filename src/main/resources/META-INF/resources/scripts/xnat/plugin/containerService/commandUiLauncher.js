@@ -1005,15 +1005,17 @@ var XNAT = getObject(XNAT || {});
         xmodal.loading.open({ title: 'Configuring Container Launcher' });
 
         var launchUrl = getBulkLauncherUI(wrapperId, project);
+        var sampleTarget = targets[0];
 
         XNAT.xhr.getJSON({
             url: launchUrl,
-            data: {'targetList': targets.toString(), 'rootElement': rootElement},
+            data: {'sampleTarget': sampleTarget, 'rootElement': rootElement},
             fail: function(e){
                 xmodal.loading.close();
                 errorHandler({
                     statusText: e.statusText,
-                    responseText: 'Could not launch UI with value(s): "'+targets.toString()+'" for root element: "'+rootElement+'".'
+                    responseText: 'Could not build bulk UI for root element: "' +
+                        rootElement + '" sample target:"' + sampleTarget + '".'
                 });
             },
             success: function(configData){

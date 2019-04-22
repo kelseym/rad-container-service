@@ -9,7 +9,7 @@ public class ContainerStagingRequest extends ContainerRequest implements Seriali
 
 
 	private static final long serialVersionUID = 1L;
-	final private String destination = "containerStagingRequest";
+	public static final String destination = "containerStagingRequest";
 
 	private String project;
 	private long wrapperId;

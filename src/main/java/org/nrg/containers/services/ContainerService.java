@@ -39,9 +39,11 @@ public interface ContainerService {
 
 
     List<Container> retrieveServices();
-    List<Container> retrieveNonfinalizedServices();
     List<Container> retrieveServicesInWaitingState();
-    
+    List<Container> retrieveNonfinalizedServices();
+
+    void checkQueuedContainerJobs(UserI user);
+    void checkWaitingContainerJobs(UserI user);
     void resetFinalizingStatusToWaitingOrFailed();
 
     List<Container> retrieveSetupContainersForParent(long parentId);

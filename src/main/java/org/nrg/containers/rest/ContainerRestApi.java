@@ -1,6 +1,5 @@
 package org.nrg.containers.rest;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -198,8 +197,9 @@ public class ContainerRestApi extends AbstractXapiRestController {
     }
 
     private <T> T doGetLog(String containerId, String file, Long since, Class<T> type)
-            throws NoDockerServerException, DockerServerException, NotFoundException, IOException {
+            throws NotFoundException, IOException {
 
+        final UserI user = XDAT.getUserDetails();
         Integer sinceInt = null;
         try {
             sinceInt = since == null ? null : Math.toIntExact(since);
@@ -218,8 +218,10 @@ public class ContainerRestApi extends AbstractXapiRestController {
             final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             writeToOuputStream(logStream, byteArrayOutputStream);
             logContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
-            if (!(logStream instanceof FileInputStream)) {
-                // If it's not a file, determine what to pass for "since" querying based on timestamps
+            if (!(logStream instanceof FileInputStream) &&
+                    !containerService.isFailedOrComplete(containerService.get(containerId), user)) {
+                // If it's not a file and the container/service is still active (aka still potentially logging),
+                // determine what to pass for "since" querying based on timestamps
                 String[] lines = logContent.replaceAll("(\\n)+$", "").split("\\n");
                 String lastLine;
                 try {

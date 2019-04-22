@@ -2,6 +2,7 @@ package org.nrg.containers.daos;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
+import org.hibernate.criterion.Criterion;
 import org.hibernate.criterion.MatchMode;
 import org.hibernate.criterion.Restrictions;
 import org.nrg.containers.model.container.entity.ContainerEntity;
@@ -57,7 +58,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
         return containerEntity;
     }
 
-   @Nullable
+    @Nullable
     public ContainerEntity retrieveByServiceId(final @Nonnull String serviceId) {
         return findByUniqueProperty("serviceId", serviceId);
     }
@@ -99,13 +100,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.not(Restrictions.disjunction()
-                                .add(Restrictions.like("status", "Complete"))
-                                .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed", MatchMode.START))
-                                .add(Restrictions.like("status", "Killed"))
-                                .add(Restrictions.like("status", "Finalizing"))
-                        ))
+                        .add(getNonFinalizedCriterion())
                 )
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(servicesResult);
@@ -194,15 +189,7 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
     public List<ContainerEntity> getAllNonfinalized() {
         final List list = getSession()
                 .createCriteria(ContainerEntity.class)
-                .add(Restrictions.conjunction()
-                        .add(Restrictions.not(Restrictions.disjunction()
-                                .add(Restrictions.like("status", "Complete"))
-                                .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed",MatchMode.START))
-                                .add(Restrictions.like("status", "Killed"))
-                                .add(Restrictions.like("status", "Finalizing"))
-                        ))
-                )
+                .add(Restrictions.conjunction().add(getNonFinalizedCriterion()))
                 .list();
         return initializeAndReturnList(list);
     }
@@ -213,15 +200,19 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
                 .createCriteria(ContainerEntity.class)
                 .add(Restrictions.conjunction()
                         .add(Restrictions.eq("project", project))
-                        .add(Restrictions.not(Restrictions.disjunction()
-                                .add(Restrictions.like("status", "Complete"))
-                                .add(Restrictions.like("status", "Done"))
-                                .add(Restrictions.like("status", "Failed",MatchMode.START))
-                                .add(Restrictions.like("status", "Killed"))
-                        ))
+                        .add(getNonFinalizedCriterion())
                 )
                 .list();
         return initializeAndReturnList(list);
+    }
+
+    private Criterion getNonFinalizedCriterion() {
+        return Restrictions.not(Restrictions.disjunction()
+                .add(Restrictions.like("status", "Complete"))
+                .add(Restrictions.like("status", "Done"))
+                .add(Restrictions.like("status", "Failed", MatchMode.START))
+                .add(Restrictions.like("status", "Killed"))
+                .add(Restrictions.like("status", "Finalizing")));
     }
 
     @SuppressWarnings("unchecked")

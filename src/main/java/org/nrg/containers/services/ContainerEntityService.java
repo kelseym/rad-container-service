@@ -7,6 +7,7 @@ import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.orm.hibernate.BaseHibernateService;
 import org.nrg.xft.security.UserI;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 
 public interface ContainerEntityService extends BaseHibernateService<ContainerEntity> {
@@ -25,6 +26,7 @@ public interface ContainerEntityService extends BaseHibernateService<ContainerEn
     List<ContainerEntity> retrieveNonfinalizedServices();
     List<ContainerEntity> retrieveServicesInFinalizingState();
     List<ContainerEntity> retrieveServicesInWaitingState();
+
     int howManyContainersAreBeingFinalized();
 
     List<ContainerEntity> retrieveSetupContainersForParent(long parentId);

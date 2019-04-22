@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.nrg.containers.events.DockerStatusUpdater;
 import org.nrg.containers.jms.preferences.QueuePrefsBean;
+import org.nrg.containers.jms.tasks.QueueManager;
 import org.nrg.framework.annotations.XnatPlugin;
 import org.nrg.xnat.initialization.RootConfig;
 import org.nrg.xnat.services.XnatAppInfo;
@@ -24,6 +25,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.scheduling.config.TriggerTask;
 import org.springframework.scheduling.support.PeriodicTrigger;
 
@@ -111,6 +113,19 @@ public class ContainersConfig {
                 new PeriodicTrigger(10L, TimeUnit.SECONDS)
         );
     }
-    
+    @Bean
+    public TriggerTask queueManagerTask(final QueueManager queueManager) {
+        return new TriggerTask(
+                queueManager,
+                new PeriodicTrigger(15L, TimeUnit.MINUTES)
+        );
+    }
 
+    @Bean
+    public ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean() {
+        ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
+        tBean.setCorePoolSize(5);
+        tBean.setThreadNamePrefix("container-");
+        return tBean;
+    }
 }

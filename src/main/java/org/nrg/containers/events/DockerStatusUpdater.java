@@ -24,7 +24,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class DockerStatusUpdater   implements Runnable {
+public class DockerStatusUpdater implements Runnable {
 
     private ContainerControlApi controlApi;
     private DockerServerService dockerServerService;
@@ -149,34 +149,27 @@ public class DockerStatusUpdater   implements Runnable {
         //TODO : Optimize this code so that waiting ones are handled first
         for (Container service : containerService.retrieveNonfinalizedServices()) {
             try {
-                log.debug("Getting Task info for Service {}.", service.serviceId());
-                log.debug("DIAGNOSTICS:" + service.toString());
+                log.debug("Getting task info for service {}.", service.toString());
                 try {
-                    controlApi.throwTaskEventForService(dockerServer, service);
-                    report.add(UpdateReportEntry.success(service.serviceId()));
-                } catch (ServiceNotFoundException e) {
-                    // Refresh service status etc.
+                    // Refresh service status etc. bc it could change while we're processing this list
                     service = containerService.get(service.databaseId());
                     if (containerService.isFinalizing(service) ||
                             containerService.isFailedOrComplete(service, Users.getAdminUser())) {
-                        log.debug("ignoring failed service retrieval for finalizing/failed/complete job");
-                        continue;
-                    }
-
-                    if (containerService.isWaiting(service)) {
+                        log.debug("Service {} no longer unfinalized", service.serviceId());
+                    } else if (containerService.isWaiting(service)) {
                         controlApi.throwWaitingEventForService(service);
-                        continue;
+                    } else {
+                        controlApi.throwTaskEventForService(dockerServer, service);
                     }
-
-                    // Throw a restart event so that we hit the "in processing" queue in DockerServiceEventListener
+                    report.add(UpdateReportEntry.success(service.serviceId()));
+                } catch (ServiceNotFoundException e) {
+                    // Service not found despite container being active: throw a restart event
                     controlApi.throwRestartEventForService(service);
                     report.add(UpdateReportEntry.success(service.serviceId()));
-
                 } catch (DockerServerException e) {
-                    log.error(String.format("Cannot get Tasks for Service %s.", service.serviceId()), e);
+                    log.error(String.format("Cannot get tasks for service %s.", service.serviceId()), e);
                     report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));
                 }
-
             } catch (Exception e) {
                 log.error(String.format("Unexpected exception trying to update service %s.", service.serviceId()), e);
                 report.add(UpdateReportEntry.failure(service.serviceId(), e.getMessage()));
