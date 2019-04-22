@@ -459,33 +459,38 @@ public class ContainerServiceImpl implements ContainerService {
                                                         final UserI userI,
                                                         @Nullable final String workflowid) {
 
+        log.trace("consumeResolveCommandAndLaunchContainer wfid {}", workflowid);
+
         PersistentWorkflowI workflow = null;
         if (workflowid != null) {
             workflow = WorkflowUtils.getUniqueWorkflow(userI, workflowid);
         }
 
         try {
+            log.trace("Configuring command for wfid {}", workflowid);
             ConfiguredCommand configuredCommand = commandService.getAndConfigure(project, commandId, wrapperName, wrapperId);
 
+            log.trace("Resolving command for wfid {}", workflowid);
             ResolvedCommand resolvedCommand = commandResolutionService.resolve(configuredCommand, inputValues, userI);
             if (StringUtils.isNotBlank(project)) {
                 resolvedCommand = resolvedCommand.toBuilder().project(project).build();
             }
 
             // Launch resolvedCommand
+            log.trace("Launching command for wfid {}", workflowid);
             Container container = launchResolvedCommand(resolvedCommand, userI, workflow);
             if (log.isInfoEnabled()) {
                 CommandWrapper wrapper = configuredCommand.wrapper();
-                log.info("Launched command {}, wrapper {} {}. Produced container {}.", configuredCommand.id(),
-                        wrapper.id(), wrapper.name(), container.databaseId());
-                log.debug("{}", container);
+                log.info("Launched command for wfid {}: command {}, wrapper {} {}. Produced container {}.", workflowid,
+                        configuredCommand.id(), wrapper.id(), wrapper.name(), container.databaseId());
+                log.debug("Container for wfid {}: {}", workflowid, container);
             }
         } catch (NotFoundException | CommandResolutionException | UnauthorizedException e) {
             handleFailure(workflow, e, "Command resolution");
-            log.error("Container command resolution failed.", e);
+            log.error("Container command resolution failed for wfid {}.", workflowid, e);
         } catch (NoDockerServerException | DockerServerException | ContainerException | UnsupportedOperationException e) {
             handleFailure(workflow, e, "Container launch");
-            log.error("Container launch failed.", e);
+            log.error("Container launch failed for wfid {}.", workflowid, e);
         }
     }
 
