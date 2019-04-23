@@ -491,6 +491,9 @@ public class ContainerServiceImpl implements ContainerService {
         } catch (NoDockerServerException | DockerServerException | ContainerException | UnsupportedOperationException e) {
             handleFailure(workflow, e, "Container launch");
             log.error("Container launch failed for wfid {}.", workflowid, e);
+        } catch (Exception e) {
+            handleFailure(workflow, e, "Staging");
+            log.error("consumeResolveCommandAndLaunchContainer failed for wfid {}.", workflowid, e);
         }
     }
 
@@ -726,7 +729,7 @@ public class ContainerServiceImpl implements ContainerService {
         // When we create the service, we don't know all the IDs. If this is the first time we
         // have seen a task for this service, we can set those IDs now.
         if (StringUtils.isBlank(event.service().taskId()) || StringUtils.isBlank(event.service().nodeId())) {
-            log.debug("Service \"{}\" has no task and/or node information yet. Setting it now.", task.serviceId());
+            log.debug("Service \"{}\" has no task and/or node information stored. Setting it now.", task.serviceId());
             final Container serviceToUpdate = event.service().toBuilder()
                     .taskId(task.taskId())
                     .containerId(task.containerId())
@@ -1598,7 +1601,7 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     private boolean exitCodeIsFailed(final String exitCode) {
-        // Assume that everything is fine unless the exit code is explicitly > 0.
+        // Assume that everything is fine unless the exit code is explicitly != 0.
         // So exitCode="0", ="", =null all count as not failed.
         boolean isFailed = false;
         if (StringUtils.isNotBlank(exitCode)) {
@@ -1609,10 +1612,8 @@ public class ContainerServiceImpl implements ContainerService {
                 // ignored
             }
 
-            isFailed = exitCodeNumber != null && exitCodeNumber > 0;
+            isFailed = exitCodeNumber != null && exitCodeNumber != 0;
         }
-        
-        
         return isFailed;
     }
 

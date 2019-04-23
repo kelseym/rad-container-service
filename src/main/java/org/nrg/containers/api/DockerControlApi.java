@@ -1242,7 +1242,7 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public void throwRestartEventForService(final Container service) {
+    public void throwRestartEventForService(final Container service) throws ContainerException {
         log.trace("Throwing restart event for service {}.", service.serviceId());
         ServiceTask lastTask = service.makeTaskFromLastHistoryItem();
         ServiceTask restartTask = lastTask.toBuilder()
@@ -1255,7 +1255,7 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public void throwWaitingEventForService(final Container service) {
+    public void throwWaitingEventForService(final Container service) throws ContainerException {
         log.trace("Throwing waiting event for service {}.", service.serviceId());
         final ServiceTaskEvent waitingTaskEvent = ServiceTaskEvent.create(service.makeTaskFromLastHistoryItem(), service,
                 ServiceTaskEvent.EventType.Waiting);

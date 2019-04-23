@@ -10,6 +10,7 @@ import com.google.common.collect.*;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
+import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommandMount;
 import org.nrg.containers.model.container.ContainerInputType;
@@ -93,9 +94,33 @@ public abstract class Container {
     }
 
     @JsonIgnore
+    @Nullable
+    private ContainerHistory getLatestServiceHistory() {
+        List<ContainerHistory> relevantHistory = getSortedHistory();
+        for (ContainerHistory latestNonSysHistory : relevantHistory) {
+            if (latestNonSysHistory.entityType().equals("service")) {
+                return latestNonSysHistory;
+            }
+        }
+        return null;
+    }
+
+    @JsonIgnore
     @NotNull
-    public ServiceTask makeTaskFromLastHistoryItem() {
-        return ServiceTask.createFromHistoryAndService(getSortedHistory().get(0), this);
+    public ServiceTask makeTaskFromLastHistoryItem() throws ContainerException {
+        // We generally want exit code / status from a service history event
+        ContainerHistory hist = getLatestServiceHistory();
+        if (hist == null) {
+            List<ContainerHistory> sortedHistory = getSortedHistory();
+            if (sortedHistory.isEmpty()) {
+                // Must have at least one history item to get here, so this shouldn't happen, but...
+                throw new ContainerException("No history for container " + containerOrServiceId());
+            }
+            // We cannot pass a null history item into createFromHistoryAndService, so give it the latest one,
+            // even if it's not a service item
+            hist = sortedHistory.get(0);
+        }
+        return ServiceTask.createFromHistoryAndService(hist, this);
     }
 
     @JsonIgnore
