@@ -76,7 +76,7 @@ public interface ContainerControlApi {
     ServiceTask getTaskForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
-    void throwRestartEventForService(Container service);
-    void throwWaitingEventForService(Container service);
+    void throwRestartEventForService(Container service) throws ContainerException;
+    void throwWaitingEventForService(Container service) throws ContainerException;
 
 }

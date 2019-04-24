@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.nrg.containers.jms.requests.ContainerStagingRequest;
 import org.nrg.containers.jms.utils.QueueUtils;
 import org.nrg.containers.services.ContainerService;
+import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.security.user.exceptions.UserInitException;
 import org.nrg.xdat.security.user.exceptions.UserNotFoundException;
@@ -27,8 +28,15 @@ public class ContainerStagingRequestListener {
 	
 	
 	@JmsListener(containerFactory = "stagingQueueListenerFactory", destination = "containerStagingRequest")
-	public void onRequest(ContainerStagingRequest request) throws UserNotFoundException, UserInitException{
-		UserI user = userManagementServiceI.getUser(request.getUsername());
+	public void onRequest(ContainerStagingRequest request) {
+		UserI user;
+		try {
+			user = userManagementServiceI.getUser(request.getUsername());
+		} catch (UserInitException | UserNotFoundException e) {
+			log.error(e.getMessage(), e);
+			return;
+		}
+
 		if (log.isDebugEnabled()) {
 			int count = QueueUtils.count(request.getDestination());
 			log.debug("Consuming staging queue: count {}, project {}, wrapperId {}, commandId {}, wrapperName {}, " +
@@ -36,6 +44,7 @@ public class ContainerStagingRequestListener {
 					request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
 					request.getInputValues(), request.getUsername(), request.getWorkflowid());
 		}
+
 		containerService.consumeResolveCommandAndLaunchContainer(request.getProject(), request.getWrapperId(),
 				request.getCommandId(), request.getWrapperName(), request.getInputValues(),
 				user, request.getWorkflowid());

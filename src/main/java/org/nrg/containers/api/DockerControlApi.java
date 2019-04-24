@@ -1159,30 +1159,32 @@ public class DockerControlApi implements ContainerControlApi {
             Task task = null;
             final String serviceId = service.serviceId();
             final String taskId = service.taskId();
-            log.trace("Attempting task for service: "+ service.toString());
-            log.trace("Service details: SERVICE: " + serviceId + " STATUS: " + service.status() +
-                    " TASK: " + service.taskId() + " NODE: " + service.nodeId() + " CONTAINER: " +
-                    service.containerId() + " DBID: " + service.databaseId() + " WOKKFLOW: " + service.workflowId() );
 
             if (taskId == null) {
-                log.trace("Service {} does not have task information yet.", serviceId);
+                log.trace("Attempting to retrieve swarm task for service: {}", service.toString());
                 final com.spotify.docker.client.messages.swarm.Service serviceResponse = client.inspectService(serviceId);
                 final String serviceName = serviceResponse.spec().name();
-                log.trace("Service {} has name {}. Finding tasks by service name.", serviceId, serviceName);
-                log.trace(" SERVICERESPONSE: " + serviceResponse.toString());
+                if (StringUtils.isBlank(serviceName)) {
+                    throw new DockerServerException("Unable to determine service name for serviceId " + serviceId +
+                            ". Cannot get taskId without this.");
+                }
+
+                log.trace("ServiceId {} has name {} based on inspection: {}. Querying for task matching this service name.",
+                        serviceId, serviceName, serviceResponse.toString());
 
                 final List<Task> tasks = client.listTasks(Task.Criteria.builder().serviceName(serviceName).build());
 
                 if (tasks.size() == 1) {
-                    log.trace("Found one task for service name {}.", serviceName);
+                    log.trace("Found one task for service name {} (serviceId {}).", serviceName, serviceId);
                     task = tasks.get(0);
                 } else if (tasks.size() == 0) {
-                    log.trace("No tasks found for service name {}.", serviceName);
+                    log.debug("No tasks found for service name {} (serviceId {}).", serviceName, serviceId);
                 } else {
-                    log.trace("Found {} tasks for service name {}. Not sure which to use.", serviceName);
+                    throw new DockerServerException("Found multiple tasks for service name " + serviceName +
+                            "(serviceId " + serviceId + "), I only know how to handle one. Tasks: " + tasks.toString());
                 }
             } else {
-                log.trace("Service {} has task ID {}.", serviceId, taskId);
+                log.trace("ServiceId {} has taskId {}.", serviceId, taskId);
                 task = client.inspectTask(taskId);
             }
 
@@ -1212,7 +1214,7 @@ public class DockerControlApi implements ContainerControlApi {
             log.error(e.getMessage());
             throw e;
         } catch (DockerException | InterruptedException e) {
-        	log.trace("INTERRUPTED: " + e.getMessage());
+        	log.trace("INTERRUPTED: {}", e.getMessage());
             log.error(e.getMessage(), e);
             throw new DockerServerException(e);
         } catch (DockerServerException e) {
@@ -1240,7 +1242,7 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public void throwRestartEventForService(final Container service) {
+    public void throwRestartEventForService(final Container service) throws ContainerException {
         log.trace("Throwing restart event for service {}.", service.serviceId());
         ServiceTask lastTask = service.makeTaskFromLastHistoryItem();
         ServiceTask restartTask = lastTask.toBuilder()
@@ -1253,7 +1255,7 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
-    public void throwWaitingEventForService(final Container service) {
+    public void throwWaitingEventForService(final Container service) throws ContainerException {
         log.trace("Throwing waiting event for service {}.", service.serviceId());
         final ServiceTaskEvent waitingTaskEvent = ServiceTaskEvent.create(service.makeTaskFromLastHistoryItem(), service,
                 ServiceTaskEvent.EventType.Waiting);
