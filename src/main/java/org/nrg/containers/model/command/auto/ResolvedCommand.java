@@ -8,12 +8,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.commons.lang3.StringUtils;
+import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.model.command.entity.CommandEntity;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.container.ContainerInputType;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @AutoValue
 public abstract class ResolvedCommand {
@@ -104,12 +108,18 @@ public abstract class ResolvedCommand {
             final String value = (valuesAndChildren != null && !valuesAndChildren.isEmpty()) ?
                     valuesAndChildren.get(0).resolvedValue().value() :
                     null;
-            final String nonNullValue = value == null ? "null" : value;
+            String nonNullValue = value == null ? "null" : value;
             if (node.input() instanceof Command.CommandWrapperExternalInput) {
                 externalWrapperInputValuesBuilder.add(
                         ResolvedCommandInput.wrapperExternal(inputName, nonNullValue, sensitive)
                 );
             } else if (node.input() instanceof Command.CommandWrapperDerivedInput) {
+                if (((Command.CommandWrapperDerivedInput) node.input()).multiple() &&
+                        valuesAndChildren != null && !valuesAndChildren.isEmpty()) {
+                    nonNullValue = valuesAndChildren.stream()
+                            .map(v -> v.resolvedValue().value())
+                            .collect(Collectors.joining(", "));
+                }
                 derivedWrapperInputValuesBuilder.add(
                         ResolvedCommandInput.wrapperDerived(inputName, nonNullValue, sensitive)
                 );
@@ -122,6 +132,48 @@ public abstract class ResolvedCommand {
         externalWrapperInputValues = externalWrapperInputValuesBuilder.build();
         derivedWrapperInputValues = derivedWrapperInputValuesBuilder.build();
         commandInputValues = commandInputValuesBuilder.build();
+    }
+
+    @Nonnull
+    @JsonIgnore
+    public static Command.CommandInput collectCommandInputChildrenOfMultipleDerivedInput(final Command.CommandWrapperInput wrapperInput,
+                                                                                         final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> derivedInputValuesAndChildren,
+                                                                                         final List<String> commandInputChildrenValues)
+            throws CommandResolutionException {
+
+        String commandInputName = wrapperInput.providesValueForCommandInput();
+        if (StringUtils.isBlank(commandInputName)) {
+            // Shouldn't ever happen because of validation in Command.CommandWrapperDerivedInput
+            throw new CommandResolutionException("Input \"" + wrapperInput.name() + "\" is a multiple input, but it " +
+                    "does not provide values for a command input.");
+        }
+
+        Command.CommandInput ci = null;
+        for (ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren singleValue : derivedInputValuesAndChildren) {
+            List<ResolvedInputTreeNode<? extends Command.Input>> children = singleValue.children();
+            if (children.size() != 1) {
+                throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
+                        "input child element");
+            }
+            ResolvedInputTreeNode<? extends Command.Input> child = children.get(0);
+            if (!(child.input() instanceof Command.CommandInput) || !child.input().name().equals(commandInputName) ||
+                    child.valuesAndChildren().size() != 1) {
+                throw new CommandResolutionException("Invalid child for " + wrapperInput.name() +
+                        "; expecting a command input with no children named " + commandInputName);
+            } else if (ci == null) {
+                ci = (Command.CommandInput) child.input();
+            }
+            String val = child.valuesAndChildren().get(0).resolvedValue().value();
+            if (StringUtils.isNotBlank(val)) {
+                commandInputChildrenValues.add(val);
+            }
+        }
+
+        if (ci == null) {
+            throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
+                    "input child element");
+        }
+        return ci;
     }
 
     @JsonIgnore
@@ -137,6 +189,7 @@ public abstract class ResolvedCommand {
         final List<ResolvedInputTreeNode<? extends Command.Input>> flatTree = Lists.newArrayList();
         flatTree.add(node);
 
+        Command.Input input = node.input();
         final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> resolvedValueAndChildren = node.valuesAndChildren();
         if (resolvedValueAndChildren.size() == 1) {
             // This node has a single value, so we can attempt to flatten its children
@@ -149,8 +202,21 @@ public abstract class ResolvedCommand {
             } else {
                 // Input has a uniquely resolved value, but no children.
             }
+        } else if (input instanceof Command.CommandWrapperDerivedInput && ((Command.CommandWrapperDerivedInput) input).multiple()) {
+            final List<String> commandInputChildrenValues = new ArrayList<>();
+            try {
+                Command.CommandInput ci = ResolvedCommand.collectCommandInputChildrenOfMultipleDerivedInput((Command.CommandWrapperDerivedInput) input,
+                        resolvedValueAndChildren, commandInputChildrenValues);
+                ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren valueAndChildren =
+                        ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren.create(ResolvedInputValue.builder()
+                                .value(String.join(" ", commandInputChildrenValues))
+                                .build());
+                flatTree.add(ResolvedInputTreeNode.create(ci, Collections.singletonList(valueAndChildren)));
+            } catch (CommandResolutionException e) {
+                // Ignore for purposes of flattening tree
+            }
         } else {
-            // This node has multiple values, so we can't flatten its children
+            // Cannot flatten children of arbitrary input with multiple values
         }
         return flatTree;
     }

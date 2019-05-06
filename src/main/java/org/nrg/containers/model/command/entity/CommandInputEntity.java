@@ -1,10 +1,10 @@
 package org.nrg.containers.model.command.entity;
 
 import com.google.common.base.MoreObjects;
-import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -15,7 +15,10 @@ import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.Transient;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Entity
 public class CommandInputEntity implements Serializable {
@@ -35,6 +38,7 @@ public class CommandInputEntity implements Serializable {
     private String trueValue;
     private String falseValue;
     private Boolean sensitive;
+    private MultipleDelimiter multipleDelimiter;
 
     public static CommandInputEntity fromPojo(final Command.CommandInput commandInput) {
         return new CommandInputEntity().update(commandInput);
@@ -56,6 +60,7 @@ public class CommandInputEntity implements Serializable {
         this.setTrueValue(commandInput.trueValue());
         this.setFalseValue(commandInput.falseValue());
         this.setSensitive(commandInput.sensitive());
+        this.setMultipleDelimiterByName(commandInput.multipleDelimiter());
 
         switch (commandInput.type()) {
             case "string":
@@ -197,6 +202,23 @@ public class CommandInputEntity implements Serializable {
         this.sensitive = sensitive;
     }
 
+    @Enumerated(EnumType.STRING)
+    public MultipleDelimiter getMultipleDelimiter() {
+        return multipleDelimiter;
+    }
+
+    public void setMultipleDelimiter(MultipleDelimiter multipleDelimiter) {
+        this.multipleDelimiter = multipleDelimiter;
+    }
+
+    public void setMultipleDelimiterByName(String multipleDelimiterName) {
+        if (multipleDelimiterName != null) {
+            this.setMultipleDelimiter(MultipleDelimiter.getByName(multipleDelimiterName));
+        } else {
+            this.setMultipleDelimiter(null);
+        }
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -227,6 +249,7 @@ public class CommandInputEntity implements Serializable {
                 .add("trueValue", trueValue)
                 .add("falseValue", falseValue)
                 .add("sensitive", sensitive)
+                .add("multipleDelimiter", multipleDelimiter)
                 .toString();
     }
 
@@ -243,6 +266,46 @@ public class CommandInputEntity implements Serializable {
 
         public String getName() {
             return name;
+        }
+    }
+
+
+    public enum MultipleDelimiter {
+        QUOTED_SPACE("quoted-space"),
+        SPACE("space"),
+        COMMA("comma"),
+        FLAG("flag");
+
+        public final String name;
+
+        MultipleDelimiter(final String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Nonnull
+        public static MultipleDelimiter getByName(@Nullable String name) {
+            if (name == null) name="";
+            switch (name) {
+                case "quoted-space":
+                    return MultipleDelimiter.QUOTED_SPACE;
+                case "comma":
+                    return MultipleDelimiter.COMMA;
+                case "flag":
+                    return MultipleDelimiter.FLAG;
+                case "space":
+                default:
+                    return MultipleDelimiter.SPACE;
+            }
+        }
+
+        public static List<String> names() {
+            return Arrays.stream(MultipleDelimiter.values())
+                    .map(MultipleDelimiter::getName)
+                    .collect(Collectors.toList());
         }
     }
 }

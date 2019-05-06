@@ -262,6 +262,29 @@ var XNAT = getObject(XNAT || {});
         }).element;
     };
 
+    var configSelectMany = function(input){
+        var name = input.name,
+            label = input.label,
+            dataProps = input.dataProps || {},
+            classes = ['panel-element panel-input'],
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+
+        // Cannot have children if multiple select
+        // if (input.childInputs) {
+        //     classes.push('has-children');
+        //     dataProps['children'] = input.childInputs.join(',');
+        // }
+
+        return XNAT.ui.panel.select.multi({
+            name: name,
+            label: label,
+            data: dataProps,
+            attr: attr,
+            className: classes.join(' '),
+            options: input.options
+        }).element;
+    };
+
     var hiddenConfigInput = function(input) {
         var name = input.name || input.label,
             value = input.value,
@@ -413,6 +436,9 @@ var XNAT = getObject(XNAT || {});
             case 'select-one':
                 formPanelElements.push(configSelect(input));
                 break;
+            case 'select-many':
+                formPanelElements.push(configSelectMany(input));
+                break;
             case 'boolean':
                 input.boolean = true;
                 input.outerLabel = input.label;
@@ -483,6 +509,7 @@ var XNAT = getObject(XNAT || {});
                         .parent('.panel-input').find('.element-wrapper').html(newValue.label);
                     break;
                 case 'select-one' :
+                case 'select-many' :
                     var $select = $form.find('select[name='+input.name+']');
                     if (newValue) {
                         $select.find('option[value='+newValue+']').prop('selected','selected');
@@ -540,8 +567,14 @@ var XNAT = getObject(XNAT || {});
                         configInput.options = options;
 
                         configInput.dataProps = { 'childValues': JSON.stringify(valueArr) };
-                    }
-                    else {
+                    } else if (input['input-type'] === "select-many") {
+                        var options = {};
+                        valueArr.forEach(function(val,i){ options['option-'+i] = val });
+                        configInput.options = options;
+                    } else if (input['multiple']) {
+                        selectedVal = JSON.stringify($.map(valueArr, function(v) {return v.value;}));
+                        selectedLabel = $.map(valueArr, function(v) {return v.label;}).join('<br/>');
+                    } else {
                         // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
                         selectedVal = '';
                         selectedLabel = '';
@@ -565,6 +598,7 @@ var XNAT = getObject(XNAT || {});
                         };
                         break;
                     case 'select-one':
+                    case 'select-many':
                         // re-render select menu to reflect updated options
                         var thisSelect = $form.find('select[name='+configInput.name+']');
                         thisSelect.empty();
@@ -788,10 +822,11 @@ var XNAT = getObject(XNAT || {});
                                 var dataToPost = form2js($form.get(0), ':');
                                 // API method can only receive Map<String, String> so need to stringify more complex params
                                 // with plan to deserialize them deeper in the code
-                                if (dataToPost.hasOwnProperty(launcher.swarmConstraintsStr)) {
-                                    dataToPost[launcher.swarmConstraintsStr] =
-                                        JSON.stringify(dataToPost[launcher.swarmConstraintsStr]);
-                                }
+                                $.each(dataToPost, function(key, value) {
+                                    if ($.type(value) !== "string") {
+                                        dataToPost[key] = JSON.stringify(value);
+                                    }
+                                });
 
                                 XNAT.xhr.postJSON({
                                     beforeSend: function() {

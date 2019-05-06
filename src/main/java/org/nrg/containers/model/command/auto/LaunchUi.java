@@ -4,22 +4,20 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.auto.value.AutoValue;
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.model.command.auto.Command.Input;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
 import org.nrg.containers.model.command.entity.CommandInputEntity;
+import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
 import org.nrg.containers.model.server.docker.DockerServerBase;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @SuppressWarnings("NullableProblems")
@@ -276,6 +274,7 @@ public abstract class LaunchUi {
         @JsonProperty("advanced") public abstract boolean advanced();
         @JsonProperty("required") public abstract boolean required();
         @JsonProperty("user-settable") public abstract boolean userSettable();
+        @JsonProperty("multiple") public abstract boolean multiple();
         @JsonProperty("input-type") public abstract UiInputType uiInputType();
         @Nullable @JsonProperty("derived-value-info") public abstract String derivedValueInfo();
         @Nullable @JsonProperty("derived-value-message") public abstract String derivedValueMessage();
@@ -287,6 +286,7 @@ public abstract class LaunchUi {
                                                final boolean advanced,
                                                final boolean required,
                                                final boolean userSettable,
+                                               final boolean multiple,
                                                final @Nonnull UiInputType uiInputType,
                                                @Nullable final String derivedValueInfo,
                                                @Nullable final String derivedValueMessage,
@@ -298,6 +298,7 @@ public abstract class LaunchUi {
                     .advanced(advanced)
                     .required(required)
                     .userSettable(userSettable)
+                    .multiple(multiple)
                     .uiInputType(uiInputType)
                     .derivedValueInfo(derivedValueInfo)
                     .derivedValueMessage(derivedValueMessage)
@@ -317,6 +318,7 @@ public abstract class LaunchUi {
             public abstract Builder advanced(boolean advanced);
             public abstract Builder required(boolean required);
             public abstract Builder userSettable(boolean userSettable);
+            public abstract Builder multiple(boolean multiple);
             public abstract Builder uiInputType(@Nonnull UiInputType uiInputType);
             public abstract Builder derivedValueInfo(@Nullable String derivedValueInfo);
             public abstract Builder derivedValueMessage(@Nullable String derivedValueMessage);
@@ -494,6 +496,7 @@ public abstract class LaunchUi {
         final boolean userSettable = settableConfig == null || settableConfig; // default: true
         final Boolean advancedConfig = inputConfiguration.advanced();
         final boolean advanced = advancedConfig != null && advancedConfig; // default: false
+        boolean multiple = false;
 
         UiInputType uiInputType = null;
         String derivedValueInfo = null;
@@ -517,18 +520,24 @@ public abstract class LaunchUi {
             if (bulkLaunch) {
                 String derivedFrom;
                 if (input instanceof Command.CommandWrapperDerivedInput) {
-                    Command.CommandWrapperDerivedInput derivedInput = (Command.CommandWrapperDerivedInput) input;
-                    String property = StringUtils.defaultIfBlank(derivedInput.derivedFromXnatObjectProperty(),
-                            derivedInput.type());
-                    if (StringUtils.isNotBlank(derivedInput.matcher())) {
-                        property += " via matcher]<br/><kbd>" + derivedInput.matcher() + "</kbd>";
-                    } else {
-                        property += "]";
-                    }
-                    itemType = derivedInput.derivedFromWrapperInput();
-                    derivedFrom = itemType +
-                            " <i class='fa fa-angle-right'></i> " + property;
+                    StringJoiner derivedInfo = new StringJoiner(" <i class='fa fa-angle-right'></i> ");
 
+                    Command.CommandWrapperDerivedInput derivedInput = (Command.CommandWrapperDerivedInput) input;
+                    itemType = derivedInput.derivedFromWrapperInput();
+                    derivedInfo.add(itemType);
+                    if (CommandWrapperInputType.xnatTypeNames().contains(derivedInput.type())) {
+                        derivedInfo.add(derivedInput.type());
+                    }
+                    if (StringUtils.isNotBlank(derivedInput.derivedFromXnatObjectProperty())) {
+                        derivedInfo.add(derivedInput.derivedFromXnatObjectProperty());
+                    }
+                    derivedFrom = derivedInfo.toString();
+
+                    if (StringUtils.isNotBlank(derivedInput.matcher())) {
+                        derivedFrom += " via matcher]<br/><kbd>" + derivedInput.matcher() + "</kbd>";
+                    } else {
+                        derivedFrom += "]";
+                    }
                 } else {
                     itemType = input.type();
                     derivedFrom = "XNAT " + itemType + " object]";
@@ -549,20 +558,31 @@ public abstract class LaunchUi {
             } else if (maxNumValues > 1) {
                 // This input has more than zero values everywhere in the tree, and
                 // more than one value at least somewhere in the tree.
-                // It should be a select menu for single launch; for bulk launch, a warning
+                String values = "";
                 if (bulkLaunch) {
-                    String values = Joiner.on("<br/>").join(Iterables.transform(node.valuesAndChildren(),
-                            new Function<ResolvedInputTreeValueAndChildren, String>() {
-                                @Override
-                                public String apply(final ResolvedInputTreeValueAndChildren resolvedInputTreeValueAndChildren) {
-                                    return resolvedInputTreeValueAndChildren.resolvedValue().valueLabel();
-                                }
-                            }));
-                    derivedValueMessage = "Multiple possible values for first " + itemType + ": " +
-                            getWarningString(input, itemType, "specific") +
-                            "<br/>Values for first " + itemType + " as a sample:<br/>" + values;
+                    values = node.valuesAndChildren()
+                            .stream()
+                            .map(resolvedInputTreeValueAndChildren -> resolvedInputTreeValueAndChildren.resolvedValue().valueLabel())
+                            .collect(Collectors.joining("<br/>"));
                 }
-                uiInputType = UiInputType.SELECT;
+
+                if (input instanceof Command.CommandWrapperDerivedInput &&
+                        ((Command.CommandWrapperDerivedInput) input).multiple()) {
+                    multiple = true;
+                    // If it's a multiple input, offer a multi-select for single launch; for bulk launch, display sample list
+                    if (bulkLaunch) {
+                        derivedValueMessage = "Values for first " + itemType + " as a sample:<br/>" + values;
+                    }
+                    uiInputType = UiInputType.MULTISELECT;
+                } else {
+                    // Otherwise, it should be a single-select menu for single launch; for bulk launch, a warning
+                    if (bulkLaunch) {
+                        derivedValueMessage = "Multiple possible values for first " + itemType + ": " +
+                                getWarningString(input, itemType, "specific") +
+                                "<br/>Values for first " + itemType + " as a sample:<br/>" + values;
+                    }
+                    uiInputType = UiInputType.SELECT;
+                }
             } else {
                 // The minimum number of values is > 0, and the max is <= 1.
                 // That implies we have one and only one input value everywhere in the tree.
@@ -592,6 +612,7 @@ public abstract class LaunchUi {
                 .required(inputIsRequired)
                 .userSettable(userSettable)
                 .advanced(advanced)
+                .multiple(multiple)
                 .uiInputType(uiInputType)
                 .derivedValueInfo(derivedValueInfo)
                 .derivedValueMessage(derivedValueMessage)
@@ -639,6 +660,7 @@ public abstract class LaunchUi {
         TEXT("text"),
         BOOLEAN("boolean"),
         SELECT("select-one"),
+        MULTISELECT("select-many"),
         STATIC("static"),
         DERIVED("derived");
 

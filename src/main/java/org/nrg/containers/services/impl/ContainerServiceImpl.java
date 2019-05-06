@@ -1519,7 +1519,7 @@ public class ContainerServiceImpl implements ContainerService {
                 // Seeing this one means we have more than one, and won't be able to
                 // uniquely resolve a root object.
                 // We won't be able to make a workflow. We can bail out now.
-                log.debug("Found another root XNAT input object. I was expecting one. Bailing out.", input.name());
+                log.debug("Found another root XNAT input object: {}. I was expecting one. Bailing out.", input.name());
                 return null;
             }
 
@@ -1554,7 +1554,7 @@ public class ContainerServiceImpl implements ContainerService {
             }
 
             // This is the first good input value.
-            log.debug("Found a valid root XNAT input object.", input.name());
+            log.debug("Found a valid root XNAT input object: {}.", input.name());
         }
 
         if (rootInputValue == null) {

@@ -46,5 +46,4 @@ public interface CommandResolutionService {
                             Map<String, String> inputValues,
                             UserI userI)
             throws NotFoundException, CommandResolutionException, UnauthorizedException;
-
 }

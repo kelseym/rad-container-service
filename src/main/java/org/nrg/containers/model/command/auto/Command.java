@@ -264,7 +264,8 @@ public abstract class Command {
         } else if (type().equals(CommandType.DOCKER_WRAPUP.getName())) {
             errors.addAll(validateDockerSetupOrWrapupCommand("Wrapup"));
         } else {
-            errors.add(commandName + "Cannot validate command of type \"" + type() + "\". Known types: " + StringUtils.join(commandTypeNames, ", "));
+            errors.add(commandName + "Cannot validate command of type \"" + type() + "\". Known types: " +
+                    StringUtils.join(commandTypeNames, ", "));
         }
 
         return errors;
@@ -371,6 +372,7 @@ public abstract class Command {
                 }
             }
 
+            final List<String> derivedInputsWithMultiple = new ArrayList<>();
             for (final CommandWrapperDerivedInput derived : commandWrapper.derivedInputs()) {
                 final List<String> inputErrors = Lists.newArrayList();
                 inputErrors.addAll(Lists.transform(derived.validate(), addWrapperNameToError));
@@ -392,6 +394,8 @@ public abstract class Command {
                 if (!inputErrors.isEmpty()) {
                     errors.addAll(inputErrors);
                 }
+
+                if (derived.multiple()) derivedInputsWithMultiple.add(derived.name());
             }
             final String knownWrapperInputs = StringUtils.join(wrapperInputNames, ", ");
 
@@ -411,6 +415,12 @@ public abstract class Command {
                     errors.add(wrapperName + "output handler does not refer to a known wrapper input or output. \"as-a-child-of\": \"" + output.targetName() + "\"." +
                             "\nKnown inputs: " + knownWrapperInputs + "." +
                             "\nKnown outputs (so far): " + StringUtils.join(wrapperOutputNames, ", ") + ".");
+                }
+
+                if (derivedInputsWithMultiple.contains(output.targetName())) {
+                    errors.add(wrapperName + " output handler \"" + output.name() + "\" has \"as-a-child-of\": \"" +
+                            output.targetName() + "\", but the \"" + output.targetName() + "\" input is set to allow " +
+                            "multiple values.");
                 }
 
                 if (wrapperOutputNames.contains(output.name())) {
@@ -602,6 +612,7 @@ public abstract class Command {
         @Nullable @JsonProperty("command-line-separator") public abstract String commandLineSeparator();
         @Nullable @JsonProperty("true-value") public abstract String trueValue();
         @Nullable @JsonProperty("false-value") public abstract String falseValue();
+        @Nullable @JsonProperty("multiple-delimiter") public abstract String multipleDelimiter();
 
         @JsonCreator
         static CommandInput create(@JsonProperty("name") final String name,
@@ -615,7 +626,8 @@ public abstract class Command {
                                    @JsonProperty("command-line-separator") final String commandLineSeparator,
                                    @JsonProperty("true-value") final String trueValue,
                                    @JsonProperty("false-value") final String falseValue,
-                                   @JsonProperty("sensitive") final Boolean sensitive) {
+                                   @JsonProperty("sensitive") final Boolean sensitive,
+                                   @JsonProperty("multiple-delimiter") final String multipleDelimiter) {
             return builder()
                     .name(name)
                     .description(description)
@@ -629,6 +641,7 @@ public abstract class Command {
                     .trueValue(trueValue)
                     .falseValue(falseValue)
                     .sensitive(sensitive)
+                    .multipleDelimiter(multipleDelimiter)
                     .build();
         }
 
@@ -636,6 +649,7 @@ public abstract class Command {
             if (commandInputEntity == null) {
                 return null;
             }
+            CommandInputEntity.MultipleDelimiter md = commandInputEntity.getMultipleDelimiter();
             return builder()
                     .id(commandInputEntity.getId())
                     .name(commandInputEntity.getName())
@@ -650,6 +664,7 @@ public abstract class Command {
                     .trueValue(commandInputEntity.getTrueValue())
                     .falseValue(commandInputEntity.getFalseValue())
                     .sensitive(commandInputEntity.getSensitive())
+                    .multipleDelimiter(md == null ? null : md.getName())
                     .build();
         }
 
@@ -674,6 +689,7 @@ public abstract class Command {
                     .trueValue(this.trueValue())
                     .falseValue(this.falseValue())
                     .sensitive(this.sensitive())
+                    .multipleDelimiter(this.multipleDelimiter())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .build();
@@ -691,6 +707,12 @@ public abstract class Command {
             Matcher m = p.matcher(name());
             if (m.find()){
                 errors.add("Command input \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
+            }
+            String md = multipleDelimiter();
+            List<String> names;
+            if (md != null && !(names = CommandInputEntity.MultipleDelimiter.names()).contains(md)) {
+                errors.add("Invalid multiple-delimiter \"" + md + "\", choose from: " +
+                        StringUtils.join(names, ", "));
             }
             return errors;
         }
@@ -710,6 +732,7 @@ public abstract class Command {
             public abstract Builder trueValue(final String trueValue);
             public abstract Builder falseValue(final String falseValue);
             public abstract Builder sensitive(Boolean sensitive);
+            public abstract Builder multipleDelimiter(String multipleDelimiter);
 
             public abstract CommandInput build();
         }
@@ -1018,16 +1041,19 @@ public abstract class Command {
 
             final List<String> types = CommandWrapperInputType.names();
             if (!types.contains(type())) {
-                errors.add("Command wrapper input \"" + name() + "\" - Unknown type \"" + type() + "\". Known types: " + StringUtils.join(types, ", "));
+                errors.add("Command wrapper input \"" + name() + "\" - Unknown type \"" + type() + "\". Known types: " +
+                        StringUtils.join(types, ", "));
             }
 
             if (StringUtils.isNotBlank(viaSetupCommand()) && StringUtils.isBlank(providesFilesForCommandMount())) {
                 errors.add("Command wrapper input \"" + name() + "\" - \"via-setup-command\": \"" + viaSetupCommand() + "\" - " +
                         "You cannot set \"via-setup-command\" on an input that does not provide files for a command mount.");
             }
+
             Matcher m = regCharPattern.matcher(name());
             if (m.find()){
-                errors.add("Command wrapper input \"" +  name()  + "\" name should contain only alphanumeric, _ and - characters.");
+                errors.add("Command wrapper input \"" +  name()  +
+                        "\" name should contain only alphanumeric, _ and - characters.");
             }
 
             return errors;
@@ -1148,6 +1174,7 @@ public abstract class Command {
         @Nullable @JsonProperty("derived-from-wrapper-input") public abstract String derivedFromWrapperInput();
         @Nullable @JsonProperty("derived-from-xnat-object-property") public abstract String derivedFromXnatObjectProperty();
         @Nullable @JsonProperty("via-setup-command") public abstract String viaSetupCommand();
+        @JsonProperty("multiple") public abstract boolean multiple();
 
         @JsonCreator
         static CommandWrapperDerivedInput create(@JsonProperty("name") final String name,
@@ -1164,7 +1191,8 @@ public abstract class Command {
                                                  @JsonProperty("replacement-key") final String rawReplacementKey,
                                                  @JsonProperty("required") final Boolean required,
                                                  @JsonProperty("load-children") final Boolean loadChildren,
-                                                 @JsonProperty("sensitive") final Boolean sensitive) {
+                                                 @JsonProperty("sensitive") final Boolean sensitive,
+                                                 @JsonProperty("multiple") final Boolean multiple) {
             return builder()
                     .name(name)
                     .description(description)
@@ -1181,6 +1209,7 @@ public abstract class Command {
                     .required(required == null || required)
                     .loadChildren(loadChildren == null || loadChildren)
                     .sensitive(sensitive)
+                    .multiple(multiple != null && multiple)
                     .build();
         }
 
@@ -1206,6 +1235,7 @@ public abstract class Command {
                     .required(wrapperInput.isRequired() == null || wrapperInput.isRequired())
                     .loadChildren(wrapperInput.getLoadChildren())
                     .sensitive(wrapperInput.getSensitive())
+                    .multiple(wrapperInput.getMultiple())
                     .build();
         }
 
@@ -1215,7 +1245,8 @@ public abstract class Command {
                     .name("")
                     .type(CommandWrapperDerivedInputEntity.DEFAULT_TYPE.getName())
                     .required(false)
-                    .loadChildren(true);
+                    .loadChildren(true)
+                    .multiple(false);
         }
 
         public CommandWrapperDerivedInput applyConfiguration(final CommandInputConfiguration commandInputConfiguration) {
@@ -1232,6 +1263,7 @@ public abstract class Command {
                     .required(this.required())
                     .loadChildren(this.loadChildren())
                     .sensitive(this.sensitive())
+                    .multiple(this.multiple())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .userSettable(commandInputConfiguration.userSettable())
@@ -1245,6 +1277,16 @@ public abstract class Command {
 
             if (StringUtils.isBlank(derivedFromWrapperInput())) {
                 errors.add("Command wrapper input \"" + name() + "\" - property \"derived-from-wrapper-input\" cannot be blank.");
+            }
+
+            if (multiple()) {
+                if (StringUtils.isNotBlank(providesFilesForCommandMount())) {
+                    errors.add("Inputs with multiple values cannot provide files for command mounts, " +
+                            "consider mounting the parent element.");
+                }
+                if (StringUtils.isBlank(providesValueForCommandInput())) {
+                    errors.add("Inputs with multiple values must directly provide values for some command input.");
+                }
             }
 
             return errors;
@@ -1266,6 +1308,7 @@ public abstract class Command {
             public abstract Builder rawReplacementKey(final String rawReplacementKey);
             public abstract Builder required(final boolean required);
             public abstract Builder loadChildren(final boolean loadChildren);
+            public abstract Builder multiple(final boolean multiple);
             public abstract Builder derivedFromWrapperInput(final String derivedFromWrapperInput);
             public abstract Builder derivedFromXnatObjectProperty(final String derivedFromXnatObjectProperty);
 

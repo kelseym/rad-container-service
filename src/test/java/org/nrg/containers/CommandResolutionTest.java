@@ -30,6 +30,7 @@ import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommandMount;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputValue;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.configuration.CommandConfiguration;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
@@ -57,10 +58,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -491,6 +490,37 @@ public class CommandResolutionTest {
     //     assertThat(inputValues, hasEntry(projectInputName, projectUri));
     // }
 
+
+    @Test
+    public void testSessionScanMultiple() throws Exception {
+        final String commandWrapperName = "session-scan-mult";
+        final String inputPath = resourceDir + "/testSessionScanMult/session.json";
+
+        final Session session = mapper.readValue(new File(inputPath), Session.class);
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("session", mapper.writeValueAsString(session));
+
+        // xnat wrapper inputs
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getExternalWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan",
+                session.getScans().stream().map(Scan::getDerivedWrapperInputValue).collect(Collectors.joining(", "))));
+
+        // command inputs
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever",
+                session.getScans().stream().map(Scan::getId).collect(Collectors.joining(" "))));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
+
+        final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
+        assertThat(commandWrapper, is(not(nullValue())));
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
+        assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
+                runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
+    }
+
     private void assertStuffAboutResolvedCommand(final ResolvedCommand resolvedCommand,
                                                  final Command dummyCommand,
                                                  final CommandWrapper commandWrapper,
@@ -549,6 +579,43 @@ public class CommandResolutionTest {
         } catch (CommandResolutionException e) {
             assertThat(e.getMessage(), is("Missing values for required inputs: REQUIRED_NO_FLAG, REQUIRED_WITH_FLAG."));
         }
+    }
+
+    @Test
+    public void testMultiParamCommandLine() throws Exception {
+        final String commandJsonFile = resourceDir + "/multi-command.json";
+        final Command tempCommand = mapper.readValue(new File(commandJsonFile), Command.class);
+        final Command command = commandService.create(tempCommand);
+
+        final Map<String, CommandWrapper> commandWrappers = Maps.newHashMap();
+        for (final CommandWrapper commandWrapper : command.xnatCommandWrappers()) {
+            commandWrappers.put(commandWrapper.name(), commandWrapper);
+        }
+        final CommandWrapper wrapper = commandWrappers.get("multiple");
+
+        final String inputPath = resourceDir + "/testSessionScanMult/session.json";
+        final Session session = mapper.readValue(new File(inputPath), Session.class);
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("session", mapper.writeValueAsString(session));
+        List<String> scanIds = session.getScans().stream().map(Scan::getId).collect(Collectors.toList());
+        String spacedScanIds = String.join(" ", scanIds);
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()), runtimeValues, mockUser);
+        assertThat(resolvedCommand.commandInputValues(),
+                containsInAnyOrder(
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_FLAG1", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_FLAG2", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_QSPACE", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_COMMA", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_SPACE", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_DEFAULT", spacedScanIds)
+
+                )
+        );
+
+        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' " +
+                "scan1,scan2 scan1 scan2 scan1 scan2";
+        assertThat(resolvedCommand.commandLine(), is(cmdLine));
     }
 
     @Test

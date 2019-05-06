@@ -32,6 +32,7 @@ public class CommandWrapperDerivedInputEntity {
     private boolean required = false;
     private boolean loadChildren = true;
     private Boolean sensitive;
+    private boolean multiple = false;
 
     private String derivedFromWrapperInput;
     private String derivedFromXnatObjectProperty;
@@ -60,6 +61,7 @@ public class CommandWrapperDerivedInputEntity {
         this.setRequired(commandWrapperInput.required());
         this.setLoadChildren(commandWrapperInput.loadChildren());
         this.setSensitive(commandWrapperInput.sensitive());
+        this.setMultiple(commandWrapperInput.multiple());
         switch (commandWrapperInput.type()) {
             case "string":
                 this.setType(CommandWrapperInputType.STRING);
@@ -253,6 +255,14 @@ public class CommandWrapperDerivedInputEntity {
         this.sensitive = sensitive;
     }
 
+    public Boolean getMultiple() {
+        return multiple;
+    }
+
+    public void setMultiple(boolean multiple) {
+        this.multiple = multiple;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -286,6 +296,7 @@ public class CommandWrapperDerivedInputEntity {
                 .add("required", required)
                 .add("loadChildren", loadChildren)
                 .add("sensitive", sensitive)
+                .add("multiple", multiple)
                 .toString();
     }
 }
