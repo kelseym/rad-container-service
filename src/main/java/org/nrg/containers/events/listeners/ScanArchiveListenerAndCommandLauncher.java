@@ -109,8 +109,8 @@ public class ScanArchiveListenerAndCommandLauncher implements Consumer<Event<Sca
                         containerService.queueResolveCommandAndLaunchContainer(subscriptionProjectId, 0L,
                                 commandId, wrapperName, inputValues, subscriptionUser, workflow);
                     } catch (UserNotFoundException | UserInitException e) {
-                        log.error(String.format("Error launching command %d. Could not find or Init subscription owner: %s",
-                                commandId, commandEventMapping.getSubscriptionUserName()), e);
+                        log.error("Error launching command {}. Could not find or Init subscription owner: {}",
+                                commandId, commandEventMapping.getSubscriptionUserName(), e);
                     } catch (NotFoundException | CommandResolutionException | NoDockerServerException | DockerServerException | ContainerException | UnauthorizedException e) {
                         log.error("Error launching command " + commandId, e);
                     } catch (Exception e) {

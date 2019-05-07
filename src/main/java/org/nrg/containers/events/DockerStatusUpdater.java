@@ -69,7 +69,7 @@ public class DockerStatusUpdater implements Runnable {
             dockerServer = dockerServerService.getServer();
         } catch (NotFoundException e) {
             // ignored
- 			log.error("Docker server not found");
+            log.error("Docker server not found");
         }
         if (dockerServer == null) {
             if (!haveLoggedNoServerInDb) {
@@ -117,9 +117,9 @@ public class DockerStatusUpdater implements Runnable {
         } else {
             log.info("Did not update status successfully.");
         }
-    	log.trace("-----------------------------------------------------------------------------");
+        log.trace("-----------------------------------------------------------------------------");
         log.trace("DOCKERSTATUSUPDATER: RUN COMPLETE");
-    	log.trace("-----------------------------------------------------------------------------");
+        log.trace("-----------------------------------------------------------------------------");
    
     }
 

@@ -4,7 +4,6 @@ import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.framework.exceptions.NotFoundException;
 
 import java.util.List;
-import java.util.Map;
 
 public interface DockerServerService {
     List<DockerServer> getServers();

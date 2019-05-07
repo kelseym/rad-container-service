@@ -311,7 +311,7 @@ public class DockerControlApi implements ContainerControlApi {
         final String workingDirectory = StringUtils.isNotBlank(resolvedCommand.workingDirectory()) ?
                 resolvedCommand.workingDirectory() :
                 null;
-       //reserve 1000L for now
+
         // let resource constraints default to 0, so they're ignored by Docker
         final Long reserveMemory = resolvedCommand.reserveMemory() == null ?
                 0L :
@@ -1214,7 +1214,7 @@ public class DockerControlApi implements ContainerControlApi {
             log.error(e.getMessage());
             throw e;
         } catch (DockerException | InterruptedException e) {
-        	log.trace("INTERRUPTED: {}", e.getMessage());
+            log.trace("INTERRUPTED: {}", e.getMessage());
             log.error(e.getMessage(), e);
             throw new DockerServerException(e);
         } catch (DockerServerException e) {
@@ -1236,8 +1236,8 @@ public class DockerControlApi implements ContainerControlApi {
             final ServiceTaskEvent serviceTaskEvent = ServiceTaskEvent.create(task, service);
             log.trace("Throwing service task event for service {}.", serviceTaskEvent.service().serviceId());
             eventService.triggerEvent(serviceTaskEvent);
-        }else {
-        	log.debug("Appears that the task has not been assigned for " + service.serviceId() + " : " + service.status());
+        } else {
+        	log.debug("Appears that the task has not been assigned for {} : {}", service.serviceId(), service.status());
         }
     }
 
