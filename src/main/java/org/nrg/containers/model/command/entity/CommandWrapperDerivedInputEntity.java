@@ -259,8 +259,8 @@ public class CommandWrapperDerivedInputEntity {
         return multiple;
     }
 
-    public void setMultiple(boolean multiple) {
-        this.multiple = multiple;
+    public void setMultiple(Boolean multiple) {
+        this.multiple = multiple != null && multiple;
     }
 
     @Override
