@@ -1,11 +1,39 @@
 # Changelog
 
+## 2.0.2
+
+Not yet released
+
+### Features
+
+* Use ActiveMQ queues for staging (command resolution and container launch) and finalizing containers.
+* Update UI not to wait for command resolution and container launch before returning to user, add additional details to workflow entry so user still receives all information.
+* Revamp bulk launch UI to be faster to load (only serializes first session) and show limited info to user about derived inputs. Previous bulklauncher UI would serialize all XNAT objects for all selected sessions before rendering the "launch container" form. It did this serializing, which can be very slow depending on how deep the preresolution needs to go into the hierarchy, while the user was waiting. Additionally, the resulting UI form only displayed inputs for the first session, which can be misleading or even incorrect (e.g., setting a scan id or file name as in pyradiomics) - it only worked if you want the same setting for all sessions.
+* Allow admin to define docker swarm constraints (which may be user-settable).
+* Automatically restart containers that are killed due to docker swarm nodes being removed from swarm.
+* Live logging display
+* Add support for command inputs that resolve to mulitple values (e.g., multiple T1 scans)
+
+
+### Bugfixes
+
+* [CS-440][] Fixed an issue which caused guest users to see authentication dialog on public projects.
+* Remove @Audited annotations to prevent database size explosion
+* Mannually set swarm service names since auto-generated ones can clash on high throughput
+* Allow removal of inputs, outputs, wrappers, external inputs, derived inputs, and output handlers from command.json via API
+
+
+### Other
+
+[CS-440]: https://issues.xnat.org/browse/CS-440
+
+
 
 ## 2.0.1
 
 [Released 2019-04-06](https://github.com/NrgXnat/container-service/releases/tag/2.0.1).
 
-## Bugfixes
+### Bugfixes
 
 * [CS-554][] Prevent illegal characters from being used in command input names.
 * [XNAT-5876][] Prevent Container Service from overwriting bugfix for character handling in core XNAT
@@ -111,6 +139,7 @@
 * [CS-537][] References to the dummy TransportService removed, as it was a placeholder for functionality implemented elsewhere.
 * [CS-480][] Deprecate `Container.ContainerMount.inputFiles`. Having a list of input files for a mount is nice during command resolution, but it doesn't make much sense to store that list. As of now no new containers will have anything in their mounts' `inputFiles`. Old containers will still report their values for `inputFiles` for now, but this may change in the future.
 * Remove the constant log entries for event polling. We get it. You're checking for events.
+
 
 [CS-80]: https://issues.xnat.org/browse/CS-80
 [CS-407]: https://issues.xnat.org/browse/CS-407
@@ -526,7 +555,7 @@
 [CS-242]: https://issues.xnat.org/browse/CS-242
 
 ### Bugfixes
-* [CS-257][] Hide â€œCreate Automationâ€? button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
+* [CS-257][] Hide "Create Automation" button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
 * Fix: container -> container entity should use existing entity in db if it exists
 * Fix: Initialize container entity when retrieving by container id
 
