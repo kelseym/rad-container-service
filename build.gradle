@@ -278,7 +278,7 @@ sourceSets.main.java {
 
 jar{
     doLast {
-        throw new GradleException('ERROR:  You should run fatJar instead of jar task for this plugin')
+        logger.warn 'WARNING: You should generally run fatJar instead of jar task for this plugin'
     }
 }
 
