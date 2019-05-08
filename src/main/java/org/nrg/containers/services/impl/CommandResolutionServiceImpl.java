@@ -15,6 +15,7 @@ import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.TypeRef;
 import com.jayway.jsonpath.spi.mapper.MappingException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.config.services.ConfigService;
@@ -65,11 +66,13 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
+import org.nrg.xnat.utils.CatalogUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -2280,12 +2283,19 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     try {
                         localDirectory = getBuildDirectory();
                     } catch (IOException e) {
-                        throw new ContainerMountResolutionException("Could not create build directory.", partiallyResolvedCommandMount, e);
+                        throw new ContainerMountResolutionException("Could not create build directory.",
+                                partiallyResolvedCommandMount, e);
                     }
-                    log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from the root directory to build directory.", resolvedCommandMountName);
+                    log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from " +
+                            "the root directory to build directory.", resolvedCommandMountName);
 
-                    // TODO CS-54 We must copy all files out of the root directory to a build directory.
-                    log.debug("TODO");
+                    // Copy all files out of the root directory to a build directory.
+                    try {
+                        FileUtils.copyDirectory(new File(directory), new File(localDirectory));
+                    } catch (IOException e) {
+                        throw new ContainerMountResolutionException("Could not copy archive directory " + directory +
+                                " into writable build directory " + localDirectory, partiallyResolvedCommandMount, e);
+                    }
                 } else if (hasDirectory) {
                     // The source of files can be directly mounted
                     log.debug("Mount \"{}\" has a root directory and is not set to \"writable\". The root directory can be mounted directly into the container.", resolvedCommandMountName);

@@ -820,4 +820,45 @@ public class CommandResolutionTest {
         assertThat(resolvedMount.xnatHostPath(), is(xnatHostDir));
         assertThat(resolvedMount.containerHostPath(), is(containerHostDir));
     }
+
+    @Test
+    @DirtiesContext
+    public void testWritableInputPath() throws Exception {
+
+        final String testResourceDir = Paths.get(ClassLoader.getSystemResource("commandResolutionTest/testWritableInputPath")
+                .toURI()).toString().replace("%20", " ");
+        final String commandJsonFile = testResourceDir + "/command.json";
+        final Command command = commandService.create(mapper.readValue(new File(commandJsonFile), Command.class));
+        final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
+
+        final String inputPath = testResourceDir + "/resource.json";
+
+        // Make a fake local directory path, and a fake container host directory path, using the prefixes.
+        final String archiveDir = testResourceDir + "/data";
+
+        final Resource resource = mapper.readValue(new File(inputPath), Resource.class);
+        resource.setDirectory(archiveDir);
+        final String resourceRuntimeJson = mapper.writeValueAsString(resource);
+
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("resource", resourceRuntimeJson);
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()),
+                runtimeValues, mockUser);
+
+        assertThat(resolvedCommand.mounts(), Matchers.<ResolvedCommandMount>hasSize(1));
+
+        final ResolvedCommandMount resolvedMount = resolvedCommand.mounts().get(0);
+        String buildCopyOfArchive = resolvedMount.xnatHostPath();
+        assertThat(buildCopyOfArchive.matches(buildDir + File.separator + "[^"+File.separator+"]*"),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "hello.txt")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).isDirectory(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir" + File.separator + "hello.txt")).exists(),
+                is(true));
+    }
 }
