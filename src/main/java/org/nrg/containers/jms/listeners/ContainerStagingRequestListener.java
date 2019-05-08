@@ -37,13 +37,14 @@ public class ContainerStagingRequestListener {
 			return;
 		}
 
-		if (log.isDebugEnabled()) {
-			int count = QueueUtils.count(request.getDestination());
-			log.debug("Consuming staging queue: count {}, project {}, wrapperId {}, commandId {}, wrapperName {}, " +
-							"inputValues {}, username {}, workflowId {}", count, request.getProject(),
-					request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
-					request.getInputValues(), request.getUsername(), request.getWorkflowid());
+		String count = "[not computed]";
+		if (log.isTraceEnabled()) {
+			count = Integer.toString(QueueUtils.count(request.getDestination()));
 		}
+		log.debug("Consuming staging queue: count {}, project {}, wrapperId {}, commandId {}, wrapperName {}, " +
+						"inputValues {}, username {}, workflowId {}", count, request.getProject(),
+				request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
+				request.getInputValues(), request.getUsername(), request.getWorkflowid());
 
 		containerService.consumeResolveCommandAndLaunchContainer(request.getProject(), request.getWrapperId(),
 				request.getCommandId(), request.getWrapperName(), request.getInputValues(),

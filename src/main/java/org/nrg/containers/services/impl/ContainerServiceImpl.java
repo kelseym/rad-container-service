@@ -422,13 +422,14 @@ public class ContainerServiceImpl implements ContainerService {
         ContainerStagingRequest request = new ContainerStagingRequest(project, wrapperId, commandId, wrapperName,
                 inputValues, userI.getLogin(), workflowid);
 
-        if (log.isDebugEnabled()) {
-            int count = QueueUtils.count(request.getDestination());
-            log.debug("Adding to staging queue: count {}, project {}, wrapperId {}, commandId {}, wrapperName {}, " +
-                            "inputValues {}, username {}, workflowId {}", count, request.getProject(),
-                    request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
-                    request.getInputValues(), request.getUsername(), request.getWorkflowid());
+        String count = "[not computed]";
+        if (log.isTraceEnabled()) {
+            count = Integer.toString(QueueUtils.count(request.getDestination()));
         }
+        log.debug("Adding to staging queue: count {}, project {}, wrapperId {}, commandId {}, wrapperName {}, " +
+                        "inputValues {}, username {}, workflowId {}", count, request.getProject(),
+                request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
+                request.getInputValues(), request.getUsername(), request.getWorkflowid());
 
         // Update: don't use JMS indicator for staging queue since staging tasks are added to the JMS queue manually
         //
@@ -1333,9 +1334,9 @@ public class ContainerServiceImpl implements ContainerService {
 
         String details = "";
         if (source != null) {
-            statusSuffix = StringUtils.defaultIfBlank(statusSuffix,
-                    source.getClass().getName().replace("Exception$", ""));
-            details = StringUtils.defaultString(source.getMessage());
+            String exceptionName = source.getClass().getName().replace("Exception$", "");
+            statusSuffix = StringUtils.defaultIfBlank(statusSuffix, exceptionName);
+            details = StringUtils.defaultIfBlank(source.getMessage(), exceptionName);
         }
         statusSuffix = StringUtils.isNotBlank(statusSuffix) ?  " (" + statusSuffix + ")" : "";
 

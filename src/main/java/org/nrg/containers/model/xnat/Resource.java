@@ -78,18 +78,18 @@ public class Resource extends XnatModelObject {
         this.label = xnatResourcecatalog.getLabel();
         this.xsiType = xnatResourcecatalog.getXSIType();
         this.directory = xnatResourcecatalog.getCatalogFile(rootArchivePath).getParent();
-
-        final CatCatalogBean cat = xnatResourcecatalog.getCatalog(rootArchivePath);
-
         this.files = Lists.newArrayList();
+
+        // Only get catalog entry details if we need them
         if (loadFiles || (loadTypesMap != null && (loadTypesMap.get(CommandWrapperInputType.FILE.getName()) ||
                 loadTypesMap.get(CommandWrapperInputType.FILES.getName())))) {
-            // Don't retrieve the actual file during preresolution
+            final CatCatalogBean cat = xnatResourcecatalog.getCatalog(rootArchivePath);
             final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null,
                     xnatResourcecatalog, loadFiles, null, null, "absolutePath");
             for (final Object[] entry : entryDetails) {
-                // See CatalogUtils.getEntryDetails to see where all these "entry" elements come from
+                // Don't retrieve the actual file during preresolution
                 File file = loadFiles ? (File) entry[8] : null;
+                // See CatalogUtils.getEntryDetails to see where all these "entry" elements come from
                 files.add(new XnatFile(this.uri, (String) entry[0], (String) entry[2], (String) entry[4],
                         (String) entry[5], (String) entry[6], file));
             }
