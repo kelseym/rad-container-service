@@ -56,7 +56,8 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "command-line-separator": "",
                 "true-value": "",
                 "false-value": "",
-                "sensitive": false
+                "sensitive": false,
+                "multiple-delimiter": ""
             }
         ],
         "outputs": [
@@ -104,7 +105,8 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                         "provides-files-for-command-mount": "",
                         "via-setup-command": "repo/image:version[:commandname]",
                         "derived-from-wrapper-input": "",
-                        "derived-from-xnat-object-property": ""
+                        "derived-from-xnat-object-property": "",
+                        "multiple": false
                     }
                 ],
                 "output-handlers": [
@@ -158,6 +160,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **true-value** - The string to use in the command line for a boolean input when its value is `true`. Some examples: "true", "T", "Y", "1", "--a-flag". Default: "true".
     - **false-value** - The string to use in the command line for a boolean input when its value is `false`. Some examples: "false", "F", "N", "0", "--some-other-flag". Default: "false".
     - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
+	- **multiple-delimmiter** - One of "quoted-space", "space", "comma", or "flag" (or null). This parameter will only be relevant if this input's value is provided by a [derived-input](#wrapper-inputs) with "multiple":true. When this input's value is replaced in the command-line string, the multiple-delimiter defines how multiple values will be separated. Values are as follows: "space" = space-delimited (e.g, `1 2`), "comma" = comma-delimited (e.g, `1,2`), "quoted-space" = space-delimited within single quotes (e.g, `'1 2'`), "flag" = delimited by "command-line-flag" + "command-line-separator" (e.g., `--flag=1 --flag=2`). Default: "space"
 - **outputs** - A list of outputs that will be used to upload files produced by the container. See [Command Outputs](#command-outputs).
     - **name** - The name of the output.
     - **description** - A human-friendly description of the output.
@@ -195,6 +198,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **via-setup-command** - A reference to a setup command image (format: `repo/image:version[:commandname]` where the `commandname` is optional). See the page on [Setup Commands](https://wiki.xnat.org/display/CS/Setup+Commands) for more.
         - **derived-from-wrapper-input** - Name of a Wrapper input which is a "parent" to this input. See [Deriving values](#deriving-values).
         - **derived-from-xnat-object-property** - Property of an XNAT object that will be used for the value of this input. See [Deriving values](#deriving-values).
+		- **multiple** - A boolean value indicating whether this input should be allowed to resolve to multiple values (e.g., you want this input to be all T1 scans, rather than matching precisely one or erroring-out). If `true`, this input cannot provide values for a command-mount, nor be the target for an output handler, nor have children apart from providing values for a command-input. Default: `false`.
     - **output-handlers** - A list of [output handlers](#output-handling). You use these to instruct the container service how and where to upload your container's outputs.
         - **name**
         - **type** - The type of object that will be created in XNAT. Currently only `"Resource"` is accepted.
@@ -257,6 +261,71 @@ Info dump:
     * Any of `Project`, `Subject`, `Session`, `Scan`, or `Assessor` -> `Resource`
 * `Subject` parents cannot have children of type `Directory`. All the other XNAT types can.
 * If the child type is not one of the XNAT types—e.g. `string` or `number`—you can derive the value by specifying the property on the parent object that you want to pull out using the input's `derived-from-xnat-object-property` field. For a list of the properties you can use, see [XNAT object properties](#xnat-object-properties).
+
+### Multiple matches
+If you have a `derived` wrapper input and have set `"multiple": true`, you are indicating that multiple matches ought to be flattened into a single value for this input. For example, the following command, run on a session with DICOM scans 1, 2, 3, would produce command line: `echo SCAN_IDS value is "--scan=1 --scan=2 --scan=3"`.
+```
+{
+  "name": "sample-multi",
+  "description": "Sample multi",
+  "version": "latest",
+  "schema-version": "1.0",
+  "image": "busybox:latest",
+  "type": "docker",
+  "command-line": "echo SCAN_IDS value is \"#SCAN_IDS#\"",
+  "override-entrypoint": true,
+  "mounts": [],
+  "environment-variables": {},
+  "ports": {},
+  "inputs": [
+    {
+      "name": "SCAN_IDS",
+      "type": "string",
+      "required": true,
+      "command-line-flag": "--scan",
+      "command-line-separator": "=",
+      "multiple-delimiter": "flag"
+    }
+  ],
+  "outputs": [],
+  "xnat": [
+    {
+      "name": "sample-multi-session",
+      "label": "Sample multi session",
+      "description": "Run sample multi session",
+      "contexts": [
+        "xnat:imageSessionData"
+      ],
+      "external-inputs": [
+        {
+          "name": "session",
+          "description": "Input session",
+          "type": "Session",
+          "required": true,
+          "load-children": true
+        }
+      ],
+      "derived-inputs": [
+        {
+          "name": "scan",
+          "type": "Scan",
+          "matcher": "'DICOM' in @.resources[*].label",
+          "required": true,
+          "provides-value-for-command-input": "SCAN_IDS",
+          "provides-files-for-command-mount": null,
+          "user-settable": true,
+          "load-children": true,
+          "derived-from-wrapper-input": "session",
+          "derived-from-xnat-object-property": "id",
+          "via-setup-command": null,
+          "multiple": true
+        }
+      ],
+      "output-handlers": []
+    }
+  ]
+}
+```
 
 ### XNAT object properties
 
