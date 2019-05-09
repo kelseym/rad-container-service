@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.hibernate.exception.DataException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -19,15 +18,13 @@ import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperDerivedInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperExternalInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperOutput;
-import org.nrg.containers.model.command.entity.CommandEntity;
-import org.nrg.containers.model.command.entity.CommandInputEntity;
-import org.nrg.containers.model.command.entity.CommandWrapperEntity;
+import org.nrg.containers.model.command.entity.*;
 import org.nrg.containers.services.CommandEntityService;
+import org.nrg.containers.utils.TestingUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -37,12 +34,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.junit.Assert.assertThat;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -165,7 +159,7 @@ public class CommandEntityTest {
     public void testPersistCommandWithWrapper() throws Exception {
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrievedCommandEntity = commandEntityService.retrieve(created.getId());
 
@@ -186,11 +180,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         commandEntityService.delete(created);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.retrieve(created.getId()), is(nullValue()));
     }
@@ -201,7 +195,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
         final long wrapperId = createdWrapper.getId();
@@ -219,11 +213,11 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity added = commandEntityService.addWrapper(created, toAdd);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(COMMAND_ENTITY.getId());
         assertThat(retrieved.getCommandWrapperEntities().get(0), is(added));
@@ -237,7 +231,7 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandWrapperEntity createdWrapper = created.getCommandWrapperEntities().get(0);
 
@@ -245,7 +239,7 @@ public class CommandEntityTest {
         createdWrapper.setDescription(newDescription);
 
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
         final CommandWrapperEntity retrievedWrapper = retrieved.getCommandWrapperEntities().get(0);
@@ -260,10 +254,10 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandInput inputToAdd = CommandInput.builder()
-                .name("this is new")
+                .name("this_is_new")
                 .description("A new input that didn't exist before")
                 .commandLineFlag("--flag")
                 .commandLineSeparator("=")
@@ -272,7 +266,7 @@ public class CommandEntityTest {
         created.addInput(CommandInputEntity.fromPojo(inputToAdd));
 
         commandEntityService.update(created);
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final CommandEntity retrieved = commandEntityService.get(created.getId());
 
@@ -304,15 +298,257 @@ public class CommandEntityTest {
 
         final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         final long wrapperId = created.getCommandWrapperEntities().get(0).getId();
         commandEntityService.deleteWrapper(wrapperId);
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.retrieveWrapper(wrapperId), is(nullValue()));
     }
+
+    @Test
+    @DirtiesContext
+    public void testRemoveEntitiesFromCommand() throws Exception {
+        final String outputMountName = "out";
+        final CommandMount mountIn = CommandMount.create("in2", false, "/input2");
+
+        final String stringInputName = "foo2";
+        final CommandInput stringInput = CommandInput.builder()
+                .name(stringInputName)
+                .description("A foo that bars")
+                .required(false)
+                .defaultValue("bar")
+                .commandLineFlag("--flag")
+                .commandLineSeparator("=")
+                .build();
+
+        final String commandOutputName = "the_output2";
+        final CommandOutput commandOutput = CommandOutput.builder()
+                .name(commandOutputName)
+                .description("It's the output")
+                .mount(outputMountName)
+                .path("relative/path/to/dir")
+                .build();
+
+        final String externalInputName = "session";
+        final CommandWrapperExternalInput externalInput = CommandWrapperExternalInput.builder()
+                .name(externalInputName)
+                .type("Session")
+                .build();
+
+        final String derivedInputName = "label2";
+        final String xnatObjectProperty = "label";
+        final CommandWrapperDerivedInput derivedInput = CommandWrapperDerivedInput.builder()
+                .name(derivedInputName)
+                .type("string")
+                .derivedFromWrapperInput(externalInputName)
+                .derivedFromXnatObjectProperty(xnatObjectProperty)
+                .providesValueForCommandInput(stringInputName)
+                .build();
+
+        final String outputHandlerName = "output-handler-name2";
+        final String outputHandlerLabel = "a_label";
+        final CommandWrapperOutput outputHandler = CommandWrapperOutput.builder()
+                .name(outputHandlerName)
+                .commandOutputName(commandOutputName)
+                .targetName(externalInputName)
+                .type("Resource")
+                .label(outputHandlerLabel)
+                .build();
+
+        final String commandWrapperName = "altwrappername";
+        final String commandWrapperDesc = "alt wrapper description";
+        final CommandWrapper commandWrapper = CommandWrapper.builder()
+                .name(commandWrapperName)
+                .description(commandWrapperDesc)
+                .addExternalInput(externalInput)
+                .addDerivedInput(derivedInput)
+                .addOutputHandler(outputHandler)
+                .build();
+
+        CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
+        TestingUtils.commitTransaction();
+
+        //update with addl input and output and mount and wrapper
+        Command cmd = COMMAND.toBuilder()
+                .addInput(stringInput)
+                .addOutput(commandOutput)
+                .addMount(mountIn)
+                .addCommandWrapper(commandWrapper)
+                .build();
+
+        created.update(cmd);
+        commandEntityService.update(created);
+        TestingUtils.commitTransaction();
+        CommandEntity retrieved = commandEntityService.retrieve(created.getId());
+        assertThat(retrieved.getInputs(), Matchers.<CommandInputEntity>hasSize(COMMAND.inputs().size() + 1));
+        assertThat(retrieved.getOutputs(), Matchers.<CommandOutputEntity>hasSize(COMMAND.outputs().size() + 1));
+        assertThat(retrieved.getMounts(), Matchers.<CommandMountEntity>hasSize(COMMAND.mounts().size() + 1));
+        assertThat(retrieved.getCommandWrapperEntities(),
+                Matchers.<CommandWrapperEntity>hasSize(COMMAND.xnatCommandWrappers().size() + 1));
+
+        //remove them
+        retrieved.update(COMMAND);
+        commandEntityService.update(retrieved);
+        TestingUtils.commitTransaction();
+        CommandEntity retrievedAnew = commandEntityService.retrieve(created.getId());
+        assertThat(retrievedAnew.getInputs(), Matchers.<CommandInputEntity>hasSize(COMMAND.inputs().size()));
+        assertThat(retrievedAnew.getOutputs(), Matchers.<CommandOutputEntity>hasSize(COMMAND.outputs().size()));
+        assertThat(retrievedAnew.getMounts(), Matchers.<CommandMountEntity>hasSize(COMMAND.mounts().size()));
+        assertThat(retrievedAnew.getCommandWrapperEntities(),
+                Matchers.<CommandWrapperEntity>hasSize(COMMAND.xnatCommandWrappers().size()));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testRemoveEntitiesFromWrapper() throws Exception {
+        final String outputMountName = "out";
+        final CommandMount mountIn = CommandMount.create("in2", false, "/input2");
+
+        final String stringInputName = "foo2";
+        final CommandInput stringInput = CommandInput.builder()
+                .name(stringInputName)
+                .description("A foo that bars")
+                .required(false)
+                .defaultValue("bar")
+                .commandLineFlag("--flag")
+                .commandLineSeparator("=")
+                .build();
+        final String stringInputName2 = "foo2";
+        final CommandInput stringInput2 = CommandInput.builder()
+                .name(stringInputName2)
+                .description("A foo that bars")
+                .required(false)
+                .defaultValue("bar")
+                .commandLineFlag("--flag")
+                .commandLineSeparator("=")
+                .build();
+
+        final String commandOutputName = "the_output2";
+        final CommandOutput commandOutput = CommandOutput.builder()
+                .name(commandOutputName)
+                .description("It's the output")
+                .mount(outputMountName)
+                .path("relative/path/to/dir")
+                .build();
+        final String commandOutputName2 = "the_output_alt";
+        final CommandOutput commandOutput2 = CommandOutput.builder()
+                .name(commandOutputName2)
+                .description("It's the output")
+                .mount(outputMountName)
+                .path("relative/path/to/dir")
+                .build();
+
+        final String externalInputName = "session";
+        final CommandWrapperExternalInput externalInput = CommandWrapperExternalInput.builder()
+                .name(externalInputName)
+                .type("Session")
+                .build();
+
+        final String externalInputName2 = "project";
+        final CommandWrapperExternalInput externalInput2 = CommandWrapperExternalInput.builder()
+                .name(externalInputName2)
+                .type("Project")
+                .build();
+
+        final String derivedInputName = "label";
+        final String xnatObjectProperty = "label";
+        final CommandWrapperDerivedInput derivedInput = CommandWrapperDerivedInput.builder()
+                .name(derivedInputName)
+                .type("string")
+                .derivedFromWrapperInput(externalInputName)
+                .derivedFromXnatObjectProperty(xnatObjectProperty)
+                .providesValueForCommandInput(stringInputName)
+                .build();
+        final String derivedInputName2 = "label2";
+        final CommandWrapperDerivedInput derivedInput2 = CommandWrapperDerivedInput.builder()
+                .name(derivedInputName2)
+                .type("string")
+                .derivedFromWrapperInput(externalInputName)
+                .derivedFromXnatObjectProperty(xnatObjectProperty)
+                .providesValueForCommandInput(stringInputName2)
+                .build();
+
+        final String outputHandlerName = "output-handler-name2";
+        final String outputHandlerLabel = "a_label";
+        final CommandWrapperOutput outputHandler = CommandWrapperOutput.builder()
+                .name(outputHandlerName)
+                .commandOutputName(commandOutputName)
+                .targetName(externalInputName)
+                .type("Resource")
+                .label(outputHandlerLabel)
+                .build();
+
+        final String outputHandlerName2 = "output-handler-name-alt";
+        final String outputHandlerLabel2 = "a_label_alt";
+        final CommandWrapperOutput outputHandler2 = CommandWrapperOutput.builder()
+                .name(outputHandlerName2)
+                .commandOutputName(commandOutputName2)
+                .targetName(externalInputName2)
+                .type("Resource")
+                .label(outputHandlerLabel2)
+                .build();
+
+        //test add/remove from wrapper
+        String newWrapperName = "new-wrapper";
+        CommandWrapper newWrapper = CommandWrapper.builder()
+                .name(newWrapperName)
+                .description("desc")
+                .addExternalInput(externalInput)
+                .addExternalInput(externalInput2)
+                .addDerivedInput(derivedInput)
+                .addDerivedInput(derivedInput2)
+                .addOutputHandler(outputHandler)
+                .addOutputHandler(outputHandler2)
+                .build();
+
+        CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
+        TestingUtils.commitTransaction();
+
+        //update with new wrapper
+        Command cmd = COMMAND.toBuilder()
+                .addCommandWrapper(newWrapper)
+                .build();
+        created.update(cmd);
+        commandEntityService.update(created);
+        TestingUtils.commitTransaction();
+        CommandEntity retrieved = commandEntityService.retrieve(created.getId());
+        CommandWrapperEntity commandWrapperEntityRetrieved = null;
+        for (CommandWrapperEntity entity : retrieved.getCommandWrapperEntities()) {
+            if (entity.getName().equals(newWrapperName)) {
+                commandWrapperEntityRetrieved = entity;
+                break;
+            }
+        }
+        assertThat(commandWrapperEntityRetrieved, not(nullValue()));
+
+        assertThat(commandWrapperEntityRetrieved.getExternalInputs(),
+                Matchers.<CommandWrapperExternalInputEntity>hasSize(newWrapper.externalInputs().size()));
+        assertThat(commandWrapperEntityRetrieved.getDerivedInputs(),
+                Matchers.<CommandWrapperDerivedInputEntity>hasSize(newWrapper.derivedInputs().size()));
+        assertThat(commandWrapperEntityRetrieved.getOutputHandlers(),
+                Matchers.<CommandWrapperOutputEntity>hasSize(newWrapper.outputHandlers().size()));
+
+        // And remove (no way to directly remove, mimicking removal through json)
+        CommandWrapper newWrapperMod = CommandWrapper.builder()
+                .name(newWrapperName)
+                .description("desc")
+                .build();
+        commandWrapperEntityRetrieved.update(newWrapperMod);
+        commandEntityService.update(commandWrapperEntityRetrieved);
+        CommandWrapperEntity commandWrapperEntityRetrievedAnew =
+                commandEntityService.retrieveWrapper(commandWrapperEntityRetrieved.getId());
+
+        assertThat(commandWrapperEntityRetrievedAnew.getExternalInputs(),
+                Matchers.<CommandWrapperExternalInputEntity>hasSize(newWrapperMod.externalInputs().size()));
+        assertThat(commandWrapperEntityRetrievedAnew.getDerivedInputs(),
+                Matchers.<CommandWrapperDerivedInputEntity>hasSize(newWrapperMod.derivedInputs().size()));
+        assertThat(commandWrapperEntityRetrievedAnew.getOutputHandlers(),
+                Matchers.<CommandWrapperOutputEntity>hasSize(newWrapperMod.outputHandlers().size()));
+    }
+
 
     @Test
     @DirtiesContext
@@ -408,14 +644,8 @@ public class CommandEntityTest {
                         .build())
         );
 
-        commitTransaction();
+        TestingUtils.commitTransaction();
 
         assertThat(commandEntityService.get(command.getId()).getCommandLine(), is(longString));
-    }
-
-    public void commitTransaction() {
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
     }
 }

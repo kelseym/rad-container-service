@@ -37,6 +37,8 @@ public class XnatFile extends XnatModelObject {
         } else {
             this.uri = parentUri + "/files/" + name;
         }
+
+        this.label = name;
         this.name = name;
         this.path = path;
         this.tags = Arrays.asList(tagsCsv.split(","));
@@ -101,6 +103,11 @@ public class XnatFile extends XnatModelObject {
     @Override
     public XFTItem getXftItem(final UserI userI) {
         return null;
+    }
+
+    @Override
+    public String getDerivedWrapperInputValue() {
+        return getName();
     }
 
     @Override

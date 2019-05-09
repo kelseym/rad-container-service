@@ -1,5 +1,6 @@
 package org.nrg.containers.api;
 
+import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.ServiceNotFoundException;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.exceptions.ContainerException;
@@ -60,17 +61,22 @@ public interface ContainerControlApi {
     String getContainerStderrLog(String containerId) throws NoDockerServerException, DockerServerException;
     String getServiceStdoutLog(String serviceId) throws NoDockerServerException, DockerServerException;
     String getServiceStderrLog(String serviceId) throws NoDockerServerException, DockerServerException;
+    String getContainerStdoutLog(String containerId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getContainerStderrLog(String containerId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getServiceStdoutLog(String serviceId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
+    String getServiceStderrLog(String serviceId, DockerClient.LogsParam... logParams) throws NoDockerServerException, DockerServerException;
     
     List<DockerContainerEvent> getContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
     void throwContainerEvents(final Date since, final Date until) throws NoDockerServerException, DockerServerException;
 
     void killContainer(final String id) throws NoDockerServerException, DockerServerException, NotFoundException;
+    void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
 
     ServiceTask getTaskForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     ServiceTask getTaskForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
-    
-    Integer getContainerFinalizationPoolLimit();
-	void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
+    void throwRestartEventForService(Container service) throws ContainerException;
+    void throwWaitingEventForService(Container service) throws ContainerException;
+
 }

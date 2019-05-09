@@ -30,7 +30,7 @@ public class HibernateContainerEntityService
     @Nonnull
     public ContainerEntity save(final ContainerEntity toCreate, final UserI userI) {
         final ContainerEntity created = create(toCreate);
-        final ContainerEntityHistory historyItem = ContainerEntityHistory.fromUserAction("Created", userI.getLogin(), created);
+        final ContainerEntityHistory historyItem = ContainerEntityHistory.fromUserAction(ContainerServiceImpl.CREATED, userI.getLogin(), created);
         addContainerHistoryItem(created, historyItem, userI);
         return created;
     }
@@ -161,19 +161,16 @@ public class HibernateContainerEntityService
                                                           final ContainerEntityHistory history,
                                                           final UserI userI) {
         if (containerEntity.isItemInHistory(history)) {
-            if (log.isDebugEnabled()) {
-                log.debug("Event has already been recorded.{}",containerEntity.getId());
-            }
+            log.debug("Event has already been recorded {}", containerEntity.getId());
             return null;
         }
 
         log.info("Adding new history item to container entity " + containerEntity.getId() + ".");
-        if (log.isDebugEnabled()) {
-            log.debug("" + history);
-        }
+        log.debug("" + history);
         getDao().addHistoryItem(containerEntity, history);
-        
-        ContainerUtils.updateWorkflowStatus(containerEntity.getWorkflowId(), containerEntity.getStatus(), userI);
+
+        ContainerUtils.updateWorkflowStatus(containerEntity.getWorkflowId(), containerEntity.getStatus(),
+                userI, history.getMessage());
 
         return history;
     }

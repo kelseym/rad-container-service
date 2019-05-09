@@ -2,17 +2,18 @@ package org.nrg.containers.services;
 
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.ServiceTaskEvent;
-import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
-import org.nrg.containers.exceptions.UnauthorizedException;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.exceptions.NotFoundException;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 
 import java.io.InputStream;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +21,8 @@ public interface ContainerService {
     String STDOUT_LOG_NAME = "stdout.log";
     String STDERR_LOG_NAME = "stderr.log";
     String[] LOG_NAMES = new String[] {STDOUT_LOG_NAME, STDERR_LOG_NAME};
+
+    PluginVersionCheck checkXnatVersion();
 
     List<Container> getAll();
     Container retrieve(final long id);
@@ -36,9 +39,11 @@ public interface ContainerService {
 
 
     List<Container> retrieveServices();
-    List<Container> retrieveNonfinalizedServices();
     List<Container> retrieveServicesInWaitingState();
-    
+    List<Container> retrieveNonfinalizedServices();
+
+    void checkQueuedContainerJobs(UserI user);
+    void checkWaitingContainerJobs(UserI user);
     void resetFinalizingStatusToWaitingOrFailed();
 
     List<Container> retrieveSetupContainersForParent(long parentId);
@@ -48,27 +53,25 @@ public interface ContainerService {
     Container.ContainerHistory addContainerHistoryItem(final Container container,
                                                        final Container.ContainerHistory history, final UserI userI);
 
-    Container resolveCommandAndLaunchContainer(long wrapperId,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(long commandId,
-                                               String wrapperName,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(String project,
+    PersistentWorkflowI createContainerWorkflow(String xnatId, String xsiType,
+                                                String wrapperName, String projectId, UserI user)
+            throws Exception;
+
+    void queueResolveCommandAndLaunchContainer(String project,
                                                long wrapperId,
-                                               Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container resolveCommandAndLaunchContainer(String project,
                                                long commandId,
                                                String wrapperName,
                                                Map<String, String> inputValues,
-                                               UserI userI)
-            throws NoDockerServerException, DockerServerException, NotFoundException, CommandResolutionException, ContainerException, UnauthorizedException;
-    Container launchResolvedCommand(final ResolvedCommand resolvedCommand, final UserI userI)
+                                               UserI userI, PersistentWorkflowI workflow) throws Exception;
+
+    void consumeResolveCommandAndLaunchContainer(String project,
+                                                 long wrapperId,
+                                                 long commandId,
+                                                 String wrapperName,
+                                                 Map<String, String> inputValues,
+                                                 UserI userI, String workflowid);
+
+    Container launchResolvedCommand(final ResolvedCommand resolvedCommand, final UserI userI, PersistentWorkflowI workflow)
             throws NoDockerServerException, DockerServerException, ContainerException;
 
     void processEvent(final ContainerEvent event);
@@ -81,11 +84,22 @@ public interface ContainerService {
     String kill(final String containerId, final UserI userI)
             throws NoDockerServerException, DockerServerException, NotFoundException;
 
-    Map<String, InputStream> getLogStreams(long id) throws NotFoundException, NoDockerServerException, DockerServerException;
-    Map<String, InputStream> getLogStreams(String containerId) throws NotFoundException, NoDockerServerException, DockerServerException;
-    InputStream getLogStream(long id, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
-    InputStream getLogStream(String containerId, String logFileName) throws NotFoundException, NoDockerServerException, DockerServerException;
+    Map<String, InputStream> getLogStreams(long id) throws NotFoundException;
+    Map<String, InputStream> getLogStreams(String containerId) throws NotFoundException;
+    InputStream getLogStream(long id, String logFileName) throws NotFoundException;
+    InputStream getLogStream(String containerId, String logFileName) throws NotFoundException;
+    InputStream getLogStream(String containerId, String logFileName, boolean withTimestamps, Integer since) throws NotFoundException;
 	boolean isWaiting(Container service);
 	boolean isFinalizing(Container service);
-	void queuedFinalize(String exitCodeString, boolean isSuccessful, Container service, UserI userI);
+    boolean isFailedOrComplete(Container service, UserI user);
+	void queueFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
+    void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
+
+    /**
+     * Restart a service through swarm
+     * @param service the service to restart
+     * @param user the user
+     * @return true is successfully restarted, false otherwise
+     */
+    boolean restartService(Container service, UserI user);
 }

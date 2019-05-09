@@ -19,6 +19,6 @@ public abstract class ScanArchiveEventToLaunchCommands implements EventI {
 
     public static ScanArchiveEventToLaunchCommands create(final Scan scan,
                                                           final UserI user) {
-        return create(scan, scan.getProject(user).getId(), user);
+        return create(scan, scan.getProject(user, false, null).getId(), user);
     }
 }

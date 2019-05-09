@@ -1,8 +1,13 @@
-.imageContainer + .imageContainer {
-    margin: 4em 0 0;
+.imageContainer {
+    margin: 0 0 4em;
+}
+.imageContainer:last-of-type {
+    margin: 0;
 }
 .imageContainer h3 {
     border: none;
+    margin-bottom: 10px;
+    overflow: auto;
     padding: 20px 0 0 2em;
     position: relative;
 
@@ -13,7 +18,7 @@
     font-size: 1.5em;
     color: #808080;
     position: absolute;
-    bottom: -1px; left: 1px;
+    top: .9em; left: 1px;
 }
 .commandConfigInputRow {
     padding: 5px 0;
@@ -53,4 +58,15 @@ div.xnat-dialog > .body p.divider {
     margin-top: 1em;
     margin-bottom: 2em;
     padding-top: 1em;
+}
+
+div.swarm-constraint {
+    border: 1px solid #ccc;
+    padding: 5px;
+    margin: 5px;
+    border-radius: 10px;
+}
+div.swarm-constraint a.close{
+    float: right;
+    margin: 0 3px 0 0;
 }

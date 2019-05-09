@@ -4,3 +4,17 @@
     </button>
     <ul class="dropdown-menu" id="scanActionsMenu"></ul>
 </span>
+
+<style>
+    .inline-actions-menu-toggle {
+        border-radius: 2px;
+        cursor: pointer;
+        height: 30px;
+        text-align: center;
+        width: 45px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        padding-top: 8px;
+    }
+</style>

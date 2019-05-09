@@ -142,6 +142,7 @@ public class ContainerEntityMount implements Serializable {
      * This used to return a list of the files that were found in an input mount. But we didn't use it anywhere in
      * the code. Now I think it just takes up space in the database for nothing.
      *
+     * @param inputFiles the input files
      * @deprecated Since 2.0.0
      */
     @Deprecated

@@ -13,39 +13,25 @@ import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.LoggingBuildHandler;
-import com.spotify.docker.client.exceptions.ContainerNotFoundException;
-import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.ContainerInfo;
-import com.spotify.docker.client.messages.swarm.Service;
-import com.spotify.docker.client.messages.swarm.Task;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
-import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.nrg.containers.api.DockerControlApi;
 import org.nrg.containers.config.EventPullingIntegrationTestConfig;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerMount;
-import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
-import org.nrg.containers.model.xnat.Project;
-import org.nrg.containers.model.xnat.Resource;
-import org.nrg.containers.model.xnat.Scan;
-import org.nrg.containers.model.xnat.Session;
-import org.nrg.containers.services.CommandService;
-import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.services.DockerServerService;
-import org.nrg.containers.services.DockerService;
+import org.nrg.containers.model.xnat.*;
+import org.nrg.containers.services.*;
+import org.nrg.containers.config.SpringJUnit4ClassRunnerFactory;
+import org.nrg.containers.utils.TestingUtils;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.entities.AliasToken;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -54,12 +40,19 @@ import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xft.ItemI;
+import org.nrg.xft.XFTItem;
+import org.nrg.xft.event.EventDetails;
+import org.nrg.xft.event.EventMetaI;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
 import org.nrg.xnat.helpers.uri.archive.impl.ProjURI;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
+import org.nrg.xnat.utils.WorkflowUtils;
+import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -67,8 +60,6 @@ import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Nullable;
@@ -77,12 +68,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -101,19 +87,31 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
-import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.mock;
-import static org.powermock.api.mockito.PowerMockito.mockStatic;
-import static org.powermock.api.mockito.PowerMockito.when;
+import static org.mockito.Mockito.when;
+import static org.powermock.api.mockito.PowerMockito.*;
 
 @Slf4j
 @RunWith(PowerMockRunner.class)
-@PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
-@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class})
+@PowerMockRunnerDelegate(Parameterized.class)
+@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class, PersistentWorkflowUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
+@Parameterized.UseParametersRunnerFactory(SpringJUnit4ClassRunnerFactory.class)
 @Transactional
 public class CommandLaunchIntegrationTest {
+    // Couldn't get the below to work
+    //@ClassRule public static final SpringClassRule SPRING_CLASS_RULE = new SpringClassRule();
+    //@Rule public final SpringMethodRule springMethodRule = new SpringMethodRule();
+
+    @Parameterized.Parameters
+    public static Collection<Boolean> swarmModes() {
+        return Arrays.asList(true, false);
+    }
+    @Parameterized.Parameter
+    public boolean swarmMode;
+
     private UserI mockUser;
     private String buildDir;
     private String archiveDir;
@@ -122,7 +120,7 @@ public class CommandLaunchIntegrationTest {
     private final String FAKE_ALIAS = "alias";
     private final String FAKE_SECRET = "secret";
     private final String FAKE_HOST = "mock://url";
-    private final boolean swarmMode = false;
+    private FakeWorkflow fakeWorkflow = new FakeWorkflow();
 
     private boolean testIsOnCircleCi;
 
@@ -167,42 +165,10 @@ public class CommandLaunchIntegrationTest {
             }
         });
 
-        // Mock out the prefs bean
-        final String defaultHost = "unix:///var/run/docker.sock";
-        final String hostEnv = System.getenv("DOCKER_HOST");
-        final String certPathEnv = System.getenv("DOCKER_CERT_PATH");
-        final String tlsVerify = System.getenv("DOCKER_TLS_VERIFY");
-
         final String circleCiEnv = System.getenv("CIRCLECI");
         testIsOnCircleCi = StringUtils.isNotBlank(circleCiEnv) && Boolean.parseBoolean(circleCiEnv);
 
-        final boolean useTls = tlsVerify != null && tlsVerify.equals("1");
-        final String certPath;
-        if (useTls) {
-            if (StringUtils.isBlank(certPathEnv)) {
-                throw new Exception("Must set DOCKER_CERT_PATH if DOCKER_TLS_VERIFY=1.");
-            }
-            certPath = certPathEnv;
-        } else {
-            certPath = "";
-        }
-
-        final String containerHost;
-        if (StringUtils.isBlank(hostEnv)) {
-            containerHost = defaultHost;
-        } else {
-            final Pattern tcpShouldBeHttpRe = Pattern.compile("tcp://.*");
-            final java.util.regex.Matcher tcpShouldBeHttpMatch = tcpShouldBeHttpRe.matcher(hostEnv);
-            if (tcpShouldBeHttpMatch.matches()) {
-                // Must switch out tcp:// for either http:// or https://
-                containerHost = hostEnv.replace("tcp://", "http" + (useTls ? "s" : "") + "://");
-            } else {
-                containerHost = hostEnv;
-            }
-        }
-
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, null, false, null, null, null, false));
-
+        // Mock out the prefs bean
         // Mock the userI
         mockUser = mock(UserI.class);
         when(mockUser.getLogin()).thenReturn(FAKE_USER);
@@ -238,43 +204,85 @@ public class CommandLaunchIntegrationTest {
         mockStatic(XFTManager.class);
         when(XFTManager.isInitialized()).thenReturn(true);
 
+        // Also mock out workflow operations to return our fake workflow object
+        mockStatic(WorkflowUtils.class);
+        when(WorkflowUtils.getUniqueWorkflow(mockUser, fakeWorkflow.getWorkflowId().toString()))
+                .thenReturn(fakeWorkflow);
+        doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
+        PowerMockito.spy(PersistentWorkflowUtils.class);
+        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
+                eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+
+        // Setup docker server
+        final String defaultHost = "unix:///var/run/docker.sock";
+        final String hostEnv = System.getenv("DOCKER_HOST");
+        final String certPathEnv = System.getenv("DOCKER_CERT_PATH");
+        final String tlsVerify = System.getenv("DOCKER_TLS_VERIFY");
+
+        final boolean useTls = tlsVerify != null && tlsVerify.equals("1");
+        final String certPath;
+        if (useTls) {
+            if (StringUtils.isBlank(certPathEnv)) {
+                throw new Exception("Must set DOCKER_CERT_PATH if DOCKER_TLS_VERIFY=1.");
+            }
+            certPath = certPathEnv;
+        } else {
+            certPath = "";
+        }
+
+        final String containerHost;
+        if (StringUtils.isBlank(hostEnv)) {
+            containerHost = defaultHost;
+        } else {
+            final Pattern tcpShouldBeHttpRe = Pattern.compile("tcp://.*");
+            final java.util.regex.Matcher tcpShouldBeHttpMatch = tcpShouldBeHttpRe.matcher(hostEnv);
+            if (tcpShouldBeHttpMatch.matches()) {
+                // Must switch out tcp:// for either http:// or https://
+                containerHost = hostEnv.replace("tcp://", "http" + (useTls ? "s" : "") + "://");
+            } else {
+                containerHost = hostEnv;
+            }
+        }
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
+                swarmMode, null, null, null, false, null, null));
+
         CLIENT = controlApi.getClient();
         CLIENT.pull("busybox:latest");
     }
 
     @After
     public void cleanup() throws Exception {
+        fakeWorkflow = new FakeWorkflow();
         for (final String containerToCleanUp : containersToCleanUp) {
-            if (swarmMode) {
-                CLIENT.removeService(containerToCleanUp);
-            } else {
-                CLIENT.removeContainer(containerToCleanUp, DockerClient.RemoveContainerParam.forceKill());
+            try {
+                if (swarmMode) {
+                    CLIENT.removeService(containerToCleanUp);
+                } else {
+                    CLIENT.removeContainer(containerToCleanUp, DockerClient.RemoveContainerParam.forceKill());
+                }
+            } catch (Exception e) {
+                // do nothing
             }
         }
         containersToCleanUp.clear();
 
         for (final String imageToCleanUp : imagesToCleanUp) {
-            CLIENT.removeImage(imageToCleanUp, true, false);
+            try {
+                CLIENT.removeImage(imageToCleanUp, true, false);
+            } catch (Exception e) {
+                // do nothing
+            }
         }
         imagesToCleanUp.clear();
 
         CLIENT.close();
     }
 
-    private boolean canConnectToDocker() {
-        try {
-            return CLIENT.ping().equals("OK");
-        } catch (InterruptedException | DockerException e) {
-            log.warn("Could not connect to docker.", e);
-        }
-        return false;
-    }
-
     @Test
     @DirtiesContext
     public void testFakeReconAll() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -312,20 +320,22 @@ public class CommandLaunchIntegrationTest {
         runtimeValues.put("session", sessionJson);
         runtimeValues.put("T1-scantype", t1Scantype);
 
-        final Container execution = containerService.resolveCommandAndLaunchContainer(commandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
-        await().until(containerIsRunning(execution), is(false));
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, execution), is(false));
 
         // Raw inputs
         assertThat(execution.getRawInputs(), is(runtimeValues));
 
         // xnat wrapper inputs
         final Map<String, String> expectedXnatInputValues = Maps.newHashMap();
-        expectedXnatInputValues.put("session", session.getUri());
+        expectedXnatInputValues.put("session", session.getExternalWrapperInputValue());
         expectedXnatInputValues.put("T1-scantype", t1Scantype);
         expectedXnatInputValues.put("label", session.getLabel());
-        expectedXnatInputValues.put("T1", session.getScans().get(0).getUri());
-        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getUri());
+        expectedXnatInputValues.put("T1", session.getScans().get(0).getDerivedWrapperInputValue());
+        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getDerivedWrapperInputValue());
         assertThat(execution.getWrapperInputs(), is(expectedXnatInputValues));
 
         // command inputs
@@ -380,7 +390,7 @@ public class CommandLaunchIntegrationTest {
         printContainerLogs(execution);
 
         try {
-            final String[] outputFileContents = readFile(outputPath + "/out.txt");
+            final String[] outputFileContents = TestingUtils.readFile(outputPath + "/out.txt");
             assertThat(outputFileContents.length, greaterThanOrEqualTo(2));
             assertThat(outputFileContents[0], is("recon-all -s session1 -all"));
 
@@ -401,7 +411,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testProjectMount() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         final String dir = Paths.get(ClassLoader.getSystemResource("commandLaunchTest").toURI()).toString().replace("%20", " ");
         final String commandJsonFile = dir + "/project-mount-command.json";
@@ -427,9 +437,11 @@ public class CommandLaunchIntegrationTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("project", projectJson);
 
-        final Container execution = containerService.resolveCommandAndLaunchContainer(commandWrapper.id(), runtimeValues, mockUser);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
-        await().until(containerIsRunning(execution), is(false));
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, execution), is(false));
 
         // Raw inputs
         assertThat(execution.getRawInputs(), is(runtimeValues));
@@ -495,7 +507,7 @@ public class CommandLaunchIntegrationTest {
                     "/input/session/scan/scan-file.txt",
                     "/input/session/session-file.txt"
             };
-            final List<String> filesFileContents = Lists.newArrayList(readFile(outputPath + "/files.txt"));
+            final List<String> filesFileContents = Lists.newArrayList(TestingUtils.readFile(outputPath + "/files.txt"));
             assertThat(filesFileContents, containsInAnyOrder(expectedFilesFileContents));
 
             final String[] expectedDirsFileContents = {
@@ -506,7 +518,7 @@ public class CommandLaunchIntegrationTest {
                     "/input/session/scan",
                     "/input/session/scan/resource"
             };
-            final List<String> dirsFileContents = Lists.newArrayList(readFile(outputPath + "/dirs.txt"));
+            final List<String> dirsFileContents = Lists.newArrayList(TestingUtils.readFile(outputPath + "/dirs.txt"));
             assertThat(dirsFileContents, containsInAnyOrder(expectedDirsFileContents));
         } catch (IOException e) {
             log.warn("Failed to read output files. This is not a problem if you are using docker-machine and cannot mount host directories.", e);
@@ -517,7 +529,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testLaunchCommandWithSetupCommand() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         // This test fails on Circle CI because we cannot mount local directories into containers
         assumeThat(testIsOnCircleCi, is(false));
@@ -554,9 +566,7 @@ public class CommandLaunchIntegrationTest {
         assertThat(setupCommand.name(), is(setupCommandName));
         assertThat(setupCommand.image(), is(setupCommandImageName));
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
         final String resourceInputJsonPath = setupCommandDir + "/resource.json";
         // I need to set the resource directory to a temp directory
@@ -576,10 +586,10 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockProjectItem);
 
         // Time to launch this thing
-        final Container mainContainerRightAfterLaunch = containerService.resolveCommandAndLaunchContainer(commandWithSetupCommandWrapper.id(), runtimeValues, mockUser);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithSetupCommandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container mainContainerRightAfterLaunch = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        TestingUtils.commitTransaction();
         Thread.sleep(5000); // Wait for container to finish
 
         final Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId());
@@ -608,15 +618,15 @@ public class CommandLaunchIntegrationTest {
         //     file "another-file" in its output, which we did not explicitly create in this test.
         // By verifying that the main container's mount sees both files, we have verified that the setup container
         //     put the files where they needed to go, and that all the mounts were hooked up correctly.
-        assertThat(contentsOfMainContainerMountDir, hasItemInArray(pathEndsWith("test.txt")));
-        assertThat(contentsOfMainContainerMountDir, hasItemInArray(pathEndsWith("another-file")));
+        assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("test.txt")));
+        assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("another-file")));
     }
 
     @Test
     @DirtiesContext
     public void testLaunchCommandWithWrapupCommand() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         // This test fails on Circle CI because we cannot mount local directories into containers
         assumeThat(testIsOnCircleCi, is(false));
@@ -658,9 +668,7 @@ public class CommandLaunchIntegrationTest {
         assertThat(wrapupCommand.name(), is(wrapupCommandName));
         assertThat(wrapupCommand.image(), is(wrapupCommandImageName));
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
         // Set up input object(s)
         final String sessionInputJsonPath = wrapupCommandDir + "/session.json";
@@ -686,14 +694,20 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockSessionItem);
 
         // Time to launch this thing
-        final Container mainContainerRightAfterLaunch = containerService.resolveCommandAndLaunchContainer(commandWithWrapupCommandWrapper.id(), runtimeValues, mockUser);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(), 0L,
+                null, runtimeValues, mockUser, fakeWorkflow);
+        final Container mainContainerRightAfterLaunch = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+
+        TestingUtils.commitTransaction();
+
         log.debug("Waiting for ten seconds. Peace!");
         Thread.sleep(10000); // Wait for container to finish
 
-        final Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId());
+        log.debug("Waiting until container is finalized or has failed");
+        await().until(TestingUtils.containerIsFinalizingOrFailed(containerService, mainContainerRightAfterLaunch), is(true));
+        Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId()); //refresh it
+        assertThat(mainContainerAWhileAfterLaunch.status(), is(not("Failed")));
+
         final List<Container> wrapupContainers = containerService.retrieveWrapupContainersForParent(mainContainerAWhileAfterLaunch.databaseId());
         assertThat(wrapupContainers, hasSize(1));
         final Container wrapupContainer = wrapupContainers.get(0);
@@ -728,9 +742,9 @@ public class CommandLaunchIntegrationTest {
         final File[] contentsOfWrapupContainerOutputMountDir = wrapupContainerOutputMountDir.listFiles();
 
         assertThat(contentsOfWrapupContainerOutputMountDir, Matchers.<File>arrayWithSize(1));
-        assertThat(contentsOfWrapupContainerOutputMountDir, hasItemInArray(pathEndsWith("found-files.txt")));
+        assertThat(contentsOfWrapupContainerOutputMountDir, hasItemInArray(TestingUtils.pathEndsWith("found-files.txt")));
         final File foundFilesDotTxt = contentsOfWrapupContainerOutputMountDir[0];
-        final String[] foundFilesDotTxtContentByLine = readFile(foundFilesDotTxt);
+        final String[] foundFilesDotTxtContentByLine = TestingUtils.readFile(foundFilesDotTxt);
         assertThat(foundFilesDotTxtContentByLine, arrayContainingInAnyOrder(expectedFileContentsByLine));
     }
 
@@ -738,7 +752,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testFailedContainer() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -753,34 +767,36 @@ public class CommandLaunchIntegrationTest {
                 .build());
         final CommandWrapper willFailWrapper = willFail.xnatCommandWrappers().get(0);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(willFailWrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, willFailWrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
         log.debug("Waiting until task has started");
-        await().until(containerHasStarted(container), is(true));
+        await().until(TestingUtils.containerHasStarted(CLIENT, swarmMode, container), is(true));
         log.debug("Waiting until task has finished");
-        await().until(containerIsRunning(container), is(false));
-        log.debug("Waiting until status updater has picked up finished task and added item to history");
-        await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, container), is(false));
+        //Finalizing queue adds system history item, so this is no longer relevant
+        //log.debug("Waiting until status updater has picked up finished task and added item to history");
+        //await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
+        log.debug("Waiting until container is finalized");
+        await().until(TestingUtils.containerIsFinalized(mockUser, container), is(true));
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
         assertThat(exited.exitCode(), is("1"));
-        assertThat(exited.status(), is("Failed"));
+        assertThat(exited.status(), is(PersistentWorkflowUtils.FAILED));
     }
 
     @Test
     @DirtiesContext
     public void testEntrypointIsPreserved() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -796,30 +812,29 @@ public class CommandLaunchIntegrationTest {
         final Command command = commandService.create(commandToCreate);
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        await().until(containerIsRunning(container), is(false));
-        await().until(containerHasLogPaths(container.databaseId())); // Thus we know it has been finalized
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, container), is(false));
+        await().until(TestingUtils.containerHasLogPaths(containerService, container.databaseId())); // Thus we know it has been finalized
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
-        assertThat(exited.status(), is(not("Failed")));
+        assertThat(exited.status(), not(startsWith(PersistentWorkflowUtils.FAILED)));
         assertThat(exited.exitCode(), is("0"));
     }
 
     @Test
     @DirtiesContext
     public void testEntrypointIsRemoved() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -835,19 +850,18 @@ public class CommandLaunchIntegrationTest {
         final Command command = commandService.create(commandToCreate);
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        await().until(containerIsRunning(container), is(false));
-        await().until(containerHasLogPaths(container.databaseId())); // Thus we know it has been finalized
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, container), is(false));
+        await().until(TestingUtils.containerHasLogPaths(containerService, container.databaseId())); // Thus we know it has been finalized
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
@@ -859,7 +873,7 @@ public class CommandLaunchIntegrationTest {
     @DirtiesContext
     public void testContainerWorkingDirectory() throws Exception {
         assumeThat(SystemUtils.IS_OS_WINDOWS_7, is(false));
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         CLIENT.pull("busybox:latest");
 
@@ -876,18 +890,17 @@ public class CommandLaunchIntegrationTest {
                 .build());
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        await().until(containerIsRunning(container), is(false));
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, container), is(false));
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
@@ -897,7 +910,7 @@ public class CommandLaunchIntegrationTest {
     @Test
     @DirtiesContext
     public void testDeleteCommandWhenDeleteImageAfterLaunchingContainer() throws Exception {
-        assumeThat(canConnectToDocker(), is(true));
+        assumeThat(TestingUtils.canConnectToDocker(CLIENT), is(true));
 
         final String imageName = "xnat/testy-test";
         final String resourceDir = Paths.get(ClassLoader.getSystemResource("commandLaunchTest").toURI()).toString().replace("%20", " ");
@@ -907,30 +920,26 @@ public class CommandLaunchIntegrationTest {
 
         final List<Command> commands = dockerService.saveFromImageLabels(imageName);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
         final Command command = commands.get(0);
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
-        final Container container = containerService.resolveCommandAndLaunchContainer(wrapper.id(), Collections.<String, String>emptyMap(), mockUser);
+
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
+                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
-        await().until(containerIsRunning(container), is(false));
-
+        await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, container), is(false));
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
 
         dockerService.removeImageById(imageId, true);
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-        TestTransaction.start();
+        TestingUtils.commitTransaction();
 
         try {
             dockerService.getImage(imageId);
@@ -949,18 +958,6 @@ public class CommandLaunchIntegrationTest {
 
     }
 
-    @SuppressWarnings("deprecation")
-    private String[] readFile(final String outputFilePath) throws IOException {
-        return readFile(new File(outputFilePath));
-    }
-
-    @SuppressWarnings("deprecation")
-    private String[] readFile(final File file) throws IOException {
-        if (!file.canRead()) {
-            throw new IOException("Cannot read output file " + file.getAbsolutePath());
-        }
-        return FileUtils.readFileToString(file).split("\\n");
-    }
 
     private void printContainerLogs(final Container container) throws IOException {
         printContainerLogs(container, "main");
@@ -976,104 +973,10 @@ public class CommandLaunchIntegrationTest {
             final String[] containerLogPathComponents = containerLogPath.split("/");
             final String containerLogName = containerLogPathComponents[containerLogPathComponents.length - 1];
             log.info("Displaying contents of {} for {} container {} {}.", containerLogName, containerTypeForLogs, container.databaseId(), container.containerId());
-            final String[] logLines = readFile(containerLogPath);
+            final String[] logLines = TestingUtils.readFile(containerLogPath);
             for (final String logLine : logLines) {
                 log.info("\t{}", logLine);
             }
         }
-    }
-
-    private CustomTypeSafeMatcher<File> pathEndsWith(final String filePathEnd) {
-        final String description = "Match a file path if it ends with " + filePathEnd;
-        return new CustomTypeSafeMatcher<File>(description) {
-            @Override
-            protected boolean matchesSafely(final File item) {
-                return item == null && filePathEnd == null ||
-                        item != null && item.getAbsolutePath().endsWith(filePathEnd);
-            }
-        };
-    }
-
-    private Callable<Boolean> containerHasStarted(final Container container) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                try {
-                    if (swarmMode) {
-                        final Service serviceResponse = CLIENT.inspectService(container.serviceId());
-                        final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
-                        if (tasks.size() != 1) {
-                            return false;
-                        }
-                        final Task task = tasks.get(0);
-                        final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
-                        if (serviceTask.hasNotStarted()) {
-                            return false;
-                        }
-                        return true;
-                    } else {
-                        final ContainerInfo containerInfo = CLIENT.inspectContainer(container.containerId());
-                        return (!containerInfo.state().status().equals("created"));
-                    }
-                } catch (ContainerNotFoundException ignored) {
-                    // Ignore exception. If container is not found, it is not running.
-                    return false;
-                }
-            }
-        };
-    }
-
-    private Callable<Boolean> containerIsRunning(final Container container) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                try {
-                    if (swarmMode) {
-                        final Service serviceResponse = CLIENT.inspectService(container.serviceId());
-                        final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
-                        for (final Task task : tasks) {
-                            final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
-                            if (serviceTask.isExitStatus()) {
-                                return false;
-                            } else if (serviceTask.status().equals("running")) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    } else {
-                        final ContainerInfo containerInfo = CLIENT.inspectContainer(container.containerId());
-                        return containerInfo.state().running();
-                    }
-                } catch (ContainerNotFoundException ignored) {
-                    // Ignore exception. If container is not found, it is not running.
-                    return false;
-                }
-            }
-        };
-    }
-
-    private Callable<Boolean> containerHasLogPaths(final long containerDbId) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                final Container container = containerService.get(containerDbId);
-                return container.logPaths().size() > 0;
-            }
-        };
-    }
-
-    private Callable<Boolean> containerHistoryHasItemFromSystem(final long containerDatabaseId) {
-        return new Callable<Boolean>() {
-            public Boolean call() throws Exception {
-                try {
-                    final Container container = containerService.get(containerDatabaseId);
-                    for (final Container.ContainerHistory historyItem : container.history()) {
-                        if (historyItem.entityType() != null && historyItem.entityType().equals("system")) {
-                            return true;
-                        }
-                    }
-                } catch (Exception ignored) {
-                    // ignored
-                }
-                return false;
-            }
-        };
     }
 }

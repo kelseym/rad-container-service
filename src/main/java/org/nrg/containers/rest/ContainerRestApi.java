@@ -6,16 +6,18 @@ import com.google.common.collect.Maps;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
+import org.nrg.containers.model.configuration.PluginVersionCheck;
 import org.nrg.containers.model.container.auto.Container;
-import org.nrg.containers.model.container.auto.Container.ContainerInput;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xapi.exceptions.InsufficientPrivilegesException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
+import org.nrg.xapi.rest.ProjectId;
 import org.nrg.xapi.rest.XapiRequestMapping;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.services.RoleHolder;
@@ -34,17 +36,17 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
+import java.text.ParseException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
+import static org.nrg.xdat.security.helpers.AccessLevel.Authenticated;
 import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
@@ -69,7 +71,14 @@ public class ContainerRestApi extends AbstractXapiRestController {
         this.containerService = containerService;
     }
 
-    @XapiRequestMapping(value = "/containers", method = GET)
+    @XapiRequestMapping(value = "/containers/version", method = GET, restrictTo = Authenticated)
+    @ApiOperation(value = "Check XNAT Version compatibility.")
+    @ResponseBody
+    public PluginVersionCheck versionCheck() {
+        return containerService.checkXnatVersion();
+    }
+
+    @XapiRequestMapping(value = "/containers", method = GET, restrictTo = Authenticated)
     @ApiOperation(value = "Get all Containers")
     @ResponseBody
     public List<Container> getAll(final @RequestParam(required = false) Boolean nonfinalized) {
@@ -81,10 +90,10 @@ public class ContainerRestApi extends AbstractXapiRestController {
         });
     }
 
-    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET)
+    @XapiRequestMapping(value = "/projects/{project}/containers", method = GET, restrictTo = Authenticated)
     @ApiOperation(value = "Get all Containers by project")
     @ResponseBody
-    public List<Container> getAll(final @PathVariable String project,
+    public List<Container> getAll(final @PathVariable @ProjectId String project,
                                   final @RequestParam(required = false) Boolean nonfinalized) {
         return Lists.transform(containerService.getAll(nonfinalized, project), new Function<Container, Container>() {
             @Override
@@ -139,8 +148,6 @@ public class ContainerRestApi extends AbstractXapiRestController {
     public void getLogs(final @PathVariable String containerId,
                         final HttpServletResponse response)
             throws IOException, InsufficientPrivilegesException, NoDockerServerException, DockerServerException, NotFoundException {
-        UserI userI = XDAT.getUserDetails();
-
         final Map<String, InputStream> logStreams = containerService.getLogStreams(containerId);
 
         try(final ZipOutputStream zipStream = new ZipOutputStream(response.getOutputStream()) ) {
@@ -149,13 +156,7 @@ public class ContainerRestApi extends AbstractXapiRestController {
                 final ZipEntry entry = new ZipEntry(streamName);
                 try {
                     zipStream.putNextEntry(entry);
-
-                    byte[] readBuffer = new byte[2048];
-                    int amountRead;
-
-                    while ((amountRead = inputStream.read(readBuffer)) > 0) {
-                        zipStream.write(readBuffer, 0, amountRead);
-                    }
+                    writeToOuputStream(inputStream, zipStream);
                 } catch (IOException e) {
                     log.error("There was a problem writing %s to the zip. " + e.getMessage(), streamName);
                 }
@@ -176,24 +177,82 @@ public class ContainerRestApi extends AbstractXapiRestController {
     @ResponseBody
     public ResponseEntity<String> getLog(final @PathVariable String containerId,
                                          final @PathVariable @ApiParam(allowableValues = "stdout, stderr") String file)
-            throws NoDockerServerException, DockerServerException, NotFoundException {
-        UserI userI = XDAT.getUserDetails();
-        final InputStream logStream = containerService.getLogStream(containerId, file);
-        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
+            throws NoDockerServerException, DockerServerException, NotFoundException, IOException {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, getAttachmentDisposition(containerId + "-" + file, "log"))
+                .header(HttpHeaders.CONTENT_TYPE, TEXT)
+                .body(doGetLog(containerId, file, null, String.class));
+    }
+
+    @XapiRequestMapping(value = "/containers/{containerId}/logSince/{file}", method = GET)
+    @ApiOperation(value = "Get Container logs", notes = "Return either stdout or stderr logs")
+    @ResponseBody
+    public ResponseEntity<Map> pollLog(final @PathVariable String containerId,
+                                          final @PathVariable @ApiParam(allowableValues = "stdout, stderr") String file,
+                                          final @RequestParam(required = false) Long since)
+            throws NoDockerServerException, DockerServerException, NotFoundException, IOException {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, JSON)
+                .body(doGetLog(containerId, file, since, Map.class));
+    }
+
+    private <T> T doGetLog(String containerId, String file, Long since, Class<T> type)
+            throws NotFoundException, IOException {
+
+        final UserI user = XDAT.getUserDetails();
+        Integer sinceInt = null;
         try {
-            while ((length = logStream.read(buffer)) != -1) {
-                byteArrayOutputStream.write(buffer, 0, length);
-            }
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, getAttachmentDisposition(containerId + "-" + file, "log"))
-                    .header(HttpHeaders.CONTENT_TYPE, TEXT)
-                    .body(byteArrayOutputStream.toString(StandardCharsets.UTF_8.name()));
-        } catch (IOException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            sinceInt = since == null ? null : Math.toIntExact(since);
+        } catch (ArithmeticException e) {
+            log.error("Unable to convert since parameter to integer", e);
         }
 
+        long queryTime = System.currentTimeMillis() / 1000L;
+        final InputStream logStream = containerService.getLogStream(containerId, file, true, sinceInt);
+
+        String logContent;
+        long lastTime = -1;
+        if (logStream == null) {
+            logContent = "";
+        } else {
+            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            writeToOuputStream(logStream, byteArrayOutputStream);
+            logContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+            if (!(logStream instanceof FileInputStream) &&
+                    !containerService.isFailedOrComplete(containerService.get(containerId), user)) {
+                // If it's not a file and the container/service is still active (aka still potentially logging),
+                // determine what to pass for "since" querying based on timestamps
+                String[] lines = logContent.replaceAll("(\\n)+$", "").split("\\n");
+                String lastLine;
+                try {
+                    if (lines.length == 0 ||
+                            StringUtils.isBlank(lastLine = lines[lines.length-1].replaceAll(" .*",""))) {
+                        throw new ParseException(null, 0);
+                    }
+                    lastTime = Instant.parse(lastLine).plus(1L, ChronoUnit.SECONDS).getEpochSecond();
+                } catch (ParseException e) {
+                    lastTime = since == null ? queryTime : since;
+                }
+                // Strip the timestamps
+                logContent = logContent.replaceAll("(^|\\n)\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z ","\n");
+            }
+        }
+        return type.cast( (type == String.class) ? logContent : logJsonMap(logContent, lastTime) );
+    }
+
+    private Map<String, Object> logJsonMap(String content, Long lastTime) {
+        Map<String, Object> jsonMap = new HashMap<>();
+        jsonMap.put("content", content);
+        jsonMap.put("timestamp", lastTime);
+        return jsonMap;
+    }
+
+    private void writeToOuputStream(InputStream inputStream, OutputStream outputStream) throws IOException {
+        byte[] buffer = new byte[1024];
+        int length;
+        while ((length = inputStream.read(buffer)) > 0) {
+            outputStream.write(buffer, 0, length);
+        }
     }
 
     private static String getAttachmentDisposition(final String name, final String extension) {

@@ -1,8 +1,92 @@
 # Changelog
 
-## 1.5.2
+## 2.0.2
 
-Not yet released.
+Not yet released
+
+### Features
+
+* Use ActiveMQ queues for staging (command resolution and container launch) and finalizing containers.
+* Update UI not to wait for command resolution and container launch before returning to user, add additional details to workflow entry so user still receives all information.
+* Revamp bulk launch UI to be faster to load (only serializes first session) and show limited info to user about derived inputs. Previous bulklauncher UI would serialize all XNAT objects for all selected sessions before rendering the "launch container" form. It did this serializing, which can be very slow depending on how deep the preresolution needs to go into the hierarchy, while the user was waiting. Additionally, the resulting UI form only displayed inputs for the first session, which can be misleading or even incorrect (e.g., setting a scan id or file name as in pyradiomics) - it only worked if you want the same setting for all sessions.
+* Allow admin to define docker swarm constraints (which may be user-settable).
+* Automatically restart containers that are killed due to docker swarm nodes being removed from swarm.
+* Live logging display
+* Add support for command inputs that resolve to mulitple values (e.g., multiple T1 scans)
+
+
+### Bugfixes
+
+* [CS-440][] Fixed an issue which caused guest users to see authentication dialog on public projects.
+* Remove @Audited annotations to prevent database size explosion
+* Mannually set swarm service names since auto-generated ones can clash on high throughput
+* Allow removal of inputs, outputs, wrappers, external inputs, derived inputs, and output handlers from command.json via API
+
+
+### Other
+
+[CS-440]: https://issues.xnat.org/browse/CS-440
+
+
+
+## 2.0.1
+
+[Released 2019-04-06](https://github.com/NrgXnat/container-service/releases/tag/2.0.1).
+
+### Bugfixes
+
+* [CS-554][] Prevent illegal characters from being used in command input names.
+* [XNAT-5876][] Prevent Container Service from overwriting bugfix for character handling in core XNAT
+
+
+[CS-554]: https://issues.xnat.org/browse/CS-554
+[XNAT-5876]: https://issues.xnat.org/browse/XNAT-5876
+
+
+
+## 2.0.0
+
+[Released 2019-04-04](https://github.com/NrgXnat/container-service/releases/tag/2.0.0).
+
+### Features
+
+* [CS-29][] Enable output handlers to have type "`Assessor`". If a command output points to an assessor XML, the output handler can now upload that XML and create the assessor object in XNAT.
+* [CS-542][] Add `"container-user"` to Docker Server settings. This allows you to specify the user within the container as whom the command should be run. If you specify nothing, the process within the container is run as root or whatever user settings are defined on the image (which is unchanged from the current behavior).
+* [CS-543][] Add support for setting container user as `"containerUser=username"` in prefs-init.ini config file. This value is only used when no other server settings exist in the database, such as initial deployment. 
+* [CS-545][] Project owners can now view project-specific Container History tables in the Project Settings UI.
+* [CS-547][] Replacement keys in Setup and Wrapup command line strings are now resolved with parent container input values.
+* [CS-549][] Refactor the container launch API output to support complex parent-child-grandchild relationships between inputs, then adjust the UI to use the new API.
+
+### Bugfixes
+
+* [XNAT-5785][] Ouputs that contain directories now maintain directory in resource. (Previous behavior would dump contents of directory into resource.)
+* [CS-515][] Adds a version checker to warn users if plugin is not installed on a compatible version of XNAT. 
+* [CS-541][] Use Path Translation setting when creating mounts for setup and wrapup commands.
+* [CS-544][] Project level setup and wrapup command statuses now appear in project level history table.
+* [CS-546][] Fixed Assessor as Command Input functionality.
+* [CS-550][] Fixed rendering of long elements in container history table.
+* [CS-557][] Fix element display for command table headers in Admin UI.
+* [CS-558][] Fix labeling bug in bulk launcher from project data listing.
+
+[CS-29]: https://issues.xnat.org/browse/CS-29
+[XNAT-5785]: https://issues.xnat.org/browse/XNAT-5785
+[CS-515]: https://issues.xnat.org/browse/CS-515
+[CS-541]: https://issues.xnat.org/browse/CS-541
+[CS-542]: https://issues.xnat.org/browse/CS-542
+[CS-543]: https://issues.xnat.org/browse/CS-543
+[CS-544]: https://issues.xnat.org/browse/CS-544
+[CS-545]: https://issues.xnat.org/browse/CS-545
+[CS-546]: https://issues.xnat.org/browse/CS-546
+[CS-547]: https://issues.xnat.org/browse/CS-547
+[CS-549]: https://issues.xnat.org/browse/CS-549
+[CS-550]: https://issues.xnat.org/browse/CS-550
+[CS-557]: https://issues.xnat.org/browse/CS-557
+[CS-558]: https://issues.xnat.org/browse/CS-558
+
+ 
+## 1.6.0
+
+[Released 2018-10-29](https://github.com/NrgXnat/container-service/releases/tag/1.6.0).
 
 ### Features
 
@@ -35,7 +119,8 @@ Not yet released.
         * Command-line
 * Include a container's database ID in the `LaunchReport` returned after launch.
 * Add a new container status: "Finalizing". This is set when the container has finished and container service begins its finalization process (uploading outputs and logs). When finalization is finished, the status is set to "Complete" as before.
-* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.)
+* [CS-535][] Add command and wrapper input property `sensitive`. This boolean property, when set to true, will cause the value to be masked out in the container history UI and REST API. (The value is still present in the database and may be printed to logs.) In addition, if *any* inputs on a command / wrapper are marked as sensitive, the `raw` type inputs—i.e. those input values that were sent by the user and saved before any processing—will not be shown in the UI or API. The reason being that 1. if sensitive information exists, it may be leaked by raw inputs; 2. we have no way for the user to tell us anything about the raw inputs, including their potential sensitivity; thus 3. we can't guarantee any of their values are not sensitive.
+* Add another rest endpoint for `/commands/available` that takes project in path instead of query: `/projects/{project}/commands/available?xsiType={whatever}` instead of `/commands/available?project={project}&xsiType={whatever}`.
 
 ### Bugfixes
 
@@ -45,13 +130,20 @@ Not yet released.
 * History UI now fetches logs by container database id, not container docker id (or service id).
 * [CS-520][] Can get containers by service ID. This applies to the internal `ContainerService.get(String id)` as well as REST `/xapi/containers/{id}`.
 * Prevent generating duplicate `ContainerEntityHistory` items (and audit table entries) by improving equality check.
+* [CS-409] Derived input values now sent to the launch UI as ID or name or value, rather than URI. Conversely, derived input values *can* be interpreted as URIs or IDs or names, whereas before each type of derived input had its own special undocumented requirement for an input value to be interpreted.
+* [CS-531][] CommandWrapperEntity derivedInputs, externalInputs, and outputHandlers and CommandEntity inputs, outputs, wrappers, and mounts sorted by primary table id.
+* Fix `null` label on `XnatFile` objects. Now label is the same as name.
 
 ### Other
 
+* [CS-537][] References to the dummy TransportService removed, as it was a placeholder for functionality implemented elsewhere.
 * [CS-480][] Deprecate `Container.ContainerMount.inputFiles`. Having a list of input files for a mount is nice during command resolution, but it doesn't make much sense to store that list. As of now no new containers will have anything in their mounts' `inputFiles`. Old containers will still report their values for `inputFiles` for now, but this may change in the future.
+* Remove the constant log entries for event polling. We get it. You're checking for events.
+
 
 [CS-80]: https://issues.xnat.org/browse/CS-80
 [CS-407]: https://issues.xnat.org/browse/CS-407
+[CS-409]: https://issues.xnat.org/browse/CS-409
 [CS-457]: https://issues.xnat.org/browse/CS-457
 [CS-458]: https://issues.xnat.org/browse/CS-458
 [CS-480]: https://issues.xnat.org/browse/CS-480
@@ -64,7 +156,10 @@ Not yet released.
 [CS-510]: https://issues.xnat.org/browse/CS-510
 [CS-513]: https://issues.xnat.org/browse/CS-513
 [CS-520]: https://issues.xnat.org/browse/CS-520
+[CS-531]: https://issues.xnat.org/browse/CS-531
 [CS-535]: https://issues.xnat.org/browse/CS-535
+[CS-537]: https://issues.xnat.org/browse/CS-537
+[CS-547]: https://issues.xnat.org/browse/CS-547
 
 ## 1.5.1
 
@@ -460,7 +555,7 @@ Not yet released.
 [CS-242]: https://issues.xnat.org/browse/CS-242
 
 ### Bugfixes
-* [CS-257][] Hide “Create Automation�? button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
+* [CS-257][] Hide "Create Automation" button from project owners if they do not have admin privileges. Depends on [XNAT-5044](https://issues.xnat.org/browse/XNAT-5044) change.
 * Fix: container -> container entity should use existing entity in db if it exists
 * Fix: Initialize container entity when retrieving by container id
 

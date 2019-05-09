@@ -1,6 +1,7 @@
 package org.nrg.containers.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
@@ -23,7 +24,7 @@ import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerMountResolutionException;
 import org.nrg.containers.exceptions.IllegalInputException;
 import org.nrg.containers.exceptions.UnauthorizedException;
-import org.nrg.containers.model.command.auto.Command;
+import org.nrg.containers.model.command.auto.*;
 import org.nrg.containers.model.command.auto.Command.CommandInput;
 import org.nrg.containers.model.command.auto.Command.CommandMount;
 import org.nrg.containers.model.command.auto.Command.CommandOutput;
@@ -34,16 +35,13 @@ import org.nrg.containers.model.command.auto.Command.CommandWrapperInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperOutput;
 import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
 import org.nrg.containers.model.command.auto.Command.Input;
-import org.nrg.containers.model.command.auto.PreresolvedInputTreeNode;
-import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommandMount;
 import org.nrg.containers.model.command.auto.ResolvedCommand.ResolvedCommandOutput;
-import org.nrg.containers.model.command.auto.ResolvedCommandMount;
-import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
-import org.nrg.containers.model.command.auto.ResolvedInputValue;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.command.entity.CommandType;
+import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
 import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.xnat.Assessor;
@@ -56,6 +54,7 @@ import org.nrg.containers.model.xnat.XnatFile;
 import org.nrg.containers.model.xnat.XnatModelObject;
 import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
+import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.services.DockerService;
 import org.nrg.framework.constants.Scope;
 import org.nrg.framework.exceptions.NotFoundException;
@@ -76,12 +75,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -104,19 +98,25 @@ import static org.nrg.containers.model.command.entity.CommandWrapperInputType.SU
 public class CommandResolutionServiceImpl implements CommandResolutionService {
 
     private final CommandService commandService;
+
+    private final DockerServerService dockerServerService;
     private final ConfigService configService;
     private final SiteConfigPreferences siteConfigPreferences;
     private final ObjectMapper mapper;
     private final DockerService dockerService;
 
+    public static final String swarmConstraintsTag = "swarm-constraints";
+
     @Autowired
     public CommandResolutionServiceImpl(final CommandService commandService,
                                         final ConfigService configService,
+                                        final DockerServerService dockerServerService,
                                         final SiteConfigPreferences siteConfigPreferences,
                                         final ObjectMapper mapper,
                                         final DockerService dockerService) {
         this.commandService = commandService;
         this.configService = configService;
+        this.dockerServerService = dockerServerService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.mapper = mapper;
         this.dockerService = dockerService;
@@ -165,54 +165,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
     }
 
     @Override
-    public PartiallyResolvedCommand preResolve(final ConfiguredCommand configuredCommand, final Map<String, String> inputValues, final UserI userI)
+    public PartiallyResolvedCommand preResolve(final ConfiguredCommand configuredCommand,
+                                               final Map<String, String> inputValues,
+                                               final UserI userI)
             throws CommandResolutionException, UnauthorizedException {
         final CommandResolutionHelper helper = new CommandResolutionHelper(configuredCommand, inputValues, userI);
         return helper.preResolve();
-    }
-
-    @Override
-    public ResolvedCommand resolve(final long commandId,
-                                   final String wrapperName,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(commandId, wrapperName), inputValues, userI);
-    }
-
-    @Override
-    @Nonnull
-    public ResolvedCommand resolve(final long wrapperId,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(wrapperId), inputValues, userI);
-    }
-
-    @Override
-    @Nonnull
-    public ResolvedCommand resolve(final String project,
-                                   final long wrapperId,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, wrapperId), inputValues, userI)
-                .toBuilder()
-                .project(project)
-                .build();
-    }
-
-    @Override
-    public ResolvedCommand resolve(final String project,
-                                   final long commandId,
-                                   final String wrapperName,
-                                   final Map<String, String> inputValues,
-                                   final UserI userI)
-            throws NotFoundException, CommandResolutionException, UnauthorizedException {
-        return resolve(commandService.getAndConfigure(project, commandId, wrapperName), inputValues, userI)
-                .toBuilder()
-                .project(project)
-                .build();
     }
 
     // @Override
@@ -254,6 +212,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private final CommandWrapper commandWrapper;
         private final ConfiguredCommand command;
+        private Map<String, Boolean> loadTypesMap = null;
 
         private final UserI userI;
         private final Pattern jsonpathSubstringPattern;
@@ -286,19 +245,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
             // Set up JSONPath search contexts
             final Configuration c = Configuration.defaultConfiguration().addOptions(Option.ALWAYS_RETURN_LIST);
-            try {
-                final String commandJson = mapper.writeValueAsString(command);
-                commandJsonpathSearchContext = JsonPath.using(c).parse(commandJson);
-            } catch (JsonProcessingException e) {
-                throw new CommandResolutionException("Could not serialize command to JSON.", e);
-            }
-
-            try {
-                final String commandWrapperJson = mapper.writeValueAsString(commandWrapper);
-                commandWrapperJsonpathSearchContext = JsonPath.using(c).parse(commandWrapperJson);
-            } catch (JsonProcessingException e) {
-                throw new CommandResolutionException("Could not serialize command to JSON.", e);
-            }
+            commandJsonpathSearchContext = serializeToJson(command, c);
+            commandWrapperJsonpathSearchContext = serializeToJson(commandWrapper, c);
 
             this.userI = userI;
             this.jsonpathSubstringPattern = Pattern.compile(JSONPATH_SUBSTRING_REGEX);
@@ -310,14 +258,26 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             this.resolvedSetupCommands = new ArrayList<>();
         }
 
-        @Nonnull
-        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees()
-                throws CommandResolutionException, UnauthorizedException {
-            return resolveInputTrees(Maps.<String, String>newHashMap());
+        private DocumentContext serializeToJson(Object command, Configuration c)
+                throws CommandResolutionException {
+            try {
+                final String commandJson = mapper.writeValueAsString(command);
+                return JsonPath.using(c).parse(commandJson);
+            } catch (JsonProcessingException e) {
+                throw new CommandResolutionException("Could not serialize command to JSON.", e);
+            }
         }
 
         @Nonnull
-        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees(final Map<String, String> resolvedValuesByReplacementKey)
+        private List<ResolvedInputTreeNode<? extends Input>> preResolveInputTrees()
+                throws CommandResolutionException, UnauthorizedException {
+            return resolveInputTrees(Maps.<String, String>newHashMap(), null, false);
+        }
+
+        @Nonnull
+        private List<ResolvedInputTreeNode<? extends Input>> resolveInputTrees(final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                                               @Nullable final Map<String, String> resolvedCommandLineValuesByReplacementKey,
+                                                                               boolean resolveFully)
                 throws CommandResolutionException, UnauthorizedException {
             final List<PreresolvedInputTreeNode<? extends Input>> rootNodes = initializePreresolvedInputTree();
 
@@ -325,13 +285,14 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             for (final PreresolvedInputTreeNode<? extends Input> rootNode : rootNodes) {
                 log.debug("Resolving input tree with root input \"{}\".", rootNode.input().name());
                 final ResolvedInputTreeNode<? extends Input> resolvedRootNode =
-                        resolveNode(rootNode, null, resolvedValuesByReplacementKey);
+                        resolveNode(rootNode, null, resolvedInputValuesByReplacementKey, resolveFully);
                 log.debug("Done resolving input tree with root input \"{}\".", rootNode.input().name());
                 resolvedInputTrees.add(resolvedRootNode);
 
-                log.debug("Searching input tree for uniquely resolved values.");
-                resolvedValuesByReplacementKey.putAll(findUniqueResolvedValues(resolvedRootNode));
-                log.debug("Done searching input tree for uniquely resolved values.");
+                log.debug("Searching input tree for resolved values.");
+                findResolvedValues(resolvedRootNode, resolvedInputValuesByReplacementKey,
+                        resolvedCommandLineValuesByReplacementKey, resolveFully);
+                log.debug("Done searching input tree for resolved values.");
 
             }
 
@@ -344,14 +305,19 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.info("Resolving command wrapper inputs.");
             log.debug("{}", commandWrapper);
 
-            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees();
+            // Since we're pre-resolving, we want to work as quickly as possible (user is waiting for UI form). As such,
+            // we determine how deeply we need to resolve the XNAT objects for JSON serialization
+            this.loadTypesMap = getTypeLoadMapForWrapper();
+            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = preResolveInputTrees();
 
             return PartiallyResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
                     .wrapperName(commandWrapper.name())
+                    .wrapperLabel(commandWrapper.label())
                     .wrapperDescription(commandWrapper.description())
                     .commandId(command.id())
                     .commandName(command.name())
+                    .commandLabel(command.label())
                     .commandDescription(command.description())
                     .image(command.image())
                     .type(command.type())
@@ -367,7 +333,9 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.debug("{}", command);
 
             final Map<String, String> resolvedInputValuesByReplacementKey = Maps.newHashMap();
-            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = resolveInputTrees(resolvedInputValuesByReplacementKey);
+            final Map<String, String> resolvedCommandLineValuesByReplacementKey = Maps.newHashMap();
+            final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees =
+                    resolveInputTrees(resolvedInputValuesByReplacementKey, resolvedCommandLineValuesByReplacementKey, true);
 
             log.debug("Checking for missing required inputs.");
             final List<String> missingRequiredInputs = findMissingRequiredInputs(resolvedInputTrees);
@@ -379,12 +347,32 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 );
             }
             final List<ResolvedCommandOutput> resolvedCommandOutputs = resolveOutputs(resolvedInputTrees, resolvedInputValuesByReplacementKey);
-            final String resolvedCommandLine = resolveCommandLine(resolvedInputTrees);
+            final String resolvedCommandLine = resolveCommandLine(resolvedCommandLineValuesByReplacementKey);
             final Map<String, String> resolvedEnvironmentVariables = resolveEnvironmentVariables(resolvedInputValuesByReplacementKey);
             final String resolvedWorkingDirectory = resolveWorkingDirectory(resolvedInputValuesByReplacementKey);
             final Map<String, String> resolvedPorts = resolvePorts(resolvedInputValuesByReplacementKey);
             final List<ResolvedCommandMount> resolvedCommandMounts = resolveCommandMounts(resolvedInputTrees, resolvedInputValuesByReplacementKey);
             final List<ResolvedCommand> resolvedWrapupCommands = resolveWrapupCommands(resolvedCommandOutputs, resolvedCommandMounts);
+
+            // Populate setup & wrap-up commands with environment variables from parent command
+            List<ResolvedCommand> populatedSetupCommands = new ArrayList<>();
+            List<ResolvedCommand> populatedWrapupCommands = new ArrayList<>();
+            for(ResolvedCommand setup : resolvedSetupCommands){
+                populatedSetupCommands.add(
+                        setup.toBuilder()
+                             .addEnvironmentVariables(resolvedEnvironmentVariables)
+                             .commandLine(resolveCommandLine(resolvedCommandLineValuesByReplacementKey, setup.commandLine()))
+                             .build());
+            }
+            for(ResolvedCommand wrapup : resolvedWrapupCommands){
+                populatedWrapupCommands.add(
+                        wrapup.toBuilder()
+                              .addEnvironmentVariables(resolvedEnvironmentVariables)
+                              .commandLine(resolveCommandLine(resolvedCommandLineValuesByReplacementKey, wrapup.commandLine()))
+                              .build());
+            }
+
+            final List<String> swarmConstraints = resolveSwarmConstraints();
 
             final ResolvedCommand resolvedCommand = ResolvedCommand.builder()
                     .wrapperId(commandWrapper.id())
@@ -404,11 +392,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     .workingDirectory(resolvedWorkingDirectory)
                     .ports(resolvedPorts)
                     .mounts(resolvedCommandMounts)
-                    .setupCommands(resolvedSetupCommands)
-                    .wrapupCommands(resolvedWrapupCommands)
+                    .setupCommands(populatedSetupCommands)
+                    .wrapupCommands(populatedWrapupCommands)
                     .reserveMemory(command.reserveMemory())
                     .limitMemory(command.limitMemory())
                     .limitCpu(command.limitCpu())
+                    .swarmConstraints(swarmConstraints)
                     .build();
 
             log.info("Done resolving command.");
@@ -418,8 +407,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private ResolvedCommand resolveSpecialCommandType(final CommandType type,
                                                           final String image,
-                                                          final String inputMountPath,
-                                                          final String outputMountPath,
+                                                          final String inputMountXnatHostPath,
+                                                          final String outputMountXnatHostPath,
                                                           final String parentSourceObjectName)
                 throws CommandResolutionException {
             final String typeStringForLog;
@@ -448,7 +437,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             }
 
             log.debug("Done resolving {} command {} from image {}.", typeStringForLog, command.name(), image);
-            return ResolvedCommand.fromSpecialCommandType(command, inputMountPath, outputMountPath, parentSourceObjectName);
+
+            return ResolvedCommand.fromSpecialCommandType(command, inputMountXnatHostPath, getMountContainerHostPath(inputMountXnatHostPath),
+                    outputMountXnatHostPath, getMountContainerHostPath(outputMountXnatHostPath), parentSourceObjectName);
+        }
+
+        private String getMountContainerHostPath(final String mountXnatHostPath) {
+            return (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
+                    mountXnatHostPath.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
+                    mountXnatHostPath;
         }
 
         private void checkForIllegalInputValue(final String inputName,
@@ -467,9 +464,75 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             }
         }
 
+        private void addTypeDependencies(CommandWrapperInput input, Set<String> typesUsed) {
+            typesUsed.add(input.type());
+
+            // Very hacky way to determine if the JSON matcher needs any deeper object types
+            String matcher = input.matcher();
+            if (matcher == null) {
+                return;
+            }
+            matcher = matcher.toLowerCase();
+            Set<String> matcherTypes = new HashSet<>();
+            for (String type : CommandWrapperInputType.names()) {
+                if (matcher.contains(type.toLowerCase())) {
+                    matcherTypes.add(type);
+                }
+            }
+            typesUsed.addAll(matcherTypes);
+        }
+
+        /**
+         * In order to speed up command pre-resolution, we create a map of which XNAT object types we need in the
+         * serialized JSON to build the UI.
+         * @return the map
+         */
+        @Nonnull
+        private Map<String, Boolean> getTypeLoadMapForWrapper() {
+            Map<String, Boolean> loadMap = Maps.newHashMap();
+
+            // Determine the input types for the wrapper
+            Set<String> typesUsed = new HashSet<>();
+            for (CommandWrapperInput input : commandWrapper.externalInputs()) {
+                addTypeDependencies(input, typesUsed);
+            }
+            for (CommandWrapperInput input : commandWrapper.derivedInputs()) {
+                addTypeDependencies(input, typesUsed);
+            }
+
+            // TODO we should determine the parent of file/files/directory and resources and only load those
+            // Load input types plus any dependencies
+            if (typesUsed.contains(CommandWrapperInputType.FILE.getName()) ||
+                    typesUsed.contains(CommandWrapperInputType.FILES.getName()) ||
+                    typesUsed.contains(CommandWrapperInputType.DIRECTORY.getName())) {
+                // We need to load everything
+                for (String type : CommandWrapperInputType.names()) {
+                    loadMap.put(type, true);
+                }
+            } else {
+                // We only need to load each input and its parents
+                for (String type : CommandWrapperInputType.names()) {
+                    loadMap.put(type, typesUsed.contains(type));
+                }
+                if (typesUsed.contains(CommandWrapperInputType.RESOURCE.getName())) {
+                    loadMap.put(CommandWrapperInputType.ASSESSOR.getName(), true);
+                    loadMap.put(CommandWrapperInputType.SCAN.getName(), true);
+                }
+                if (typesUsed.contains(CommandWrapperInputType.SCAN.getName()) ||
+                        typesUsed.contains(CommandWrapperInputType.ASSESSOR.getName())) {
+                    loadMap.put(CommandWrapperInputType.SESSION.getName(), true);
+                    if (typesUsed.contains(CommandWrapperInputType.SESSION.getName())) {
+                        loadMap.put(CommandWrapperInputType.SUBJECT.getName(), true);
+                    }
+                }
+            }
+            return loadMap;
+        }
+
         @Nonnull
         private ResolvedInputValue resolveExternalWrapperInput(final CommandWrapperExternalInput input,
-                                                               final Map<String, String> resolvedInputValuesByReplacementKey)
+                                                               final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                               final boolean loadFiles)
                 throws CommandResolutionException, UnauthorizedException, IllegalInputException {
             log.info("Resolving input \"{}\".", input.name());
 
@@ -516,22 +579,28 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     try {
                         if (type.equals(PROJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Project.class, Project.uriToModelObject(preload), Project.idToModelObject(userI, preload));
+                                    Project.class, Project.uriToModelObject(loadFiles, loadTypesMap, preload),
+                                    Project.idToModelObject(userI, loadFiles, loadTypesMap, preload));
                         } else if (type.equals(SUBJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Subject.class, Subject.uriToModelObject(), Subject.idToModelObject(userI));
+                                    Subject.class, Subject.uriToModelObject(loadFiles, loadTypesMap),
+                                    Subject.idToModelObject(userI, loadFiles, loadTypesMap));
                         } else if (type.equals(SESSION.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Session.class, Session.uriToModelObject(), Session.idToModelObject(userI));
+                                    Session.class, Session.uriToModelObject(loadFiles, loadTypesMap),
+                                    Session.idToModelObject(userI, loadFiles, loadTypesMap));
                         } else if (type.equals(SCAN.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Scan.class, Scan.uriToModelObject(), Scan.idToModelObject(userI));
+                                    Scan.class, Scan.uriToModelObject(loadFiles, loadTypesMap),
+                                    Scan.idToModelObject(userI, loadFiles, loadTypesMap));
                         } else if (type.equals(ASSESSOR.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Assessor.class, Assessor.uriToModelObject(), Assessor.idToModelObject(userI));
+                                    Assessor.class, Assessor.uriToModelObject(loadFiles, loadTypesMap),
+                                    Assessor.idToModelObject(userI, loadFiles, loadTypesMap));
                         } else {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Resource.class, Resource.uriToModelObject(), Resource.idToModelObject(userI));
+                                    Resource.class, Resource.uriToModelObject(loadFiles, loadTypesMap),
+                                    Resource.idToModelObject(userI, loadFiles, loadTypesMap));
                         }
                     } catch (CommandInputResolutionException e) {
                         // When resolveXnatObject throws this, it does not have the input object in scope
@@ -541,12 +610,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     if (xnatModelObject == null) {
                         log.debug("Could not instantiate XNAT object from value.");
+                        resolvedValue = null;
                     } else {
                         resolvedModelObject = xnatModelObject;
-                        final String resolvedXnatObjectUri = xnatModelObject.getUri();
-                        if (resolvedXnatObjectUri != null) {
-                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectUri);
-                            resolvedValue = resolvedXnatObjectUri;
+                        final String resolvedXnatObjectValue = xnatModelObject.getExternalWrapperInputValue();
+                        if (resolvedXnatObjectValue != null) {
+                            log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectValue);
+                            resolvedValue = resolvedXnatObjectValue;
                         }
                     }
                 } else if (type.equals(CONFIG.getName())) {
@@ -646,6 +716,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             final String defaultValue = input.defaultValue();
             final String runtimeValue = inputValues.get(input.name());
             final String valueCouldContainId = runtimeValue != null ? runtimeValue : defaultValue;
+            final boolean multiple = input.multiple();
 
             final XnatModelObject parentXnatObject = parent.xnatModelObject();
             final String parentJson = parent.jsonValue();
@@ -708,7 +779,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             "files",
                             "name",
                             resolvedMatcher,
-                            new TypeRef<List<XnatFile>>() {});
+                            new TypeRef<List<XnatFile>>() {},
+                            multiple);
                     if (files == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -718,7 +790,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new Function<XnatFile, String>() {
                                     @Override
                                     public String apply(final XnatFile xnatFile) {
-                                        return xnatFile.getUri();
+                                        return xnatFile.getDerivedWrapperInputValue();
                                     }
                                 }));
                     }
@@ -740,16 +812,16 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 } else {
                     final Project project;
                     if (parentType.equals(SUBJECT.getName())) {
-                        project = ((Subject)parentXnatObject).getProject(userI);
+                        project = ((Subject)parentXnatObject).getProject(userI, false, null);
                     } else if (parentType.equals(SESSION.getName())) {
-                        project = ((Session)parentXnatObject).getProject(userI);
+                        project = ((Session)parentXnatObject).getProject(userI, false, null);
                     } else if (parentType.equals(SCAN.getName())) {
-                        project = ((Scan)parentXnatObject).getProject(userI);
+                        project = ((Scan)parentXnatObject).getProject(userI, false, null);
                     } else {
-                        project = ((Assessor)parentXnatObject).getProject(userI);
+                        project = ((Assessor)parentXnatObject).getProject(userI, false, null);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
-                    resolvedValues = Collections.singletonList(project.getUri());
+                    resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
                 }
             } else if (type.equals(SUBJECT.getName())) {
                 if (parentXnatObject == null) {
@@ -762,13 +834,36 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(PROJECT.getName())) {
-                        final List<Subject> childList = matchChildFromParent(
+                        List<Subject> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "subjects",
                                 "id",
                                 resolvedMatcher,
-                                new TypeRef<List<Subject>>() {});
+                                new TypeRef<List<Subject>>() {},
+                                multiple);
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {},
+                                    multiple);
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {},
+                                    multiple);
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -777,13 +872,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Subject, String>() {
                                 @Override
                                 public String apply(final Subject subject) {
-                                    return subject.getUri();
+                                    return subject.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
                     } else {
                         // Parent is session
-                        final Subject subject = ((Session)parentXnatObject).getSubject(userI);
+                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, false, null);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(subject);
                         resolvedValues = Collections.singletonList(subject.getUri());
                     }
@@ -799,13 +894,36 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedValues = Collections.emptyList();
                 } else {
                     if (parentType.equals(SUBJECT.getName())) {
-                        final List<Session> childList = matchChildFromParent(
+                        List<Session> childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "sessions",
                                 "id",
                                 resolvedMatcher,
-                                new TypeRef<List<Session>>() {});
+                                new TypeRef<List<Session>>() {},
+                                multiple);
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a label
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "label",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {},
+                                    multiple);
+                        }
+                        if (childList == null) {
+                            // It is also possible that the value they gave us contains a URI
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "uri",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {},
+                                    multiple);
+                        }
                         if (childList == null) {
                             resolvedXnatObjects = Collections.emptyList();
                             resolvedValues = Collections.emptyList();
@@ -814,17 +932,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Session, String>() {
                                 @Override
                                 public String apply(final Session session) {
-                                    return session.getUri();
+                                    return session.getDerivedWrapperInputValue();
                                 }
                             }));
                         }
                     } else if (parentType.equals(ASSESSOR.getName())) {
-                        final Session session = ((Assessor)parentXnatObject).getSession(userI);
+                        final Session session = ((Assessor)parentXnatObject).getSession(userI, false, null);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     } else {
                         // Parent is scan
-                        final Session session = ((Scan)parentXnatObject).getSession(userI);
+                        final Session session = ((Scan)parentXnatObject).getSession(userI, false, null);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     }
@@ -839,13 +957,25 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Scan> childList = matchChildFromParent(
+                    List<Scan> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "scans",
                             "id",
                             resolvedMatcher,
-                            new TypeRef<List<Scan>>() {});
+                            new TypeRef<List<Scan>>() {},
+                            multiple);
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "scans",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Scan>>() {},
+                                multiple);
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -854,7 +984,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Scan, String>() {
                             @Override
                             public String apply(final Scan scan) {
-                                return scan.getUri();
+                                return scan.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -869,13 +999,36 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    final List<Assessor> childList = matchChildFromParent(
+                    List<Assessor> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "assessors",
-                            "id",
+                            "label",
                             resolvedMatcher,
-                            new TypeRef<List<Assessor>>() {});
+                            new TypeRef<List<Assessor>>() {},
+                            multiple);
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains an ID
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "id",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {},
+                                multiple);
+                    }
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "assessors",
+                                "uri",
+                                resolvedMatcher,
+                                new TypeRef<List<Assessor>>() {},
+                                multiple);
+                    }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
                         resolvedValues = Collections.emptyList();
@@ -884,7 +1037,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Assessor, String>() {
                             @Override
                             public String apply(final Assessor assessor) {
-                                return assessor.getUri();
+                                return assessor.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -901,15 +1054,16 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    // Try matching the value they gave us against the resource URI.
+                    // Try matching the value they gave us against the resource label.
                     // That's what the UI will send.
                     List<Resource> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "resources",
-                            "uri",
+                            "label",
                             resolvedMatcher,
-                            new TypeRef<List<Resource>>() {});
+                            new TypeRef<List<Resource>>() {},
+                            multiple);
                     if (childList == null) {
                         // It is also possible that the value they gave us contains an ID
                         childList = matchChildFromParent(
@@ -918,8 +1072,19 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 "resources",
                                 "id",
                                 resolvedMatcher,
-                                new TypeRef<List<Resource>>() {
-                                });
+                                new TypeRef<List<Resource>>() {},
+                                multiple);
+                    }
+                    if (childList == null) {
+                        // It is also possible that the value they gave us contains a URI
+                        childList = matchChildFromParent(
+                                parentJson,
+                                valueCouldContainId,
+                                "resources",
+                                "URI",
+                                resolvedMatcher,
+                                new TypeRef<List<Resource>>() {},
+                                multiple);
                     }
                     if (childList == null) {
                         resolvedXnatObjects = Collections.emptyList();
@@ -929,7 +1094,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Resource, String>() {
                             @Override
                             public String apply(final Resource resource) {
-                                return resource.getUri();
+                                return resource.getDerivedWrapperInputValue();
                             }
                         }));
                     }
@@ -1128,7 +1293,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         @Nonnull
         private ResolvedInputTreeNode<? extends Input> resolveNode(final PreresolvedInputTreeNode<? extends Input> preresolvedInputNode,
                                                                    final @Nullable ResolvedInputValue parentValue,
-                                                                   final Map<String, String> resolvedInputValuesByReplacementKey)
+                                                                   final Map<String, String> resolvedInputValuesByReplacementKey,
+                                                                   final boolean loadFiles)
                 throws CommandResolutionException, UnauthorizedException {
             if (log.isDebugEnabled()) {
                 log.debug("Resolving input \"" + preresolvedInputNode.input().name() + "\"" +
@@ -1142,7 +1308,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             if (thisNode.input() instanceof CommandWrapperExternalInput) {
                 resolvedInputValues = Collections.singletonList(
                         resolveExternalWrapperInput((CommandWrapperExternalInput)thisNode.input(),
-                                resolvedInputValuesByReplacementKey)
+                                resolvedInputValuesByReplacementKey, loadFiles)
                 );
             } else if (thisNode.input() instanceof CommandWrapperDerivedInput) {
                 if (parentValue == null) {
@@ -1176,7 +1342,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                         final Map<String, String> copyOfResolvedInputValuesByReplacementKey = Maps.newHashMap(resolvedInputValuesByReplacementKey);
                         copyOfResolvedInputValuesByReplacementKey.put(thisNode.input().replacementKey(), resolvedInputValue.value());
-                        resolvedChildNodes.add(resolveNode(child, resolvedInputValue, copyOfResolvedInputValuesByReplacementKey));
+                        resolvedChildNodes.add(resolveNode(child, resolvedInputValue, copyOfResolvedInputValuesByReplacementKey, loadFiles));
                     }
                     resolvedValuesAndChildren.add(ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren.create(resolvedInputValue, resolvedChildNodes));
                 } else {
@@ -1192,12 +1358,14 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             return thisNode;
         }
 
-        @Nonnull
-        private Map<String, String> findUniqueResolvedValues(final ResolvedInputTreeNode<? extends Input> node) {
-            // Collect any unique values into the resolvedValuesByReplacementKey map
-            final Map<String, String> resolvedValuesByReplacementKey = Maps.newHashMap();
+        private void findResolvedValues(final ResolvedInputTreeNode<? extends Input> node,
+                                        final Map<String, String> resolvedInputValuesByReplacementKey,
+                                        @Nullable final Map<String, String> resolvedCommandLineValuesByReplacementKey,
+                                        final boolean resolveFully)
+                throws CommandResolutionException {
 
             final List<ResolvedInputTreeValueAndChildren> resolvedValueAndChildren = node.valuesAndChildren();
+            Input input = node.input();
             if (resolvedValueAndChildren.size() == 1) {
                 // This node has a single value, so we can add it to the map of resolved values by replacement key
                 final ResolvedInputTreeValueAndChildren singleValue = resolvedValueAndChildren.get(0);
@@ -1205,65 +1373,91 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         node.input().name(), singleValue.resolvedValue().value());
 
                 final String valueNotNull = singleValue.resolvedValue().value() == null ? "" : singleValue.resolvedValue().value();
+                final String replacementKey = node.input().replacementKey();
                 log.debug("Storing value \"{}\" by replacement key \"{}\".", valueNotNull, node.input().replacementKey());
-                resolvedValuesByReplacementKey.put(node.input().replacementKey(), valueNotNull);
+                resolvedInputValuesByReplacementKey.put(replacementKey, valueNotNull);
 
-                // Recursively check if child values are unique, and bubble up their maps.
+                if (resolvedCommandLineValuesByReplacementKey != null) {
+                    if (input instanceof CommandInput) {
+                        final String commandLineValue = getValueForCommandLine((CommandInput) input, valueNotNull);
+                        log.debug("Storing command-line value \"{}\" by replacement key \"{}\".", commandLineValue, input.replacementKey());
+                        resolvedCommandLineValuesByReplacementKey.put(replacementKey, commandLineValue);
+                    } else {
+                        log.debug("Input \"{}\" is not a command input. Not getting command-line value.", input.name());
+                    }
+                }
+
+                // Recursively check child values, and bubble up their maps.
                 final List<ResolvedInputTreeNode<? extends Input>> children = singleValue.children();
                 if (children != null) {
                     for (final ResolvedInputTreeNode<? extends Input> child : children) {
                         log.debug("Checking child input \"{}\".", child.input().name());
-                        resolvedValuesByReplacementKey.putAll(findUniqueResolvedValues(child));
+                        findResolvedValues(child, resolvedInputValuesByReplacementKey,
+                                resolvedCommandLineValuesByReplacementKey, resolveFully);
                     }
+                }
+            } else if (input instanceof CommandWrapperDerivedInput && ((CommandWrapperDerivedInput) input).multiple()) {
+                // Collect DerivedInput values and values for its CommandInput commandInputName children,
+                // throw error if other types of children or otherwise invalid (which shouldn't happen bc of
+                // command.json validation)
+                final List<String> commandInputChildrenValues = new ArrayList<>();
+                CommandInput ci = ResolvedCommand.collectCommandInputChildrenOfMultipleDerivedInput((CommandWrapperDerivedInput) input,
+                        resolvedValueAndChildren, commandInputChildrenValues);
+
+                String values = String.join(" ", commandInputChildrenValues);
+                resolvedInputValuesByReplacementKey.put(ci.replacementKey(), values);
+                resolvedInputValuesByReplacementKey.put(input.replacementKey(), values);
+
+                if (resolvedCommandLineValuesByReplacementKey != null) {
+                    // Handle command-line parsing
+                    String prefix = "";
+                    String suffix = "";
+                    String delimiter;
+                    CommandInputEntity.MultipleDelimiter multipleDelimiter =
+                            CommandInputEntity.MultipleDelimiter.getByName(ci.multipleDelimiter());
+                    switch (multipleDelimiter) {
+                        case QUOTED_SPACE:
+                            delimiter = " ";
+                            prefix = "'";
+                            suffix = "'";
+                            break;
+                        case SPACE:
+                            delimiter = " ";
+                            break;
+                        case COMMA:
+                            delimiter = ",";
+                            break;
+                        case FLAG:
+                            delimiter = " " + StringUtils.defaultIfBlank(ci.commandLineFlag(), " ") +
+                                    StringUtils.defaultIfBlank(ci.commandLineSeparator(), " ");
+                            break;
+                        default:
+                            // Should never happen per CommandInputEntity.MultipleDelimiter.getByName
+                            throw new CommandResolutionException("Invalid multiple-delimiter for \"" + input.name() + "\"");
+                    }
+
+                    resolvedCommandLineValuesByReplacementKey.put(ci.replacementKey(),
+                            getValueForCommandLine(ci,
+                                    prefix + String.join(delimiter, commandInputChildrenValues) + suffix));
                 }
             } else {
                 // This node has multiple values, so we can't add any uniquely resolved values to the map
-                log.debug("Input \"{}\" does not have a uniquely resolved value.", node.input().name());
-            }
-
-            return resolvedValuesByReplacementKey;
-        }
-
-        @Nonnull
-        private Map<String, String> findUniqueResolvedCommandLineValues(final ResolvedInputTreeNode<? extends Input> node) {
-            // Collect any unique values into the resolvedValuesByReplacementKey map
-            final Map<String, String> resolvedValuesByReplacementKey = Maps.newHashMap();
-
-            final List<ResolvedInputTreeValueAndChildren> resolvedValueAndChildren = node.valuesAndChildren();
-            if (resolvedValueAndChildren.size() == 1) {
-                // This node has a single value, so we can add it to the map of resolved values by replacement key
-                final ResolvedInputTreeValueAndChildren singleValue = resolvedValueAndChildren.get(0);
-                log.debug("Input \"{}\" has a unique resolved value: \"{}\".",
-                        node.input().name(), singleValue.resolvedValue().value());
-
-                if (node.input() instanceof CommandInput) {
-                    final String commandLineValue = getValueForCommandLine((CommandInput) node.input(), singleValue.resolvedValue().value());
-                    log.debug("Storing command-line value \"{}\" by replacement key \"{}\".", commandLineValue, node.input().replacementKey());
-                    resolvedValuesByReplacementKey.put(node.input().replacementKey(), commandLineValue);
+                String message = "Input \"" + node.input().name() + "\" does not have a unique, resolved value and " +
+                        "multiple = true is not set.";
+                if (resolveFully) {
+                    // we're resolving for real, throw exception
+                    throw new CommandResolutionException(message);
                 } else {
-                    log.debug("Input \"{}\" is not a command input. Not getting command-line value.", node.input().name());
+                    // we're preresolving
+                    log.debug(message);
                 }
-
-                // Recursively check if child values are unique, and bubble up their maps.
-                final List<ResolvedInputTreeNode<? extends Input>> children = singleValue.children();
-                if (children != null) {
-                    for (final ResolvedInputTreeNode<? extends Input> child : children) {
-                        log.debug("Checking child input \"{}\".", child.input().name());
-                        resolvedValuesByReplacementKey.putAll(findUniqueResolvedCommandLineValues(child));
-                    }
-                }
-            } else {
-                // This node has multiple values, so we can't add any uniquely resolved values to the map
-                log.debug("Input \"{}\" does not have a uniquely resolved value.", node.input().name());
             }
-
-            return resolvedValuesByReplacementKey;
         }
 
         @Nonnull
         private String getValueForCommandLine(final CommandInput input, final String resolvedInputValue) {
             log.debug("Resolving command-line value.");
-            if (resolvedInputValue == null) {
+            if (StringUtils.isBlank(resolvedInputValue)) {
                 log.debug("Input value is null. Using value \"\" on the command line.");
                 return "";
             }
@@ -1345,16 +1539,33 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             return null;
         }
 
+        @Nonnull
+        private String getMatcherFromValue(final String valueMatchProperty, final String value, final boolean multiple) {
+            if (StringUtils.isBlank(value)) return "";
+
+            // Parse runtime value / default value as array if multiple = true
+            if (multiple) {
+                try {
+                    // Test that "value" is an array
+                    mapper.readValue(value, new TypeReference<List<String>>() {});
+                    return String.format("@.%s in %s", valueMatchProperty, value);
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+            return String.format("@.%s == '%s'", valueMatchProperty, value);
+        }
+
         @Nullable
         private <T extends XnatModelObject> List<T> matchChildFromParent(final String parentJson,
                                                                          final String value,
                                                                          final String childKey,
                                                                          final String valueMatchProperty,
                                                                          final String matcherFromInput,
-                                                                         final TypeRef<List<T>> typeRef) {
-            final String matcherFromValue = StringUtils.isNotBlank(value) ?
-                    String.format("@.%s == '%s'", valueMatchProperty, value) :
-                    "";
+                                                                         final TypeRef<List<T>> typeRef,
+                                                                         final boolean multiple) {
+
+            final String matcherFromValue = getMatcherFromValue(valueMatchProperty, value, multiple);
             final boolean hasValueMatcher = StringUtils.isNotBlank(matcherFromValue);
             final boolean hasInputMatcher = StringUtils.isNotBlank(matcherFromInput);
             final String fullMatcher;
@@ -1413,6 +1624,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     try {
                         newModelObject = uriToModelObject.apply((ArchiveItemURI) uri);
                     } catch (Throwable e) {
+                    	log.error("",e);
                         final String message = String.format("Could not instantiate %s with URI %s.", modelName, value);
                         log.error(message);
                         throw new CommandInputResolutionException(message, value);
@@ -1510,7 +1722,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 return resolvedOutputs;
             }
 
-            final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName = Maps.newHashMap();
+            final Map<String, List<CommandWrapperOutput>> wrapperOutputsByHandledCommandOutputName = new HashMap<>();
             final Map<String, CommandWrapperOutput> wrapperOutputsByName = new HashMap<>();
             if (commandWrapper.outputHandlers() != null) {
                 for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
@@ -1526,6 +1738,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
             }
 
+            final Map<String, ResolvedCommandOutput> resolvedCommandOutputsByOutputHandlerName = new HashMap<>();
             for (final CommandOutput commandOutput : command.outputs()) {
                 final List<ResolvedCommandOutput> resolvedOutputList = resolveCommandOutput(commandOutput, resolvedInputTrees, resolvedInputValuesByReplacementKey,
                         wrapperOutputsByHandledCommandOutputName, wrapperOutputsByName);
@@ -1534,9 +1747,21 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
 
                 for (final ResolvedCommandOutput resolvedCommandOutput : resolvedOutputList) {
-                    log.debug("Adding resolved output \"{}\" to resolved command.", resolvedCommandOutput.name());
-                    resolvedOutputs.add(resolvedCommandOutput);
+                    log.debug("Finished with resolved output \"{}\".", resolvedCommandOutput.name());
+                    resolvedCommandOutputsByOutputHandlerName.put(resolvedCommandOutput.fromOutputHandler(), resolvedCommandOutput);
                 }
+            }
+
+            // Add resolved outputs in the order of the output handlers
+            for (final CommandWrapperOutput commandWrapperOutput : commandWrapper.outputHandlers()) {
+                final ResolvedCommandOutput resolvedCommandOutput = resolvedCommandOutputsByOutputHandlerName.get(commandWrapperOutput.name());
+                if (resolvedCommandOutput == null) {
+                    log.debug("Command wrapper output handler {} has no resolved output. Is... is this an error?", commandWrapperOutput.name());
+                    continue;
+                }
+
+                log.debug("Adding resolved output \"{}\" to resolved command.", resolvedCommandOutput.name());
+                resolvedOutputs.add(resolvedCommandOutput);
             }
 
             log.info("Done resolving command outputs.");
@@ -1696,6 +1921,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         .viaWrapupCommand(commandOutputHandler.viaWrapupCommand())
                         .path(resolveTemplate(commandOutput.path(), resolvedInputValuesByReplacementKey))
                         .label(resolveTemplate(commandOutputHandler.label(), resolvedInputValuesByReplacementKey))
+                        .format(resolveTemplate(commandOutputHandler.format(), resolvedInputValuesByReplacementKey))
                         .build());
                 outputHasAtLeastOneLegitHandler = true;
             }
@@ -1704,21 +1930,20 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         }
 
         @Nonnull
-        private String resolveCommandLine(final @Nonnull List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees)
+        private String resolveCommandLine(final @Nonnull Map<String, String> resolvedInputCommandLineValuesByReplacementKey)
                 throws CommandResolutionException {
-            log.info("Resolving command-line string.");
+            return resolveCommandLine(resolvedInputCommandLineValuesByReplacementKey, command.commandLine());
+        }
 
-            // Look through the input tree, and find any command inputs that have uniquely resolved values
-            final Map<String, String> resolvedInputCommandLineValuesByReplacementKey = Maps.newHashMap();
-            for (final ResolvedInputTreeNode<? extends Input> node : resolvedInputTrees) {
-                log.debug("Finding command-line values for input tree with root \"{}\".", node.input().name());
-                resolvedInputCommandLineValuesByReplacementKey.putAll(findUniqueResolvedCommandLineValues(node));
-                log.debug("Done finding command-line values for input tree with root \"{}\".", node.input().name());
-            }
+        @Nonnull
+        private String resolveCommandLine(final @Nonnull Map<String, String> resolvedInputCommandLineValuesByReplacementKey,
+                                          String commandLine)
+                throws CommandResolutionException {
+            log.info("Resolving command-line string: ", commandLine);
 
             // Resolve the command-line string using the resolved command-line values
             log.debug("Using resolved command-line values to resolve command-line template string.");
-            final String resolvedCommandLine = resolveTemplate(command.commandLine(), resolvedInputCommandLineValuesByReplacementKey);
+            final String resolvedCommandLine = resolveTemplate(commandLine, resolvedInputCommandLineValuesByReplacementKey);
 
             log.info("Done resolving command-line string.");
             log.debug("Command-line string: {}", resolvedCommandLine);
@@ -2072,10 +2297,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             // TODO transporting is currently a no-op, and the code is simpler if we don't pretend that we are doing something here.
 
             // Translate paths from XNAT prefix to container host prefix
-            final String containerHostPath =
-                    (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
-                            pathToMount.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
-                            pathToMount;
+            final String containerHostPath = getMountContainerHostPath(pathToMount);
             log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, containerHostPath);
             resolvedCommandMountBuilder.containerHostPath(containerHostPath);
 
@@ -2238,6 +2460,61 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
             }
             return null;
+        }
+
+        @Nullable
+        private List<String> resolveSwarmConstraints() {
+            DockerServerBase server;
+            try {
+                server = dockerServerService.getServer();
+            } catch (NotFoundException e) {
+                log.error(e.getMessage(), e);
+                return null;
+            }
+            if (!server.swarmMode()) {
+                return null;
+            }
+            List<DockerServerBase.DockerServerSwarmConstraint> constraints = server.swarmConstraints();
+            if (constraints == null || constraints.isEmpty()) {
+                return null;
+            }
+
+            log.debug("Checking for swarm node constraints");
+            List<String> constraintsList = new ArrayList<>();
+
+            // Get user inputs
+            Map<String, String> userConstraintsMap = null;
+            String constraintsJson = inputValues.get(swarmConstraintsTag);
+            if (constraintsJson != null) {
+                try {
+                    List<LaunchUi.LaunchUiServerConstraintSelected> userConstraints = mapper.readValue(constraintsJson,
+                            new TypeReference<List<LaunchUi.LaunchUiServerConstraintSelected>>() {});
+                    userConstraintsMap = new HashMap<>();
+                    for (LaunchUi.LaunchUiServerConstraintSelected c : userConstraints) {
+                        userConstraintsMap.put(c.attribute(), c.value());
+                    }
+
+                } catch (IOException e) {
+                    log.error(e.getMessage(), e);
+                }
+            }
+
+            // Populate list from user inputs & server "defaults"
+            for (DockerServerBase.DockerServerSwarmConstraint constraint : constraints) {
+                if (constraint.userSettable() && userConstraintsMap != null) {
+                    // If the constraint is user settable, only add it if we have non-empty values from user input map
+                    // don't default to first value or whatever, just let Swarm do its default thing
+                    String value = userConstraintsMap.get(constraint.attribute());
+                    if (StringUtils.isNotBlank(value)) {
+                        constraintsList.add(constraint.asStringConstraint(value));
+                    }
+                } else {
+                    constraintsList.add(constraint.asStringConstraint());
+                }
+            }
+
+            constraintsList = constraintsList.isEmpty() ? null : constraintsList;
+            return constraintsList;
         }
     }
 

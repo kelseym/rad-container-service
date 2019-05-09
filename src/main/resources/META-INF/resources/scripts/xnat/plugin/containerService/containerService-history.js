@@ -1,5 +1,5 @@
 /*
- * web: containerServices-siteAdmin.js
+ * web: containerServices-history.js
  * XNAT http://www.xnat.org
  * Copyright (c) 2005-2017, Washington University School of Medicine and Howard Hughes Medical Institute
  * All Rights Reserved
@@ -101,15 +101,15 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
     function sortHistoryData(context) {
 
-
         var URL = (context === 'site') ?
             getCommandHistoryUrl() :
             getProjectHistoryUrl(context);
 
         return XNAT.xhr.getJSON(URL)
             .success(function (data) {
+
                 if (data.length) {
-                    // sort data by ID
+                    // sort data by ID.
                     data = data.sort(function (a, b) {
                         return (a.id > b.id) ? 1 : -1
                     });
@@ -128,8 +128,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         }
                     });
 
-                    // copy the history listing into an object for individual reference
+                    // copy the history listing into an object for individual reference. Add the context value.
                     data.forEach(function (historyEntry) {
+                        // data.filter(function(entry){ return entry.id === historyEntry.id })[0].context = historyTable.context;
+                        historyEntry.context = historyTable.context;
                         containerHistory[historyEntry.id] = historyEntry;
                     });
 
@@ -148,13 +150,9 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         if (mLen) {
             for (i = 0; i < mLen; i++) {
                 var inputMount = mounts[i]['xnat-host-path'];
-                if (inputMount === undefined) continue;
-                var ind = inputMount.indexOf("/data/archive/");
-                if (ind == -1) {
-                    continue;
-                } else {
-                    inputMount = inputMount.substr(ind+14);
-                }
+				// TODO this is bad - assumes that archive dir is always "archive" (used to assume /data/archive)
+                if (inputMount === undefined || !inputMount.includes("/archive/")) continue;
+				inputMount = inputMount.replace(/.*\/archive\//,'');
                 var inputMountEls = inputMount.split('/');
                 project = inputMountEls[0];
                 found = 1;
@@ -203,19 +201,51 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             table: {
                 classes: 'highlight hidden',
                 on: [
-                    ['click', 'a.view-history', viewHistoryDialog]
+                    ['click', 'a.view-container-history', viewHistoryDialog]
                 ]
             },
             trs: function (tr, data) {
                 tr.id = data.id;
                 addDataAttrs(tr, {filter: '0'});
             },
-            sortable: 'command, status, user, DATE, ROOTELEMENT',
-            filter: 'command, user, DATE, ROOTELEMENT',
+            sortable: 'id, command, user, DATE, ROOTELEMENT, status',
+            filter: 'id, command, user, DATE, ROOTELEMENT, status',
             items: {
                 // by convention, name 'custom' columns with ALL CAPS
                 // 'custom' columns do not correspond directly with
                 // a data item
+                id: {
+                    label: 'ID',
+                    th: { style: { width: '100px' }},
+                    td: { style: { width: '100px' }},
+                    filter: function(table){
+                        return spawn('div.center', [ XNAT.ui.input({
+                            element: {
+                                placeholder: 'Filter',
+                                size: '9',
+                                on: { keyup: function(){
+                                    var FILTERCLASS = 'filter-id';
+                                    var selectedValue = parseInt(this.value);
+                                    $dataRows = $dataRows.length ? $dataRows : $$(table).find('tbody').find('tr');
+                                    if (!selectedValue && selectedValue.toString() !== '0') {
+                                        $dataRows.removeClass(FILTERCLASS);
+                                    }
+                                    else {
+                                        $dataRows.addClass(FILTERCLASS).filter(function(){
+                                            // remove zero-padding
+                                            var queryId = parseInt($(this).find('td.id .sorting').html()).toString();
+                                            return (queryId.indexOf(selectedValue) >= 0);
+                                        }).removeClass(FILTERCLASS)
+                                    }
+                                } }
+                            }
+
+                        }).element ])
+                    },
+                    apply: function(){
+                        return '<i class="hidden sorting">'+ zeroPad(this.id, 8) +'</i>'+ this.id.toString();
+                    }
+                },
                 DATE: {
                     label: 'Date',
                     th: {className: 'container-launch'},
@@ -298,23 +328,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     }
                 },
-                // image: {
-                //     label: 'Image',
-                //     filter: true, // add filter: true to individual items to add a filter,
-                //     apply: function () {
-                //         return this['docker-image'];
-                //     }
-                // },
-                status: {
-                    label: 'Status',
-                    filter: true,
-                    apply: function () {
-                        return this['status']
-                    }
-                },
                 command: {
                     label: 'Command',
                     filter: true,
+                    td: { style: { 'max-width': '200px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     apply: function () {
                         var label, wrapper;
                         if (wrapperList && wrapperList.hasOwnProperty(this['wrapper-id'])) {
@@ -326,7 +343,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             label = this['command-line'];
                         }
 
-                        return spawn('a.view-history', {
+                        return spawn('a.view-container-history', {
                             href: '#!',
                             title: 'View command history and logs',
                             data: {'id': this.id},
@@ -344,7 +361,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                 },
                 ROOTELEMENT: {
                     label: 'Root Element',
-                    th: {style: { width: '180px' }},
+                    td: { style: { 'max-width': '145px', 'word-wrap': 'break-word', 'overflow-wrap': 'break-word' }},
                     filter: true,
                     apply: function(){
                         var rootElements = this.inputs.filter(function(input){ if (input.type === "wrapper-external") return input });
@@ -373,64 +390,137 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             return 'Unknown';
                         }
                     }
+                },
+                status: {
+                    label: 'Status',
+                    filter: true,
+                    apply: function(){
+                        return this['status'];
+                    }
                 }
-                // PROJECT: {
-                //     label: 'Project',
-                //     filter: true,
-                //     apply: function () {
-                //         var projectId = (this.project) ? this.project : getProjectIdFromMounts(this);
-                //         if (projectId) {
-                //             return spawn('a', {
-                //                 href: rootUrl('/data/projects/' + projectId + '?format=html'),
-                //                 html: projectId
-                //             });
-                //         } else {
-                //             return 'Unknown';
-                //         }
-                //     }
-                // }
             }
         }
     }
 
+    historyTable.workflowModal = function(workflowIdOrEvent) {
+        var workflowId;
+        if (workflowIdOrEvent.hasOwnProperty("data")) {
+            // this is an event
+            workflowId = workflowIdOrEvent.data.wfid;
+        } else {
+            workflowId = workflowIdOrEvent;
+        }
+        // rptModal in xdat.js
+        rptModal.call(this, workflowId, "wrk:workflowData", "wrk:workflowData.wrk_workflowData_id");
+    };
 
-    historyTable.viewLog = viewLog = function (containerId, logFile) {
-        XNAT.xhr.get({
-            url: rootUrl('/xapi/containers/' + containerId + '/logs/' + logFile),
-            success: function (data) {
-                // split the output into lines
-                data = data.split('\n');
+    var containerModalId = function(containerId, logFile) {
+        return 'container-'+containerId+'-log-'+logFile;
+    };
 
+    historyTable.refreshLog = refreshLog = function(containerId, logFile, refreshLogSince, startTime) {
+        var refreshPrm = {};
+        if (refreshLogSince) {
+            if (refreshLogSince === -1) return;
+
+            refreshPrm = {since: refreshLogSince};
+        }
+        if (!startTime) {
+            startTime = new Date();
+        } else {
+            var maxUptime = 900; //sec
+            var uptime = Math.round((new Date() - startTime)/1000);
+            if (uptime >= maxUptime) {
+                // This will stop making ajax requests until the user clicks "continue"
+                // thus allowing the session timeout to handle an expiring session
                 XNAT.dialog.open({
-                    title: 'View ' + logFile,
-                    width: 850,
-                    header: true,
-                    maxBtn: true,
-                    content: null,
-                    beforeShow: function (obj) {
-                        data.forEach(function (newLine) {
-                            obj.$modal.find('.xnat-dialog-content').append(spawn('pre', {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, newLine));
-                        });
-                    },
+                    width: 360,
+                    content: '' +
+                        '<div style="font-size:14px;">' +
+                        'Are you still watching this log?' +
+                        '<br><br>'+
+                        'Click <b>"Continue"</b> to continue tailing the log ' +
+                        'or <b>"Close"</b> to close it.' +
+                        '</div>',
                     buttons: [
                         {
-                            label: 'OK',
+                            label: 'Close',
+                            close: true,
+                            action: function(){
+                                XNAT.dialog.closeAll();
+                            }
+                        },
+                        {
+                            label: 'Continue',
                             isDefault: true,
-                            close: true
+                            close: true,
+                            action: function(){
+                                refreshLog(containerId, logFile, refreshLogSince);
+                            }
                         }
                     ]
-                })
+                });
+                return;
+            }
+        }
+
+        XNAT.xhr.getJSON({
+            url: rootUrl('/xapi/containers/' + containerId + '/logSince/' + logFile),
+            data: refreshPrm,
+            success: function (dataJson) {
+                var timestamp = dataJson.timestamp;
+                var $container = $('#' + containerModalId(containerId, logFile) + ' .xnat-dialog-body');
+                // Ensure that user didn't close modal
+                if ($container.length === 0) {
+                    return;
+                }
+                var currentScrollPos = $container.scrollTop(),
+                    containerHeight = $container[0].scrollHeight,
+                    autoScroll = $container.height() + currentScrollPos >= containerHeight; //user has not scrolled
+
+                //append content
+                var lines = dataJson.content.split('\n').filter(function(line){return line;}); // remove empty lines
+                if (lines.length > 0) {
+                    $container.find('.xnat-dialog-content').append(spawn('pre',
+                        {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, lines.join('<br/>')));
+                }
+
+                //scroll to bottom
+                if (autoScroll) $container.scrollTop($container[0].scrollHeight);
+
+                refreshLog(containerId, logFile, timestamp, startTime);
             },
             fail: function (e) {
                 errorHandler(e, 'Cannot retrieve ' + logFile);
             }
-        })
+        });
+    };
+
+    historyTable.viewLog = viewLog = function (containerId, logFile) {
+        XNAT.dialog.open({
+            title: 'View ' + logFile,
+            id: containerModalId(containerId, logFile),
+            width: 850,
+            header: true,
+            maxBtn: true,
+            content: null,
+            beforeShow: function() {
+                refreshLog(containerId, logFile);
+            },
+            buttons: [
+                {
+                    label: 'Done',
+                    isDefault: true,
+                    close: true
+                }
+            ]
+        });
     };
 
     historyTable.viewHistoryEntry = function(historyEntry) {
         var historyDialogButtons = [
             {
-                label: 'OK',
+                label: 'Done',
                 isDefault: true,
                 close: true
             }
@@ -446,31 +536,87 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         });
 
-        // add table header row
-        pheTable.tr()
-            .th({addClass: 'left', html: '<b>Key</b>'})
-            .th({addClass: 'left', html: '<b>Value</b>'});
+        var allTables = [spawn('h3', 'Container information'), pheTable.table];
 
         for (var key in historyEntry) {
-            var val = historyEntry[key], formattedVal = '';
-            if (Array.isArray(val)) {
-                var items = [];
+            var val = historyEntry[key], formattedVal = '', putInTable = true;
+
+            if (Array.isArray(val) && val.length > 0) {
+                // Display a table
+                var columns = [];
                 val.forEach(function (item) {
-                    if (typeof item === 'object') item = JSON.stringify(item);
-                    items.push(spawn('li', [spawn('code', item)]));
+                    if (typeof item === 'object') {
+                        Object.keys(item).forEach(function(itemKey){
+                            if(columns.indexOf(itemKey)===-1){
+                                columns.push(itemKey);
+                            }
+                        });
+                    }
                 });
-                formattedVal = spawn('ul', {style: {'list-style-type': 'none', 'padding-left': '0'}}, items);
+
+
+                formattedVal="<table class='xnat-table'>";
+                if (columns.length > 0) {
+                    formattedVal+="<tr>";
+                    columns.forEach(function(colName){
+                        formattedVal+="<th>"+colName+"</th>";
+                    });
+                    formattedVal+="</tr>";
+
+                    val.sort(function(obj1,obj2){
+                        // Sort by time recorded (if we have it)
+                        var date1 = Date.parse(obj1["time-recorded"]), date2 = Date.parse(obj2["time-recorded"]);
+                        return date1 - date2;
+                    });
+                } else {
+                    // skip header if we just have one column
+                    // sort alphabetically
+                    val.sort()
+                }
+
+                val.forEach(function (item) {
+                	formattedVal+="<tr>";
+                    if (typeof item === 'object') {
+                        columns.forEach(function (itemKey) {
+                            formattedVal += "<td nowrap>";
+                            var temp = item[itemKey];
+                            if (typeof temp === 'object') temp = JSON.stringify(temp);
+                            formattedVal += temp;
+                            formattedVal += "</td>";
+                        });
+                    } else {
+                        formattedVal += "<td nowrap>";
+                        formattedVal += item;
+                        formattedVal += "</td>";
+                    }
+                    formattedVal+="</tr>";
+                });
+                formattedVal+="</table>"
+                putInTable = false;
             } else if (typeof val === 'object') {
                 formattedVal = spawn('code', JSON.stringify(val));
             } else if (!val) {
                 formattedVal = spawn('code', 'false');
+            } else if (key === 'workflow-id') {
+                // Allow pulling up detailed workflow info (can contain addl info in details field)
+                var curid = '#wfmodal' + val;
+                formattedVal = spawn('a' + curid, {}, val);
+                $(document).on('click', curid, {wfid: val}, historyTable.workflowModal);
             } else {
                 formattedVal = spawn('code', val);
             }
 
-            pheTable.tr()
-                .td('<b>' + key + '</b>')
-                .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px'}}, formattedVal)]);
+            if (putInTable) {
+                pheTable.tr()
+                    .td('<b>' + key + '</b>')
+                    .td([spawn('div', {style: {'word-break': 'break-all', 'max-width': '600px', 'overflow':'auto'}}, formattedVal)]);
+            } else {
+                allTables.push(
+                    spawn('div', {style: {'word-break': 'break-all', 'overflow':'auto', 'margin-bottom': '10px', 'max-width': 'max-content'}},
+                        [spawn('div.data-table-actionsrow', {}, spawn('strong', {class: "textlink-sm data-table-action"},
+                            'Container ' + key)), formattedVal])
+                );
+            }
 
             // check logs and populate buttons at bottom of modal
             if (key === 'log-paths') {
@@ -517,7 +663,6 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     }
                 })
             }
-
         }
 
         // display history
@@ -525,8 +670,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             title: historyEntry['wrapper-name'],
             width: 800,
             scroll: true,
-            content: pheTable.table,
-            buttons: historyDialogButtons
+            content: spawn('div', allTables),
+            buttons: historyDialogButtons,
+            header: true,
+            maxBtn: true
         });
     };
 
@@ -548,20 +695,27 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         }
     };
 
+    historyTable.context = 'site';
+
     historyTable.init = historyTable.refresh = function (context) {
-        context = context || 'site';
+        if (context !== undefined) {
+            historyTable.context = context;
+        }
+        else context = 'site';
+
         wrapperList = getObject(XNAT.plugin.containerService.wrapperList || {});
 
         var $manager = $('#command-history-container'),
             _historyTable;
 
-        XNAT.ui.dialog.loading.open();
+        $manager.text("Loading...");
 
         sortHistoryData(context).done(function (data) {
             if (data.length) {
                 // sort list of container launches by execution time, descending
                 data = data.sort(function (a, b) {
-                    return (a.history[0]['time-recorded'] < b.history[0]['time-recorded']) ? 1 : -1
+                    return (a.id < b.id) ? 1 : -1
+                    // return (a.history[0]['time-recorded'] < b.history[0]['time-recorded']) ? 1 : -1
                 });
 
                 // Collect status summary info
@@ -588,9 +742,12 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     historyTable: spawnHistoryTable(data)
                 });
                 _historyTable.done(function () {
+                    function msgLength(length) {
+                        return (length > 1) ? ' Containers' : ' Container'; 
+                    }
                     var msg = (context === 'site') ?
-                        data.length + ' Containers Launched on this Site' :
-                        data.length + ' Containers Launched on '+context;
+                        data.length + msgLength(data.length) + ' Launched On This Site' :
+                        data.length + msgLength(data.length) + ' Launched For '+context;
 
                     msg += statusCountMsg;
 
@@ -602,12 +759,10 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                         ])
                     );
                     this.render($manager, 20);
-                    XNAT.ui.dialog.loading.close();
                 });
             }
             else {
                 $manager.empty().append('No history entries to display')
-                XNAT.ui.dialog.loading.close();
             }
         });
     };

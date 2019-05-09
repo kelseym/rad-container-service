@@ -28,32 +28,17 @@ import org.nrg.containers.model.container.entity.ContainerEntityMount;
 import org.nrg.containers.model.container.entity.ContainerEntityOutput;
 import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 import org.nrg.containers.model.server.docker.DockerServerEntity;
-import org.nrg.containers.services.CommandLabelService;
-import org.nrg.containers.services.CommandResolutionService;
-import org.nrg.containers.services.CommandService;
-import org.nrg.containers.services.ContainerEntityService;
-import org.nrg.containers.services.ContainerFinalizeService;
-import org.nrg.containers.services.ContainerService;
-import org.nrg.containers.services.DockerHubService;
-import org.nrg.containers.services.DockerServerEntityService;
-import org.nrg.containers.services.DockerServerService;
-import org.nrg.containers.services.DockerService;
-import org.nrg.containers.services.impl.CommandLabelServiceImpl;
-import org.nrg.containers.services.impl.CommandResolutionServiceImpl;
-import org.nrg.containers.services.impl.ContainerFinalizeServiceImpl;
-import org.nrg.containers.services.impl.ContainerServiceImpl;
-import org.nrg.containers.services.impl.DockerServerServiceImpl;
-import org.nrg.containers.services.impl.DockerServiceImpl;
-import org.nrg.containers.services.impl.HibernateContainerEntityService;
-import org.nrg.containers.services.impl.HibernateDockerServerEntityService;
+import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
+import org.nrg.containers.services.*;
+import org.nrg.containers.services.impl.*;
 import org.nrg.framework.services.ContextService;
 import org.nrg.framework.services.NrgEventService;
 import org.nrg.mail.services.MailService;
-import org.nrg.transporter.TransportService;
-import org.nrg.transporter.TransportServiceImpl;
+import org.nrg.mail.services.impl.SpringBasedMailServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.services.AliasTokenService;
+import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.services.archive.CatalogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
@@ -141,25 +126,41 @@ public class IntegrationTestConfig {
     Container launch Service and dependencies
      */
     @Bean
+    public MailService mailService() {
+        return new SpringBasedMailServiceImpl(null);
+    }
+
+    @Bean
+    public ContainerFinalizeService containerFinalizeService(final ContainerControlApi containerControlApi,
+                                                             final SiteConfigPreferences siteConfigPreferences,
+                                                             final CatalogService catalogService,
+                                                             final MailService mailService) {
+        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService,mailService);
+    }
+
+    @Bean
     public ContainerService containerService(final ContainerControlApi containerControlApi,
                                              final ContainerEntityService containerEntityService,
                                              final CommandResolutionService commandResolutionService,
+                                             final CommandService commandService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+                                             @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
-                        commandResolutionService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, executorFactoryBean);
+                        commandResolutionService, commandService, aliasTokenService, siteConfigPreferences,
+                        containerFinalizeService, mockXnatAppInfo);
     }
 
     @Bean
     public CommandResolutionService commandResolutionService(final CommandService commandService,
                                                              final ConfigService configService,
+                                                             final DockerServerService serverService,
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final ObjectMapper objectMapper,
                                                              final DockerService dockerService) {
-        return new CommandResolutionServiceImpl(commandService, configService, siteConfigPreferences, objectMapper, dockerService);
+        return new CommandResolutionServiceImpl(commandService, configService, serverService,
+                siteConfigPreferences, objectMapper, dockerService);
     }
 
     @Bean
@@ -174,20 +175,6 @@ public class IntegrationTestConfig {
     @Bean
     public DockerHubService mockDockerHubService() {
         return Mockito.mock(DockerHubService.class);
-    }
-
-    @Bean
-    public ContainerFinalizeService containerFinalizeService(final ContainerControlApi containerControlApi,
-                                                             final SiteConfigPreferences siteConfigPreferences,
-                                                             final TransportService transportService,
-                                                             final CatalogService catalogService,
-                                                             final MailService mailService) {
-        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, transportService, catalogService, mailService);
-    }
-
-    @Bean
-    public TransportService transportService() {
-        return new TransportServiceImpl();
     }
 
     @Bean
@@ -245,6 +232,7 @@ public class IntegrationTestConfig {
         bean.setHibernateProperties(properties);
         bean.setAnnotatedClasses(
                 DockerServerEntity.class,
+                DockerServerEntitySwarmConstraint.class,
                 CommandEntity.class,
                 DockerCommandEntity.class,
                 DockerSetupCommandEntity.class,

@@ -8,12 +8,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.commons.lang3.StringUtils;
+import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.model.command.entity.CommandEntity;
+import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.container.ContainerInputType;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @AutoValue
 public abstract class ResolvedCommand {
@@ -44,6 +48,7 @@ public abstract class ResolvedCommand {
     @JsonProperty("reserve-memory") @Nullable public abstract Long reserveMemory();
     @JsonProperty("limit-memory") @Nullable public abstract Long limitMemory();
     @JsonProperty("limit-cpu") @Nullable public abstract Double limitCpu();
+    @JsonProperty("swarm-constraints") @Nullable public abstract List<String> swarmConstraints();
     @JsonProperty("parent-source-object-name") @Nullable public abstract String parentSourceObjectName();
 
     @JsonProperty("external-wrapper-input-values")
@@ -103,12 +108,18 @@ public abstract class ResolvedCommand {
             final String value = (valuesAndChildren != null && !valuesAndChildren.isEmpty()) ?
                     valuesAndChildren.get(0).resolvedValue().value() :
                     null;
-            final String nonNullValue = value == null ? "null" : value;
+            String nonNullValue = value == null ? "null" : value;
             if (node.input() instanceof Command.CommandWrapperExternalInput) {
                 externalWrapperInputValuesBuilder.add(
                         ResolvedCommandInput.wrapperExternal(inputName, nonNullValue, sensitive)
                 );
             } else if (node.input() instanceof Command.CommandWrapperDerivedInput) {
+                if (((Command.CommandWrapperDerivedInput) node.input()).multiple() &&
+                        valuesAndChildren != null && !valuesAndChildren.isEmpty()) {
+                    nonNullValue = valuesAndChildren.stream()
+                            .map(v -> v.resolvedValue().value())
+                            .collect(Collectors.joining(", "));
+                }
                 derivedWrapperInputValuesBuilder.add(
                         ResolvedCommandInput.wrapperDerived(inputName, nonNullValue, sensitive)
                 );
@@ -121,6 +132,48 @@ public abstract class ResolvedCommand {
         externalWrapperInputValues = externalWrapperInputValuesBuilder.build();
         derivedWrapperInputValues = derivedWrapperInputValuesBuilder.build();
         commandInputValues = commandInputValuesBuilder.build();
+    }
+
+    @Nonnull
+    @JsonIgnore
+    public static Command.CommandInput collectCommandInputChildrenOfMultipleDerivedInput(final Command.CommandWrapperInput wrapperInput,
+                                                                                         final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> derivedInputValuesAndChildren,
+                                                                                         final List<String> commandInputChildrenValues)
+            throws CommandResolutionException {
+
+        String commandInputName = wrapperInput.providesValueForCommandInput();
+        if (StringUtils.isBlank(commandInputName)) {
+            // Shouldn't ever happen because of validation in Command.CommandWrapperDerivedInput
+            throw new CommandResolutionException("Input \"" + wrapperInput.name() + "\" is a multiple input, but it " +
+                    "does not provide values for a command input.");
+        }
+
+        Command.CommandInput ci = null;
+        for (ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren singleValue : derivedInputValuesAndChildren) {
+            List<ResolvedInputTreeNode<? extends Command.Input>> children = singleValue.children();
+            if (children.size() != 1) {
+                throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
+                        "input child element");
+            }
+            ResolvedInputTreeNode<? extends Command.Input> child = children.get(0);
+            if (!(child.input() instanceof Command.CommandInput) || !child.input().name().equals(commandInputName) ||
+                    child.valuesAndChildren().size() != 1) {
+                throw new CommandResolutionException("Invalid child for " + wrapperInput.name() +
+                        "; expecting a command input with no children named " + commandInputName);
+            } else if (ci == null) {
+                ci = (Command.CommandInput) child.input();
+            }
+            String val = child.valuesAndChildren().get(0).resolvedValue().value();
+            if (StringUtils.isNotBlank(val)) {
+                commandInputChildrenValues.add(val);
+            }
+        }
+
+        if (ci == null) {
+            throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
+                    "input child element");
+        }
+        return ci;
     }
 
     @JsonIgnore
@@ -136,6 +189,7 @@ public abstract class ResolvedCommand {
         final List<ResolvedInputTreeNode<? extends Command.Input>> flatTree = Lists.newArrayList();
         flatTree.add(node);
 
+        Command.Input input = node.input();
         final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> resolvedValueAndChildren = node.valuesAndChildren();
         if (resolvedValueAndChildren.size() == 1) {
             // This node has a single value, so we can attempt to flatten its children
@@ -148,8 +202,21 @@ public abstract class ResolvedCommand {
             } else {
                 // Input has a uniquely resolved value, but no children.
             }
+        } else if (input instanceof Command.CommandWrapperDerivedInput && ((Command.CommandWrapperDerivedInput) input).multiple()) {
+            final List<String> commandInputChildrenValues = new ArrayList<>();
+            try {
+                Command.CommandInput ci = ResolvedCommand.collectCommandInputChildrenOfMultipleDerivedInput((Command.CommandWrapperDerivedInput) input,
+                        resolvedValueAndChildren, commandInputChildrenValues);
+                ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren valueAndChildren =
+                        ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren.create(ResolvedInputValue.builder()
+                                .value(String.join(" ", commandInputChildrenValues))
+                                .build());
+                flatTree.add(ResolvedInputTreeNode.create(ci, Collections.singletonList(valueAndChildren)));
+            } catch (CommandResolutionException e) {
+                // Ignore for purposes of flattening tree
+            }
         } else {
-            // This node has multiple values, so we can't flatten its children
+            // Cannot flatten children of arbitrary input with multiple values
         }
         return flatTree;
     }
@@ -163,16 +230,20 @@ public abstract class ResolvedCommand {
     /**
      * Creates ResolvedCommands for setup and wrapup commands.
      * @param command The Command definition for the setup or wrapup command
-     * @param inputMountPath Path on the host to the input mount
-     * @param outputMountPath Path on the host to the output mount
+     * @param inputMountXnatHostPath Path on the XNAT host to the input mount
+     * @param inputMountContainerHostPath Path on the container host to the input mount
+     * @param outputMountXnatHostPath Path on the XNAT host to the output mount
+     * @param outputMountContainerHostPath Path on the container host to the output mount
      * @param parentSourceObjectName Name of the Resolved Command Mount / Container Mount (for setup commands) or
      *                               Resolved Command Output / Container Ouput (for wrapup commands) from which this
      *                               special Resolved Command is being created.
      * @return A Resolved Setup Command or Resolved Wrapup Command
      */
     public static ResolvedCommand fromSpecialCommandType(final Command command,
-                                                         final String inputMountPath,
-                                                         final String outputMountPath,
+                                                         final String inputMountXnatHostPath,
+                                                         final String inputMountContainerHostPath,
+                                                         final String outputMountXnatHostPath,
+                                                         final String outputMountContainerHostPath,
                                                          final String parentSourceObjectName) {
         return builder()
                 .wrapperId(0L)
@@ -190,15 +261,15 @@ public abstract class ResolvedCommand {
                 .addMount(ResolvedCommandMount.builder()
                         .name("input")
                         .containerPath("/input")
-                        .xnatHostPath(inputMountPath)
-                        .containerHostPath(inputMountPath)
+                        .xnatHostPath(inputMountXnatHostPath)
+                        .containerHostPath(inputMountContainerHostPath)
                         .writable(false)
                         .build())
                 .addMount(ResolvedCommandMount.builder()
                         .name("output")
                         .containerPath("/output")
-                        .xnatHostPath(outputMountPath)
-                        .containerHostPath(outputMountPath)
+                        .xnatHostPath(outputMountXnatHostPath)
+                        .containerHostPath(outputMountContainerHostPath)
                         .writable(true)
                         .build())
                 .build();
@@ -287,6 +358,7 @@ public abstract class ResolvedCommand {
         public abstract Builder reserveMemory(Long reserveMemory);
         public abstract Builder limitMemory(Long limitMemory);
         public abstract Builder limitCpu(Double limitCpu);
+        public abstract Builder swarmConstraints(List<String> swarmConstraints);
         public abstract Builder parentSourceObjectName(String parentSourceObjectName);
 
         public abstract ResolvedCommand build();
@@ -296,9 +368,11 @@ public abstract class ResolvedCommand {
     public abstract static class PartiallyResolvedCommand {
         public abstract Long wrapperId();
         public abstract String wrapperName();
+        @Nullable public abstract String wrapperLabel();
         @Nullable public abstract String wrapperDescription();
         public abstract Long commandId();
         public abstract String commandName();
+        @Nullable public abstract String commandLabel();
         @Nullable public abstract String commandDescription();
         public abstract String image();
         public abstract String type();
@@ -319,9 +393,11 @@ public abstract class ResolvedCommand {
         public static abstract class Builder {
             public abstract Builder wrapperId(Long wrapperId);
             public abstract Builder wrapperName(String wrapperDescription);
+            public abstract Builder wrapperLabel(String wrapperLabel);
             public abstract Builder wrapperDescription(String wrapperDescription);
             public abstract Builder commandId(Long commandId);
             public abstract Builder commandName(String commandDescription);
+            public abstract Builder commandLabel(String commandLabel);
             public abstract Builder commandDescription(String commandDescription);
             public abstract Builder image(String image);
             public abstract Builder type(String type);
@@ -394,6 +470,7 @@ public abstract class ResolvedCommand {
         @JsonProperty("path") @Nullable public abstract String path();
         @JsonProperty("glob") @Nullable public abstract String glob();
         @JsonProperty("label") @Nullable public abstract String label();
+        @JsonProperty("format") @Nullable public abstract String format();
         @JsonProperty("handled-by") public abstract String handledBy();
         @Nullable @JsonProperty("via-wrapup-command") public abstract String viaWrapupCommand();
 
@@ -412,6 +489,7 @@ public abstract class ResolvedCommand {
             public abstract Builder path(String path);
             public abstract Builder glob(String glob);
             public abstract Builder label(String label);
+            public abstract Builder format(String format);
             public abstract Builder handledBy(String handledBy);
             public abstract Builder viaWrapupCommand(String viaWrapupCommand);
 

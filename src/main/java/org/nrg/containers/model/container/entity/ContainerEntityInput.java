@@ -23,7 +23,7 @@ public class ContainerEntityInput {
     @Enumerated(EnumType.STRING) private ContainerInputType type;
     private String name;
     private String value;
-    private boolean sensitive;
+    private Boolean sensitive;
 
     public ContainerEntityInput() {}
 
@@ -95,11 +95,11 @@ public class ContainerEntityInput {
         this.value = value;
     }
 
-    public boolean getSensitive() {
+    public Boolean getSensitive() {
         return sensitive;
     }
 
-    public void setSensitive(final boolean sensitive) {
+    public void setSensitive(final Boolean sensitive) {
         this.sensitive = sensitive;
     }
 

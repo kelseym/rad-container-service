@@ -9,6 +9,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.nrg.containers.model.command.entity.CommandWrapperInputType;
 import org.nrg.xdat.bean.CatCatalogBean;
 import org.nrg.xdat.model.XnatAbstractresourceI;
 import org.nrg.xdat.model.XnatResourcecatalogI;
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -39,20 +41,24 @@ public class Resource extends XnatModelObject {
 
     public Resource() {}
 
-    public Resource(final ResourceURII resourceURII) {
+    public Resource(final ResourceURII resourceURII, final boolean loadFiles,
+                    final Map<String, Boolean> loadTypesMap) {
         final XnatAbstractresourceI xnatAbstractresourceI = resourceURII.getXnatResource();
         if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
             this.xnatResourcecatalog = (XnatResourcecatalog) xnatAbstractresourceI;
         }
         this.uri = resourceURII.getUri();
-        populateProperties(null);
+        populateProperties(null, loadFiles, loadTypesMap);
     }
 
-    public Resource(final XnatResourcecatalog xnatResourcecatalog) {
-        this(xnatResourcecatalog, null, null);
+    public Resource(final XnatResourcecatalog xnatResourcecatalog, final boolean loadFiles,
+                    final Map<String, Boolean> loadTypesMap) {
+        this(xnatResourcecatalog, loadFiles, loadTypesMap, null, null);
     }
 
-    public Resource(final XnatResourcecatalog xnatResourcecatalog, final String parentUri, final String rootArchivePath) {
+    public Resource(final XnatResourcecatalog xnatResourcecatalog, final boolean loadFiles,
+                    final Map<String, Boolean> loadTypesMap,
+                    final String parentUri, final String rootArchivePath) {
         this.xnatResourcecatalog = xnatResourcecatalog;
 
         if (parentUri == null) {
@@ -62,27 +68,36 @@ public class Resource extends XnatModelObject {
             this.uri = parentUri + "/resources/" + xnatResourcecatalog.getLabel();
         }
 
-        populateProperties(rootArchivePath);
+        populateProperties(rootArchivePath, loadFiles, loadTypesMap);
     }
 
-    private void populateProperties(final String rootArchivePath) {
+    private void populateProperties(final String rootArchivePath, final boolean loadFiles,
+                                    final Map<String, Boolean> loadTypesMap) {
         this.integerId = xnatResourcecatalog.getXnatAbstractresourceId();
         this.id = xnatResourcecatalog.getLabel();
         this.label = xnatResourcecatalog.getLabel();
         this.xsiType = xnatResourcecatalog.getXSIType();
-
-        final CatCatalogBean cat = xnatResourcecatalog.getCleanCatalog(rootArchivePath, true, null, null);
         this.directory = xnatResourcecatalog.getCatalogFile(rootArchivePath).getParent();
-
-        final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null, xnatResourcecatalog, true, null, null, "absolutePath");
         this.files = Lists.newArrayList();
-        for (final Object[] entry: entryDetails) {
-            // See CatalogUtils.getEntryDetails to see where all these "entry" elements come from
-            files.add(new XnatFile(this.uri, (String) entry[0], (String) entry[2], (String) entry[4], (String) entry[5], (String) entry[6], (File) entry[8]));
+
+        // Only get catalog entry details if we need them
+        if (loadFiles || (loadTypesMap != null && (loadTypesMap.get(CommandWrapperInputType.FILE.getName()) ||
+                loadTypesMap.get(CommandWrapperInputType.FILES.getName())))) {
+            final CatCatalogBean cat = xnatResourcecatalog.getCatalog(rootArchivePath);
+            final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null,
+                    xnatResourcecatalog, loadFiles, null, null, "absolutePath");
+            for (final Object[] entry : entryDetails) {
+                // Don't retrieve the actual file during preresolution
+                File file = loadFiles ? (File) entry[8] : null;
+                // See CatalogUtils.getEntryDetails to see where all these "entry" elements come from
+                files.add(new XnatFile(this.uri, (String) entry[0], (String) entry[2], (String) entry[4],
+                        (String) entry[5], (String) entry[6], file));
+            }
         }
     }
 
-    public static Function<URIManager.ArchiveItemURI, Resource> uriToModelObject() {
+    public static Function<URIManager.ArchiveItemURI, Resource> uriToModelObject(final boolean loadFiles,
+                                                                                 final Map<String, Boolean> loadTypesMap) {
         return new Function<URIManager.ArchiveItemURI, Resource>() {
             @Nullable
             @Override
@@ -94,7 +109,7 @@ public class Resource extends XnatModelObject {
 
                     if (resource != null &&
                             XnatAbstractresourceI.class.isAssignableFrom(resource.getClass())) {
-                        return new Resource((ResourceURII) uri);
+                        return new Resource((ResourceURII) uri, loadFiles, loadTypesMap);
                     }
                 }
 
@@ -103,7 +118,8 @@ public class Resource extends XnatModelObject {
         };
     }
 
-    public static Function<String, Resource> idToModelObject(final UserI userI) {
+    public static Function<String, Resource> idToModelObject(final UserI userI, final boolean loadFiles,
+                                                             final Map<String, Boolean> loadTypesMap) {
         return new Function<String, Resource>() {
             @Nullable
             @Override
@@ -114,7 +130,7 @@ public class Resource extends XnatModelObject {
                 final XnatAbstractresourceI xnatAbstractresourceI =
                         XnatAbstractresource.getXnatAbstractresourcesByXnatAbstractresourceId(s, userI, true);
                 if (xnatAbstractresourceI != null && xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                    return new Resource((XnatResourcecatalog) xnatAbstractresourceI);
+                    return new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, loadTypesMap);
                 }
                 return null;
             }

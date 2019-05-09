@@ -1,15 +1,16 @@
 package org.nrg.containers.model.container.auto;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-
-import javax.annotation.Nullable;
-
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.auto.value.AutoValue;
+import com.google.common.base.Function;
+import com.google.common.collect.*;
+import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
+import org.nrg.containers.exceptions.ContainerException;
 import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommandMount;
 import org.nrg.containers.model.container.ContainerInputType;
@@ -22,23 +23,23 @@ import org.nrg.containers.model.container.entity.ContainerMountFilesEntity;
 import org.nrg.containers.utils.JsonDateSerializer;
 import org.nrg.containers.utils.JsonStringToDateSerializer;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonGetter;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.google.auto.value.AutoValue;
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.nrg.xft.event.persist.PersistentWorkflowI;
+import org.nrg.xft.security.UserI;
+import org.nrg.xnat.utils.WorkflowUtils;
 
+import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 @AutoValue
 public abstract class Container {
     @JsonIgnore private String exitCode;
+    @JsonIgnore private List<ContainerHistory> sortedHist = null;
 
     @JsonProperty("id") public abstract long databaseId();
     @JsonProperty("command-id") public abstract long commandId();
@@ -64,18 +65,62 @@ public abstract class Container {
     @JsonProperty("env") public abstract ImmutableMap<String, String> environmentVariables();
     @JsonProperty("ports") public abstract ImmutableMap<String, String> ports();
     @JsonProperty("mounts") public abstract ImmutableList<ContainerMount> mounts();
-    @JsonProperty("inputs") public abstract ImmutableList<ContainerInput> inputs();
+    @JsonIgnore public abstract ImmutableList<ContainerInput> inputs();
     @JsonProperty("outputs") public abstract ImmutableList<ContainerOutput> outputs();
     @JsonProperty("history") public abstract ImmutableList<ContainerHistory> history();
     @JsonProperty("log-paths") public abstract ImmutableList<String> logPaths();
     @Nullable @JsonProperty("reserve-memory") public abstract Long reserveMemory();
     @Nullable @JsonProperty("limit-memory") public abstract Long limitMemory();
     @Nullable @JsonProperty("limit-cpu") public abstract Double limitCpu();
+    @Nullable @JsonProperty("swarm-constraints") public abstract List<String> swarmConstraints();
 
     @JsonIgnore
     public boolean isSwarmService() {
         final Boolean swarm = swarm();
         return swarm != null && swarm;
+    }
+
+    @JsonIgnore
+    public String containerOrServiceId() {
+        return isSwarmService() ? serviceId() : containerId();
+    }
+
+    @JsonIgnore
+    private synchronized List<ContainerHistory> getSortedHistory() {
+        if (sortedHist == null) {
+            sortedHist = Ordering.natural().reverse().sortedCopy(this.history()); //Descending order (most recent first)
+        }
+        return sortedHist;
+    }
+
+    @JsonIgnore
+    @Nullable
+    private ContainerHistory getLatestServiceHistory() {
+        List<ContainerHistory> relevantHistory = getSortedHistory();
+        for (ContainerHistory latestNonSysHistory : relevantHistory) {
+            if (latestNonSysHistory.entityType().equals("service")) {
+                return latestNonSysHistory;
+            }
+        }
+        return null;
+    }
+
+    @JsonIgnore
+    @NotNull
+    public ServiceTask makeTaskFromLastHistoryItem() throws ContainerException {
+        // We generally want exit code / status from a service history event
+        ContainerHistory hist = getLatestServiceHistory();
+        if (hist == null) {
+            List<ContainerHistory> sortedHistory = getSortedHistory();
+            if (sortedHistory.isEmpty()) {
+                // Must have at least one history item to get here, so this shouldn't happen, but...
+                throw new ContainerException("No history for container " + containerOrServiceId());
+            }
+            // We cannot pass a null history item into createFromHistoryAndService, so give it the latest one,
+            // even if it's not a service item
+            hist = sortedHistory.get(0);
+        }
+        return ServiceTask.createFromHistoryAndService(hist, this);
     }
 
     @JsonIgnore
@@ -87,7 +132,7 @@ public abstract class Container {
             //      did not contain an "exitCode" key
             // "0": success
             // "1" to "255": failure
-            for (final ContainerHistory history : this.history()) {
+            for (final ContainerHistory history : getSortedHistory()) {
                 if (history.exitCode() != null) {
                     exitCode = history.exitCode();
                     break;
@@ -95,6 +140,30 @@ public abstract class Container {
             }
         }
         return exitCode;
+    }
+
+    @JsonIgnore
+    @Nullable
+    public String lastHistoryStatus() {
+        return getSortedHistory().get(0).status();
+    }
+
+    @JsonIgnore
+    public int countRestarts() {
+        int restarts = 0;
+        for (ContainerHistory history : this.history()) {
+            if (history.isRestartStatus()) {
+                restarts++;
+            }
+        }
+        return restarts;
+    }
+
+    @JsonIgnore
+    @Nullable
+    public String getWorkflowStatus(UserI user) {
+        final PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(user, workflowId());
+        return workflow == null ? null : workflow.getStatus();
     }
 
     @JsonCreator
@@ -126,7 +195,8 @@ public abstract class Container {
                                    @JsonProperty("log-paths") final List<String> logPaths,
                                    @JsonProperty("reserve-memory") final Long reserveMemory,
                                    @JsonProperty("limit-memory") final Long limitMemory,
-                                   @JsonProperty("limit-cpu") final Double limitCpu) {
+                                   @JsonProperty("limit-cpu") final Double limitCpu,
+                                   @JsonProperty("swarm-constraints") final List<String> swarmConstraints) {
 
         return builder()
                 .databaseId(databaseId)
@@ -158,6 +228,7 @@ public abstract class Container {
                 .reserveMemory(reserveMemory)
                 .limitMemory(limitMemory)
                 .limitCpu(limitCpu)
+                .swarmConstraints(swarmConstraints)
                 .build();
     }
 
@@ -228,6 +299,7 @@ public abstract class Container {
                 .reserveMemory(containerEntity.getReserveMemory())
                 .limitMemory(containerEntity.getLimitMemory())
                 .limitCpu(containerEntity.getLimitCpu())
+                .swarmConstraints(containerEntity.getSwarmConstraints())
                 .build();
     }
 
@@ -271,6 +343,7 @@ public abstract class Container {
                 .reserveMemory(resolvedCommand.reserveMemory())
                 .limitMemory(resolvedCommand.limitMemory())
                 .limitCpu(resolvedCommand.limitCpu())
+                .swarmConstraints(resolvedCommand.swarmConstraints())
                 .parentSourceObjectName(resolvedCommand.parentSourceObjectName());
     }
 
@@ -335,6 +408,44 @@ public abstract class Container {
         return getInputs(ContainerInputType.RAW);
     }
 
+    /**
+     * This will be returned in the container JSON as "inputs" rather than the stored list
+     * of inputs. If any of the inputs are marked as "sensitive", we mask them out. That
+     * already happens in {@link ContainerInput#maskedValue()}. But once one input has a
+     * sensitive value, any sensitive value, we can no longer trust the "raw" inputs,
+     * i.e. the input values we received directly from the user. If no inputs are sensitive, we
+     * trust the raw inputs are fine to show; if any inputs are sensitive, then all raw inputs
+     * have got to go.
+     * @return The list of container inputs with raw input values removed if any other inputs are sensitive.
+     */
+    @JsonGetter("inputs")
+    @SuppressWarnings("unused")
+    public ImmutableList<ContainerInput> maskedInputs() {
+        final ImmutableList<ContainerInput> inputs = inputs();
+        boolean anyAreSensitive = false;
+        for (final ContainerInput input : inputs) {
+            final Boolean inputIsSensitive = input.sensitive();
+            anyAreSensitive = (inputIsSensitive != null && inputIsSensitive);
+            if (anyAreSensitive) {
+                break;
+            }
+        }
+
+        // If none of the inputs were sensitive, we can trust the raw inputs
+        if (!anyAreSensitive) {
+            return inputs;
+        }
+
+        // If any inputs were sensitive, we can no longer trust the raw inputs. Do not return them.
+        final ImmutableList.Builder<ContainerInput> maskedInputsBuilder = ImmutableList.builder();
+        for (final ContainerInput input : inputs) {
+            if (input.type() != ContainerInputType.RAW) {
+                maskedInputsBuilder.add(input);
+            }
+        }
+        return maskedInputsBuilder.build();
+    }
+
     @JsonIgnore
     public String getLogPath(final String filename) {
 		String fullFileName = filename;
@@ -374,6 +485,7 @@ public abstract class Container {
         public abstract Builder reserveMemory(Long reserveMemory);
         public abstract Builder limitMemory(Long limitMemory);
         public abstract Builder limitCpu(Double limitCpu);
+        public abstract Builder swarmConstraints(List<String> swarmConstraints);
 
         public abstract Builder environmentVariables(Map<String, String> environmentVariables);
         abstract ImmutableMap.Builder<String, String> environmentVariablesBuilder();
@@ -595,14 +707,14 @@ public abstract class Container {
         @JsonProperty("type") public abstract ContainerInputType type();
         @JsonProperty("name") public abstract String name();
         @JsonIgnore public abstract String value();
-        @JsonProperty("sensitive") public abstract boolean sensitive();
+        @Nullable @JsonProperty("sensitive") public abstract Boolean sensitive();
 
         @JsonCreator
         public static ContainerInput create(@JsonProperty("id") final long databaseId,
                                             @JsonProperty("type") final ContainerInputType type,
                                             @JsonProperty("name") final String name,
                                             @JsonProperty("value") final String value,
-                                            @JsonProperty("sensitive") final boolean sensitive) {
+                                            @JsonProperty("sensitive") final Boolean sensitive) {
             return new AutoValue_Container_ContainerInput(databaseId, type, name, value, sensitive);
         }
 
@@ -628,7 +740,8 @@ public abstract class Container {
 
         @JsonGetter("value")
         public String maskedValue() {
-            return sensitive() ? "*****" : value();
+            final Boolean sensitive = sensitive();
+            return sensitive != null && sensitive ? "*****" : value();
         }
     }
 
@@ -644,6 +757,7 @@ public abstract class Container {
         @Nullable @JsonProperty("path") public abstract String path();
         @Nullable @JsonProperty("glob") public abstract String glob();
         @Nullable @JsonProperty("label") public abstract String label();
+        @Nullable @JsonProperty("format") public abstract String format();
         @Nullable @JsonProperty("created") public abstract String created();
         @JsonProperty("handled-by") public abstract String handledBy();
         @Nullable @JsonProperty("via-wrapup-container") public abstract String viaWrapupContainer();
@@ -659,6 +773,7 @@ public abstract class Container {
                                              @JsonProperty("path") final String path,
                                              @JsonProperty("glob") final String glob,
                                              @JsonProperty("label") final String label,
+                                             @JsonProperty("format") final String format,
                                              @JsonProperty("created") final String created,
                                              @JsonProperty("handled-by") final String handledByWrapperInput,
                                              @JsonProperty("via-wrapup-container") final String viaWrapupContainer) {
@@ -673,6 +788,7 @@ public abstract class Container {
                     .path(path)
                     .glob(glob)
                     .label(label)
+                    .format(format)
                     .created(created)
                     .handledBy(handledByWrapperInput)
                     .viaWrapupContainer(viaWrapupContainer)
@@ -690,6 +806,7 @@ public abstract class Container {
                     containerEntityOutput.getPath(),
                     containerEntityOutput.getGlob(),
                     containerEntityOutput.getLabel(),
+                    containerEntityOutput.getFormat(),
                     containerEntityOutput.getCreated(),
                     containerEntityOutput.getHandledByXnatCommandInput(),
                     containerEntityOutput.getViaWrapupContainer());
@@ -706,6 +823,7 @@ public abstract class Container {
                     resolvedCommandOutput.path(),
                     resolvedCommandOutput.glob(),
                     resolvedCommandOutput.label(),
+                    resolvedCommandOutput.format(),
                     null,
                     resolvedCommandOutput.handledBy(),
                     resolvedCommandOutput.viaWrapupCommand());
@@ -729,6 +847,7 @@ public abstract class Container {
             public abstract Builder path(String path);
             public abstract Builder glob(String glob);
             public abstract Builder label(String label);
+            public abstract Builder format(String format);
             public abstract Builder created(String created);
             public abstract Builder handledBy(String handledBy);
             public abstract Builder viaWrapupContainer(String viaWrapupContainer);
@@ -738,7 +857,7 @@ public abstract class Container {
     }
 
     @AutoValue
-    public static abstract class ContainerHistory {
+    public static abstract class ContainerHistory implements Comparable<ContainerHistory> {
         @Nullable @JsonProperty("id") public abstract Long databaseId();
         @JsonProperty("status") public abstract String status();
         @JsonProperty("entity-type") public abstract String entityType();
@@ -749,6 +868,9 @@ public abstract class Container {
         @Nullable @JsonProperty("external-timestamp") public abstract String externalTimestamp();
         @Nullable @JsonProperty("message") public abstract String message();
         @Nullable @JsonProperty("exitCode") public abstract String exitCode();
+
+        @JsonIgnore
+        public final static String restartStatus = "Restart";
 
         @JsonCreator
         public static ContainerHistory create(@JsonProperty("id") final long databaseId,
@@ -779,6 +901,7 @@ public abstract class Container {
                     .entityId(containerEntityHistory.getEntityId())
                     .timeRecorded(containerEntityHistory.getTimeRecorded())
                     .externalTimestamp(containerEntityHistory.getExternalTimestamp())
+                    .message(containerEntityHistory.getMessage())
                     .exitCode(containerEntityHistory.getExitCode())
                     .build();
         }
@@ -797,12 +920,14 @@ public abstract class Container {
 
         public static ContainerHistory fromSystem(final String status,
                                                   final String message) {
+            Date now = new Date();
             return builder()
                     .status(status)
                     .entityType("system")
                     .entityId(null)
-                    .timeRecorded(new Date())
-                    .externalTimestamp(null)
+                    .timeRecorded(now)
+                    .externalTimestamp(String.valueOf(now.getTime()))
+                    .message(message)
                     .build();
         }
 
@@ -818,6 +943,11 @@ public abstract class Container {
         }
 
         public static ContainerHistory fromServiceTask(final ServiceTask task) {
+            String message = StringUtils.defaultString(task.message(), "");
+            if (StringUtils.isNotBlank(message) && StringUtils.isNotBlank(task.err())) {
+                message += ": ";
+            }
+            message += StringUtils.defaultString(task.err(), "");
             return builder()
                     .entityType("service")
                     .entityId(null)
@@ -825,8 +955,23 @@ public abstract class Container {
                     .exitCode(task.exitCode() == null ? null : String.valueOf(task.exitCode()))
                     .timeRecorded(new Date())
                     .externalTimestamp(task.statusTime() == null ? null : String.valueOf(task.statusTime().getTime()))
-                    .message(task.message())
+                    .message(message)
                     .build();
+        }
+
+        @Override
+        public int compareTo(@NotNull ContainerHistory other) {
+            Date thisTime = this.timeRecorded();
+            Date otherTime = other.timeRecorded();
+            if (thisTime == null || otherTime == null) {
+                return 0;
+            }
+            return thisTime.compareTo(otherTime);
+        }
+
+        @JsonIgnore
+        public boolean isRestartStatus() {
+            return status().equals(restartStatus);
         }
 
         public static Builder builder() {

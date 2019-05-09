@@ -6,9 +6,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
-import org.hibernate.envers.Audited;
-import org.nrg.containers.model.container.ContainerInputType;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
 import javax.persistence.CascadeType;
@@ -18,7 +15,6 @@ import javax.persistence.Entity;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Transient;
-import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -32,17 +28,18 @@ import java.util.Set;
 @Entity
 @Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
+    public static String KILL_STATUS = "kill";
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
-            .put("complete", "Complete")
+            .put("complete", "Waiting") // Docker swarm "complete" maps to waiting to be finalized
             .put("created", "Created")
             .put("rejected", "Failed (Rejected)")
-            .put("failed", "Failed (Task)")
+            .put("failed", "Failed")
             .put("start", "Running")
             .put("started", "Running")
             .put("running", "Running")
             .put("remove", "Failed (Remove)")
             .put("orphaned", "Failed (Orphaned)")
-            .put("kill", "Failed (Killed)")
+            .put(KILL_STATUS, "Failed (Killed)")
             .put("oom", "Failed (Memory)")
             .put("shutdown", "Failed (Shutdown)")
             .put("starting", "Starting")
@@ -79,6 +76,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     private Long reserveMemory;
     private Long limitMemory;
     private Double limitCpu;
+    private List<String> swarmConstraints;
     private String project;
 
     public ContainerEntity() {}
@@ -151,6 +149,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.setReserveMemory(containerPojo.reserveMemory());
         this.setLimitMemory(containerPojo.limitMemory());
         this.setLimitCpu(containerPojo.limitCpu());
+        this.setSwarmConstraints(containerPojo.swarmConstraints());
 
         return this;
     }
@@ -397,88 +396,6 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.inputs.add(input);
     }
 
-    @Transient
-    public Map<String, String> getRawInputs() {
-        return getInputs(ContainerInputType.RAW);
-    }
-
-    public void addRawInputs(final Map<String, String> rawInputValues) {
-        addInputs(ContainerInputType.RAW, rawInputValues);
-    }
-
-    @Transient
-    @SuppressWarnings("deprecation")
-    public Map<String, String> getWrapperInputs() {
-        final Map<String, String> wrapperInputs = Maps.newHashMap();
-        wrapperInputs.putAll(getLegacyWrapperInputs());
-        wrapperInputs.putAll(getExternalWrapperInputs());
-        wrapperInputs.putAll(getDerivedWrapperInputs());
-        return wrapperInputs;
-    }
-
-    @Transient
-    public Map<String, String> getExternalWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_EXTERNAL);
-    }
-
-    public void addExternalWrapperInputs(final Map<String, String> xnatInputValues) {
-        addInputs(ContainerInputType.WRAPPER_EXTERNAL, xnatInputValues);
-    }
-
-    @Transient
-    public Map<String, String> getDerivedWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_DERIVED);
-    }
-
-    public void addDerivedWrapperInputs(final Map<String, String> xnatInputValues) {
-        addInputs(ContainerInputType.WRAPPER_DERIVED, xnatInputValues);
-    }
-
-    /**
-     * Get inputs of type "wrapper".
-     * We no longer save inputs of this type. Now the wrapper inputs are separately saved
-     * as type "wrapper_external" or "wrapper_derived". But we keep this here for legacy containers.
-     * @return A map of wrapper input names to values.
-     * @since 1.2
-     */
-    @Transient
-    @Deprecated
-    public Map<String, String> getLegacyWrapperInputs() {
-        return getInputs(ContainerInputType.WRAPPER_DEPRECATED);
-    }
-
-    @Transient
-    public Map<String, String> getCommandInputs() {
-        return getInputs(ContainerInputType.COMMAND);
-    }
-
-    public void addCommandInputs(final Map<String, String> commandInputValues) {
-        addInputs(ContainerInputType.COMMAND, commandInputValues);
-    }
-
-    private Map<String, String> getInputs(final ContainerInputType type) {
-        if (this.inputs == null) {
-            return null;
-        }
-        final Map<String, String> inputs = Maps.newHashMap();
-        for (final ContainerEntityInput input : this.inputs) {
-            if (input.getType() == type) {
-                inputs.put(input.getName(), input.getValue());
-            }
-        }
-        return inputs;
-    }
-
-    private void addInputs(final ContainerInputType type,
-                           final Map<String, String> inputs) {
-        if (inputs == null) {
-            return;
-        }
-        for (final Map.Entry<String, String> inputEntry : inputs.entrySet()) {
-            addInput(ContainerEntityInput.create(inputEntry.getKey(), inputEntry.getValue(), type));
-        }
-    }
-
     @OneToMany(mappedBy = "containerEntity", cascade = CascadeType.ALL, orphanRemoval = true)
     public List<ContainerEntityOutput> getOutputs() {
         return outputs;
@@ -536,9 +453,6 @@ public class ContainerEntity extends AbstractHibernateEntity {
     	 
     }
 
-   
-    
-    
     @ElementCollection
     public List<String> getLogPaths() {
         return logPaths;
@@ -554,6 +468,16 @@ public class ContainerEntity extends AbstractHibernateEntity {
 
     public void setProject(final String project) {
         this.project = project;
+    }
+
+
+    @ElementCollection
+    public List<String> getSwarmConstraints() {
+        return swarmConstraints;
+    }
+
+    public void setSwarmConstraints(List<String> swarmConstraints) {
+        this.swarmConstraints = swarmConstraints;
     }
 
     @Override
@@ -603,6 +527,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
                 .add("reserveMemory", reserveMemory)
                 .add("limitMemory", limitMemory)
                 .add("limitCpu", limitCpu)
+                .add("swarmConstraints", swarmConstraints)
                 .toString();
     }
 }
