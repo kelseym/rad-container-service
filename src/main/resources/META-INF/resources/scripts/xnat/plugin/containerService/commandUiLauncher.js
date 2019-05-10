@@ -869,7 +869,7 @@ var XNAT = getObject(XNAT || {});
                                 if (!bulkLaunch) xmodal.loading.open({ title: 'Launching Container...' });
 
                                 // gather form input values
-                                var dataToPost = form2js($form.get(0), ':');
+                                var dataToPost = form2js($form.get(0), ':', false);
                                 // API method can only receive Map<String, String> so need to stringify more complex params
                                 // with plan to deserialize them deeper in the code
                                 $.each(dataToPost, function(key, value) {
