@@ -46,6 +46,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         "inputs": [
             {
                 "name": "",
+                "label": "",
                 "description": "",
                 "type": "",
                 "required": true,
@@ -79,6 +80,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "external-inputs": [
                     {
                         "name": "",
+                        "label": "",
                         "description": "",
                         "type": "",
                         "matcher": "",
@@ -94,6 +96,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "derived-inputs": [
                     {
                         "name": "",
+                        "label": "",
                         "description": "",
                         "type": "",
                         "matcher": "",
@@ -148,7 +151,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
 - **ports** - (Docker images only) String key/value pairs of ports to expose. The key is the port inside the container, the value is the port to expose out on the host. In other words, entries in this map should be of the form `"container_port": "host_port"`. Keys and values can be templates.
 - **inputs** - A list of inputs that will be used to resolve the command and launch the container. See [Command Inputs](#command-inputs).
     - **name** - The name of the input. You can use this to refer to the input elsewhere in the command.
-    - **label** - A short, human-friendly name of the command wrapper. This field will be displayed in the XNAT "Run Container" menu, so choose something that will help users understand what your command + wrapper are and do. (If no label is provided, the description will be used. If neither are provided, then the name will be used.)
+    - **label** - The label for the input in the UI, if none is provided, the name will be used. If a derived or external input provides the value for this input, that input's label will be used instead.
     - **description** - A human-friendly description of the input.
     - **type** - One of string, boolean, number, or file. See the section on [input types](#input-types) below for more. Default: string.
     - **required** - A boolean value (true/false) whether this input is required. If a required input does not have a value at runtime, an error is thrown. Default: false.
@@ -170,10 +173,12 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **glob** - A glob-style matcher for the files to upload. If `"glob"` is blank, then all files found at relative path `"path"` within the mount will be uploaded.
 - **xnat** - A list of XNAT Command Wrappers, or just "Wrappers" for short, in which you can define how to pull files and properties from XNAT objects into your containers, and upload the containers' outputs back.
     - **name** - A user-friendly name. Example: "dcm2niix on a scan".
+    - **label** - A short, human-friendly name of the command wrapper. This field will be displayed in the XNAT "Run Container" menu, so choose something that will help users understand what your command + wrapper are and do. (If no label is provided, the description will be used. If neither are provided, then the name will be used.)
     - **description** - A longer description of what this command wrapper does: What XNAT object(s) does it take as inputs? How does it use those to fill the command's inputs? Where does it upload the command's outputs?
     - **contexts** - A list of [XNAT data types](https://wiki.xnat.org/display/XNAT17/Understanding+the+XNAT+Data+Model) on which this command wrapper can be run. If none are provided, the list of contexts is populated from the data types of the external inputs.
     - **external-inputs** - A List of Inputs to the Command Wrapper that will come in when a launch is requested. See [Wrapper Inputs](#wrapper-inputs) for more.
         - **name**
+        - **label** - The label for the input in the UI, if none is provided, the name will be used.
         - **description**
         - **type** - One of the basic types (string, boolean, number, file) or the XNAT object types (Project, Subject, Session, Scan, Assessor, Resource, Config). See the section on [input types](#input-types) below for more.
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
@@ -186,6 +191,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **via-setup-command** - A reference to a setup command image (format: `repo/image:version[:commandname]` where the `commandname` is optional). See the page on [Setup Commands](https://wiki.xnat.org/display/CS/Setup+Commands) for more.
     - **derived-inputs** - A List of Inputs to the Command Wrapper that will not come in from outside, but instead will be derived from other inputs as parents or children. See [Wrapper Inputs](#wrapper-inputs) for more.
         - **name**
+        - **label** - The label for the input in the UI, if none is provided, the name will be used.
         - **description**
         - **type** - One of the basic types (string, boolean, number) or the XNAT object types (Project, Subject, Session, Scan, Assessor, Resource, Config, File, File[], Directory). See the section on [input types](#input-types) below for more.
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.

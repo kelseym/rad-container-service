@@ -616,6 +616,7 @@ public abstract class Command {
 
         @JsonCreator
         static CommandInput create(@JsonProperty("name") final String name,
+                                   @JsonProperty("label") final String label,
                                    @JsonProperty("description") final String description,
                                    @JsonProperty("type") final String type,
                                    @JsonProperty("required") final Boolean required,
@@ -630,6 +631,7 @@ public abstract class Command {
                                    @JsonProperty("multiple-delimiter") final String multipleDelimiter) {
             return builder()
                     .name(name)
+                    .label(label)
                     .description(description)
                     .type(type == null ? CommandInputEntity.DEFAULT_TYPE.getName() : type)
                     .required(required == null ? false : required)
@@ -653,6 +655,7 @@ public abstract class Command {
             return builder()
                     .id(commandInputEntity.getId())
                     .name(commandInputEntity.getName())
+                    .label(commandInputEntity.getLabel())
                     .description(commandInputEntity.getDescription())
                     .type(commandInputEntity.getType().getName())
                     .required(commandInputEntity.isRequired())
@@ -680,6 +683,7 @@ public abstract class Command {
             return builder()
                     .name(this.name())
                     .id(this.id())
+                    .label(this.label())
                     .description(this.description())
                     .type(this.type())
                     .required(this.required())
@@ -721,6 +725,7 @@ public abstract class Command {
         public abstract static class Builder {
             public abstract Builder id(final long id);
             public abstract Builder name(final String name);
+            public abstract Builder label(final String label);
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder required(final boolean required);
@@ -1069,6 +1074,7 @@ public abstract class Command {
     public static abstract class CommandWrapperExternalInput extends CommandWrapperInput {
         @JsonCreator
         static CommandWrapperExternalInput create(@JsonProperty("name") final String name,
+                                                  @JsonProperty("label") final String label,
                                                   @JsonProperty("description") final String description,
                                                   @JsonProperty("type") final String type,
                                                   @JsonProperty("matcher") final String matcher,
@@ -1083,6 +1089,7 @@ public abstract class Command {
                                                   @JsonProperty("sensitive") final Boolean sensitive) {
             return builder()
                     .name(name)
+                    .label(label)
                     .description(description)
                     .type(type == null ? CommandWrapperExternalInputEntity.DEFAULT_TYPE.getName() : type)
                     .matcher(matcher)
@@ -1106,6 +1113,7 @@ public abstract class Command {
             return builder()
                     .id(wrapperInput.getId())
                     .name(wrapperInput.getName())
+                    .label(wrapperInput.getLabel())
                     .description(wrapperInput.getDescription())
                     .type(wrapperInput.getType().getName())
                     .matcher(wrapperInput.getMatcher())
@@ -1134,6 +1142,7 @@ public abstract class Command {
             return builder()
                     .id(this.id())
                     .name(this.name())
+                    .label(this.label())
                     .type(this.type())
                     .providesValueForCommandInput(this.providesValueForCommandInput())
                     .providesFilesForCommandMount(this.providesFilesForCommandMount())
@@ -1151,6 +1160,7 @@ public abstract class Command {
         public abstract static class Builder {
             public abstract Builder id(final long id);
             public abstract Builder name(final String name);
+            public abstract Builder label(final String label);
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
@@ -1178,6 +1188,7 @@ public abstract class Command {
 
         @JsonCreator
         static CommandWrapperDerivedInput create(@JsonProperty("name") final String name,
+                                                 @JsonProperty("label") final String label,
                                                  @JsonProperty("description") final String description,
                                                  @JsonProperty("type") final String type,
                                                  @JsonProperty("derived-from-wrapper-input") final String derivedFromWrapperInput,
@@ -1195,6 +1206,7 @@ public abstract class Command {
                                                  @JsonProperty("multiple") final Boolean multiple) {
             return builder()
                     .name(name)
+                    .label(label)
                     .description(description)
                     .type(type == null ? CommandWrapperDerivedInputEntity.DEFAULT_TYPE.getName() : type)
                     .derivedFromWrapperInput(derivedFromWrapperInput)
@@ -1221,6 +1233,7 @@ public abstract class Command {
             return builder()
                     .id(wrapperInput.getId())
                     .name(wrapperInput.getName())
+                    .label(wrapperInput.getLabel())
                     .description(wrapperInput.getDescription())
                     .type(wrapperInput.getType().getName())
                     .derivedFromWrapperInput(wrapperInput.getDerivedFromWrapperInput())
@@ -1253,6 +1266,7 @@ public abstract class Command {
             return builder()
                     .id(this.id())
                     .name(this.name())
+                    .label(this.label())
                     .type(this.type())
                     .derivedFromWrapperInput(this.derivedFromWrapperInput())
                     .derivedFromXnatObjectProperty(this.derivedFromXnatObjectProperty())
@@ -1296,6 +1310,7 @@ public abstract class Command {
         public abstract static class Builder {
             public abstract Builder id(final long id);
             public abstract Builder name(final String name);
+            public abstract Builder label(final String label);
             public abstract Builder description(final String description);
             public abstract Builder type(final String type);
             public abstract Builder matcher(final String matcher);
@@ -1685,6 +1700,7 @@ public abstract class Command {
     public static abstract class Input {
         @JsonIgnore public abstract long id();
         @JsonProperty("name") public abstract String name();
+        @Nullable @JsonProperty("label") public abstract String label();
         @Nullable @JsonProperty("description") public abstract String description();
         @JsonProperty("type") public abstract String type();
         @Nullable @JsonProperty("matcher") public abstract String matcher();

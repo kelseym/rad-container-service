@@ -61,6 +61,7 @@ public class CommandEntityTest {
         final String stringInputName = "foo";
         final CommandInput stringInput = CommandInput.builder()
                 .name(stringInputName)
+                .label("input label")
                 .description("A foo that bars")
                 .required(false)
                 .defaultValue("bar")
@@ -69,6 +70,7 @@ public class CommandEntityTest {
                 .build();
         final CommandInput coolInput = CommandInput.builder()
                 .name("my_cool_input")
+                .label("my cool input")
                 .description("A boolean value")
                 .type("boolean")
                 .required(true)
@@ -258,6 +260,7 @@ public class CommandEntityTest {
 
         final CommandInput inputToAdd = CommandInput.builder()
                 .name("this_is_new")
+                .label("this is new")
                 .description("A new input that didn't exist before")
                 .commandLineFlag("--flag")
                 .commandLineSeparator("=")
@@ -342,6 +345,7 @@ public class CommandEntityTest {
         final String xnatObjectProperty = "label";
         final CommandWrapperDerivedInput derivedInput = CommandWrapperDerivedInput.builder()
                 .name(derivedInputName)
+                .label("the label")
                 .type("string")
                 .derivedFromWrapperInput(externalInputName)
                 .derivedFromXnatObjectProperty(xnatObjectProperty)
@@ -405,7 +409,6 @@ public class CommandEntityTest {
     @DirtiesContext
     public void testRemoveEntitiesFromWrapper() throws Exception {
         final String outputMountName = "out";
-        final CommandMount mountIn = CommandMount.create("in2", false, "/input2");
 
         final String stringInputName = "foo2";
         final CommandInput stringInput = CommandInput.builder()
@@ -457,6 +460,7 @@ public class CommandEntityTest {
         final String xnatObjectProperty = "label";
         final CommandWrapperDerivedInput derivedInput = CommandWrapperDerivedInput.builder()
                 .name(derivedInputName)
+                .label("the label")
                 .type("string")
                 .derivedFromWrapperInput(externalInputName)
                 .derivedFromXnatObjectProperty(xnatObjectProperty)
@@ -509,6 +513,10 @@ public class CommandEntityTest {
 
         //update with new wrapper
         Command cmd = COMMAND.toBuilder()
+                .addInput(stringInput)
+                .addInput(stringInput2)
+                .addOutput(commandOutput)
+                .addOutput(commandOutput2)
                 .addCommandWrapper(newWrapper)
                 .build();
         created.update(cmd);

@@ -30,7 +30,6 @@ import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommandMount;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputValue;
-import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.configuration.CommandConfiguration;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;

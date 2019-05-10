@@ -7,6 +7,7 @@
     "inputs": [
         {
             "name": "file-path",
+            "label": "file path",
             "type": "string",
             "required": false
         },
