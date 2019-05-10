@@ -27,6 +27,7 @@ public class CommandInputEntity implements Serializable {
     private long id;
     private CommandEntity commandEntity;
     private String name;
+    private String label;
     private String description;
     private Type type = DEFAULT_TYPE;
     private Boolean required;
@@ -50,6 +51,7 @@ public class CommandInputEntity implements Serializable {
             this.setId(commandInput.id());
         }
         this.setName(commandInput.name());
+        this.setLabel(commandInput.label());
         this.setDescription(commandInput.description());
         this.setRequired(commandInput.required());
         this.setMatcher(commandInput.matcher());
@@ -202,6 +204,14 @@ public class CommandInputEntity implements Serializable {
         this.sensitive = sensitive;
     }
 
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
     @Enumerated(EnumType.STRING)
     public MultipleDelimiter getMultipleDelimiter() {
         return multipleDelimiter;
@@ -238,6 +248,7 @@ public class CommandInputEntity implements Serializable {
         return MoreObjects.toStringHelper(this)
                 .add("id", id)
                 .add("name", name)
+                .add("label", label)
                 .add("description", description)
                 .add("type", type)
                 .add("required", required)

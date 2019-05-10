@@ -605,9 +605,10 @@ public abstract class LaunchUi {
 
         }
 
+        String label = StringUtils.defaultIfBlank(input.label(), input.name());
         return LaunchUiInputTree.builder()
                 .name(input.name())
-                .label(input.name()) // TODO add label to commandInput (pojo, hibernate, tests, and examples)
+                .label(label)
                 .description(input.description())
                 .required(inputIsRequired)
                 .userSettable(userSettable)

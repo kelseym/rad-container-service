@@ -20,6 +20,7 @@ public class CommandWrapperExternalInputEntity {
     private long id;
     private CommandWrapperEntity commandWrapperEntity;
     private String name;
+    private String label;
     private String description;
     private CommandWrapperInputType type;
     private String matcher;
@@ -44,6 +45,7 @@ public class CommandWrapperExternalInputEntity {
             this.setId(commandWrapperInput.id());
         }
         this.setName(commandWrapperInput.name());
+        this.setLabel(commandWrapperInput.label());
         this.setDescription(commandWrapperInput.description());
         this.setMatcher(commandWrapperInput.matcher());
         this.setProvidesValueForCommandInput(commandWrapperInput.providesValueForCommandInput());
@@ -230,6 +232,14 @@ public class CommandWrapperExternalInputEntity {
         this.sensitive = sensitive;
     }
 
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -249,6 +259,7 @@ public class CommandWrapperExternalInputEntity {
         return MoreObjects.toStringHelper(this)
                 .add("id", id)
                 .add("name", name)
+                .add("label", label)
                 .add("description", description)
                 .add("type", type)
                 .add("matcher", matcher)

@@ -13,6 +13,7 @@ Not yet released
 * Automatically restart containers that are killed due to docker swarm nodes being removed from swarm.
 * Live logging display
 * Add support for command inputs that resolve to mulitple values (e.g., multiple T1 scans)
+* Add label field to command.json inputs to allow customization of UI display
 
 
 ### Bugfixes

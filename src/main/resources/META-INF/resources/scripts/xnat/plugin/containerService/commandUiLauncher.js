@@ -307,6 +307,7 @@ var XNAT = getObject(XNAT || {});
 
     var staticConfigInput = function(input) {
         var name = input.name || input.label,
+            label = input.label,
             value = input.value,
             valueLabel = input.valueLabel,
             dataProps = { name: name },
@@ -320,7 +321,7 @@ var XNAT = getObject(XNAT || {});
 
         return spawn(
             'div', { className: classes.join(' '), data: dataProps }, [
-                spawn('label.element-label', name),
+                spawn('label.element-label', label),
                 spawn('div.element-wrapper', { style: { 'word-wrap': 'break-word' } }, valueLabel),
                 spawn('input',{
                     type: 'hidden',
@@ -337,6 +338,7 @@ var XNAT = getObject(XNAT || {});
     var staticConfigList = function(input) {
         var value = input.value,
             name = input.name,
+            label = input.label,
             valueLabel = input.valueLabel;
         var listArray = Array.isArray(valueLabel) ? valueLabel : valueLabel.split(",");
         var elemWrapperContent;
@@ -347,14 +349,14 @@ var XNAT = getObject(XNAT || {});
                 listArray[i] = '<li>'+item+'</li>'
             });
             elemWrapperContent = spawn('ul',{ style: {
-                        'list-style-type': 'none',
-                        margin: 0,
-                        padding: 0
-                    }},listArray.join(''));
+                    'list-style-type': 'none',
+                    margin: 0,
+                    padding: 0
+                }},listArray.join(''));
         }
         return spawn(
             'div.panel-element', { data: { name: name } }, [
-                spawn('label.element-label', name),
+                spawn('label.element-label', label),
                 spawn('div.element-wrapper', [elemWrapperContent]),
                 spawn('input',{
                     type: 'hidden',
@@ -368,6 +370,7 @@ var XNAT = getObject(XNAT || {});
 
     var derivedConfigInput = function(input) {
         var name = input.name || input.label,
+            label = input.label,
             value = input.value,
             valueLabel = input.valueLabel,
             dataProps = { name: name },
@@ -375,7 +378,7 @@ var XNAT = getObject(XNAT || {});
 
         return spawn(
             'div', { className: classes.join(' '), data: dataProps }, [
-                spawn('label.element-label', name),
+                spawn('label.element-label', label),
                 spawn('div.element-wrapper', { style: { 'word-wrap': 'break-word' } }, [
                     valueLabel,
                     spawn('div.description', value)
