@@ -158,9 +158,10 @@ public class IntegrationTestConfig {
                                                              final DockerServerService serverService,
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final ObjectMapper objectMapper,
-                                                             final DockerService dockerService) {
+                                                             final DockerService dockerService,
+                                                             final CatalogService catalogService) {
         return new CommandResolutionServiceImpl(commandService, configService, serverService,
-                siteConfigPreferences, objectMapper, dockerService);
+                siteConfigPreferences, objectMapper, dockerService, catalogService);
     }
 
     @Bean

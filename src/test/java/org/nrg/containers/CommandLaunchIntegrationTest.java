@@ -51,6 +51,7 @@ import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
 import org.nrg.xnat.helpers.uri.archive.impl.ProjURI;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
+import org.nrg.xnat.utils.CatalogUtils;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -95,7 +96,8 @@ import static org.powermock.api.mockito.PowerMockito.*;
 @Slf4j
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(Parameterized.class)
-@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class, PersistentWorkflowUtils.class})
+@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class,
+        PersistentWorkflowUtils.class, CatalogUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Parameterized.UseParametersRunnerFactory(SpringJUnit4ClassRunnerFactory.class)
@@ -212,6 +214,10 @@ public class CommandLaunchIntegrationTest {
         PowerMockito.spy(PersistentWorkflowUtils.class);
         doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
                 eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+
+        // Stub external FS check
+        PowerMockito.spy(CatalogUtils.class);
+        doReturn(false).when(CatalogUtils.class, "hasActiveExternalFilesystem");
 
         // Setup docker server
         final String defaultHost = "unix:///var/run/docker.sock";

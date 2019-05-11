@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.nrg.action.ClientException;
+import org.nrg.action.ServerException;
 import org.nrg.config.services.ConfigService;
 import org.nrg.containers.exceptions.CommandInputResolutionException;
 import org.nrg.containers.exceptions.CommandMountResolutionException;
@@ -61,10 +63,12 @@ import org.nrg.framework.constants.Scope;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
+import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
+import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
 import org.nrg.xnat.utils.CatalogUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,6 +111,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
     private final SiteConfigPreferences siteConfigPreferences;
     private final ObjectMapper mapper;
     private final DockerService dockerService;
+    private final CatalogService catalogService;
 
     public static final String swarmConstraintsTag = "swarm-constraints";
 
@@ -116,13 +121,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                         final DockerServerService dockerServerService,
                                         final SiteConfigPreferences siteConfigPreferences,
                                         final ObjectMapper mapper,
-                                        final DockerService dockerService) {
+                                        final DockerService dockerService,
+                                        final CatalogService catalogService) {
         this.commandService = commandService;
         this.configService = configService;
         this.dockerServerService = dockerServerService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.mapper = mapper;
         this.dockerService = dockerService;
+        this.catalogService = catalogService;
     }
 
     @Override
@@ -2277,9 +2284,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 final String directory = partiallyResolvedCommandMount.fromRootDirectory();
                 final boolean hasDirectory = StringUtils.isNotBlank(directory);
                 final boolean writable = partiallyResolvedCommandMount.writable();
+                //TODO how to determine if this particular root directory / catalog has remote files
+                final boolean hasRemoteFiles = CatalogUtils.hasActiveExternalFilesystem();
 
-                if (hasDirectory && writable) {
-                    // The mount has a directory and is set to "writable". We must copy files from the root directory into a writable build directory.
+                if (hasDirectory && (writable || hasRemoteFiles)) {
+                    // The mount has a directory and is set to "writable" or may have remote files. We must copy files
+                    // from the root directory into a writable build directory.
                     try {
                         localDirectory = getBuildDirectory();
                     } catch (IOException e) {
@@ -2289,12 +2299,20 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from " +
                             "the root directory to build directory.", resolvedCommandMountName);
 
-                    // Copy all files out of the root directory to a build directory.
+                    // CS-54 Copy all files out of the root directory to a build directory.
                     try {
                         FileUtils.copyDirectory(new File(directory), new File(localDirectory));
+                        if (hasRemoteFiles) {
+                            log.debug("Pulling any remote files into mount \"{}\".", resolvedCommandMountName);
+                            catalogService.pullResourceCatalogsToDestination(Users.getAdminUser(),
+                                    partiallyResolvedCommandMount.fromUri(), localDirectory);
+                        }
                     } catch (IOException e) {
                         throw new ContainerMountResolutionException("Could not copy archive directory " + directory +
                                 " into writable build directory " + localDirectory, partiallyResolvedCommandMount, e);
+                    } catch (ServerException | ClientException e) {
+                        throw new ContainerMountResolutionException("Could not pull remote files into writable build " +
+                                "directory " + localDirectory, partiallyResolvedCommandMount, e);
                     }
                 } else if (hasDirectory) {
                     // The source of files can be directly mounted

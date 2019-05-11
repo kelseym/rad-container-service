@@ -24,6 +24,8 @@ import org.nrg.xnat.utils.CatalogUtils;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,14 +89,24 @@ public class Resource extends XnatModelObject {
                 throw new RuntimeException("Unable to load catalog for resource " + xnatResourcecatalog
                         + ", have your admin check utils.log for the cause");
             }
-            final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null,
-                    xnatResourcecatalog, loadFiles, null, null, "absolutePath");
+            final Path parentUri = Paths.get(this.uri + "/files/");
+
+            // includeFile = false rather than includeFile = loadFiles because we don't want to retrieve the actual file
+            // object from the catalog entry since this will pull remote files into the archive & we want them in build
+            final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, parentUri.toString(),
+                    xnatResourcecatalog, false, null, null, "URI");
+
             for (final Object[] entry : entryDetails) {
-                // Don't retrieve the actual file during preresolution
-                File file = loadFiles ? (File) entry[8] : null;
-                // See CatalogUtils.getEntryDetails to see where all these "entry" elements come from
-                files.add(new XnatFile(this.uri, (String) entry[0], (String) entry[2], (String) entry[4],
-                        (String) entry[5], (String) entry[6], file));
+                String uri      = (String) entry[2]; // This is the parentUri + relative path to file
+                String relPath  = parentUri.relativize(Paths.get(uri)).toString(); // get that relative path
+                String filePath = Paths.get(this.directory).resolve(relPath).toString(); // append rel path to parent dir
+                String tagsCsv  = (String) entry[4];
+                String format   = (String) entry[5];
+                String content  = (String) entry[5];
+                String sizeStr  = StringUtils.defaultIfBlank((String) entry[1], null);
+                Integer size    = sizeStr == null ? null : Integer.parseInt(sizeStr);
+                String checksum = (String) entry[8];
+                files.add(new XnatFile(this.uri, relPath, filePath, tagsCsv, format, content, size, checksum));
             }
         }
     }
