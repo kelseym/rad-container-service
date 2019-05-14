@@ -148,7 +148,7 @@ public abstract class ResolvedCommand {
     public static Command.CommandInput collectCommandInputChildrenOfMultipleDerivedInput(final Command.CommandWrapperInput wrapperInput,
                                                                                          final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> derivedInputValuesAndChildren,
                                                                                          final List<String> commandInputChildrenValues,
-                                                                                         final boolean throwExceptionOnError)
+                                                                                         final boolean throwExceptionIfNull)
             throws CommandResolutionException {
 
         String commandInputName = wrapperInput.providesValueForCommandInput();
@@ -179,7 +179,12 @@ public abstract class ResolvedCommand {
             }
         }
 
-        if (ci == null && throwExceptionOnError) {
+        if (ci == null && throwExceptionIfNull && wrapperInput.required()) {
+            // ci == null will occur if the derived input has no resvoled values e.g. nothing matches the matcher.
+            // For the UI (a.k.a., when this is run for preresolution), we want to make the user aware of the issue,
+            // which is accomplished with a warning from commandUiLauncher.js. So, we don't want to throw an exception.
+            // Otherwise (during command resolution), we probably want to throw an exception, but if the parent input
+            // isn't required, then perhaps it's okay...
             throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
                     "input child element");
         }
