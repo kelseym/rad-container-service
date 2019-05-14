@@ -58,6 +58,8 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "true-value": "",
                 "false-value": "",
                 "sensitive": false,
+                "possible-values": "",
+                "multiple": false,
                 "multiple-delimiter": ""
             }
         ],
@@ -162,8 +164,10 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **command-line-separator** - The character separating the command-line-flag from the value in the command-line. Default: " ".
     - **true-value** - The string to use in the command line for a boolean input when its value is `true`. Some examples: "true", "T", "Y", "1", "--a-flag". Default: "true".
     - **false-value** - The string to use in the command line for a boolean input when its value is `false`. Some examples: "false", "F", "N", "0", "--some-other-flag". Default: "false".
-    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
-	- **multiple-delimmiter** - One of "quoted-space", "space", "comma", or "flag" (or null). This parameter will only be relevant if this input's value is provided by a [derived-input](#wrapper-inputs) with "multiple":true. When this input's value is replaced in the command-line string, the multiple-delimiter defines how multiple values will be separated. Values are as follows: "space" = space-delimited (e.g, `1 2`), "comma" = comma-delimited (e.g, `1,2`), "quoted-space" = space-delimited within single quotes (e.g, `'1 2'`), "flag" = delimited by "command-line-flag" + "command-line-separator" (e.g., `--flag=1 --flag=2`). Default: "space"
+    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.   
+	- **possible-values** - A comma-separated list of possible values for this input, _only relevant if this input's value is NOT provided by an external or derived input_. If provided, the input will be rendered as a select input with these values as options. Default: `null`.
+	- **multiple** - A boolean value. Set to `true` if you have `"possible-values"` and you want the UI to render a multi-select box. Default: `false`.
+	- **multiple-delimmiter** - One of "quoted-space", "space", "comma", or "flag" (or null). This parameter will only be relevant if `"multiple": true` OR if this input's value is provided by a [derived-input](#wrapper-inputs) with `"multiple":true`. When this input's value is replaced in the command-line string, the multiple-delimiter defines how multiple values will be separated. Values are as follows: "space" = space-delimited (e.g, `1 2`), "comma" = comma-delimited (e.g, `1,2`), "quoted-space" = space-delimited within single quotes (e.g, `'1 2'`), "flag" = delimited by "command-line-flag" + "command-line-separator" (e.g., `--flag=1 --flag=2`). Default: "space"
 - **outputs** - A list of outputs that will be used to upload files produced by the container. See [Command Outputs](#command-outputs).
     - **name** - The name of the output.
     - **description** - A human-friendly description of the output.

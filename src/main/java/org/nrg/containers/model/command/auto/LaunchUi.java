@@ -278,6 +278,7 @@ public abstract class LaunchUi {
         @JsonProperty("input-type") public abstract UiInputType uiInputType();
         @Nullable @JsonProperty("derived-value-info") public abstract String derivedValueInfo();
         @Nullable @JsonProperty("derived-value-message") public abstract String derivedValueMessage();
+        @Nullable @JsonProperty("possible-values") public abstract String possibleValues();
         @JsonProperty("children") public abstract List<LaunchUiInputTree> children();
 
         public static LaunchUiInputTree create(final @Nonnull String name,
@@ -290,6 +291,7 @@ public abstract class LaunchUi {
                                                final @Nonnull UiInputType uiInputType,
                                                @Nullable final String derivedValueInfo,
                                                @Nullable final String derivedValueMessage,
+                                               @Nullable final String possibleValues,
                                                final @Nonnull List<LaunchUiInputTree> children) {
             return builder()
                     .name(name)
@@ -302,6 +304,7 @@ public abstract class LaunchUi {
                     .uiInputType(uiInputType)
                     .derivedValueInfo(derivedValueInfo)
                     .derivedValueMessage(derivedValueMessage)
+                    .possibleValues(possibleValues)
                     .children(children)
                     .build();
         }
@@ -322,6 +325,7 @@ public abstract class LaunchUi {
             public abstract Builder uiInputType(@Nonnull UiInputType uiInputType);
             public abstract Builder derivedValueInfo(@Nullable String derivedValueInfo);
             public abstract Builder derivedValueMessage(@Nullable String derivedValueMessage);
+            public abstract Builder possibleValues(@Nullable String possibleValues);
             public abstract Builder children(@Nonnull List<LaunchUiInputTree> children);
 
 
@@ -501,14 +505,23 @@ public abstract class LaunchUi {
         UiInputType uiInputType = null;
         String derivedValueInfo = null;
         String derivedValueMessage = null;
+        String possibleValues = null;
 
         if (input.type().equals(CommandInputEntity.Type.BOOLEAN.getName())) {
             // This input is a simple boolean type. Make it a switch box.
             uiInputType = UiInputType.BOOLEAN;
         } else if (Command.CommandInput.class.isAssignableFrom(input.getClass())) {
-            // This input is a simple string or number. Make it editable.
-            uiInputType = UiInputType.TEXT;
+            possibleValues = ((Command.CommandInput) input).possibleValues();
+            if (input.type().equals(CommandInputEntity.Type.SELECT.getName())) {
+                uiInputType = UiInputType.SELECT;
+            } else if (input.type().equals(CommandInputEntity.Type.MULTISELECT.getName())) {
+                uiInputType = UiInputType.MULTISELECT;
+            } else {
+                // This input is a simple string or number. Make it editable.
+                uiInputType = UiInputType.TEXT;
+            }
         }
+
         if (uiInputType == null){
             // We know we have an external or derived wrapper input.
             final Integer maxNumValuesObj = maxInputValues.get(input.name());
@@ -617,6 +630,7 @@ public abstract class LaunchUi {
                 .uiInputType(uiInputType)
                 .derivedValueInfo(derivedValueInfo)
                 .derivedValueMessage(derivedValueMessage)
+                .possibleValues(possibleValues)
                 .children(children)
                 .build();
     }

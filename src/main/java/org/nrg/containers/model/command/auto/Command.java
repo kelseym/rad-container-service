@@ -19,13 +19,10 @@ import org.nrg.containers.model.configuration.CommandConfiguration.CommandOutput
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @AutoValue
 public abstract class Command {
@@ -328,7 +325,8 @@ public abstract class Command {
             }
 
             if (!mountNames.contains(output.mount())) {
-                errors.add(commandName + "output \"" + output.name() + "\" references unknown mount \"" + output.mount() + "\". Known mounts: " + knownMounts);
+                errors.add(commandName + "output \"" + output.name() + "\" references unknown mount \"" +
+                        output.mount() + "\". Known mounts: " + knownMounts);
             }
 
             if (!outputErrors.isEmpty()) {
@@ -388,7 +386,9 @@ public abstract class Command {
                     errors.add(wrapperName + "derived input \"" + derived.name() + "\" is derived from itself.");
                 }
                 if (!wrapperInputNames.contains(derived.derivedFromWrapperInput())) {
-                    errors.add(wrapperName + "derived input \"" + derived.name() + "\" is derived from an unknown XNAT input \"" + derived.derivedFromWrapperInput() + "\". Known inputs: " + StringUtils.join(wrapperInputNames, ", "));
+                    errors.add(wrapperName + "derived input \"" + derived.name() +
+                            "\" is derived from an unknown XNAT input \"" + derived.derivedFromWrapperInput() +
+                            "\". Known inputs: " + StringUtils.join(wrapperInputNames, ", "));
                 }
 
                 if (!inputErrors.isEmpty()) {
@@ -406,13 +406,15 @@ public abstract class Command {
                 outputErrors.addAll(Lists.transform(output.validate(), addWrapperNameToError));
 
                 if (!outputNames.contains(output.commandOutputName())) {
-                    errors.add(wrapperName + "output handler refers to unknown command output \"" + output.commandOutputName() + "\". Known outputs: " + knownOutputs + ".");
+                    errors.add(wrapperName + "output handler refers to unknown command output \"" +
+                            output.commandOutputName() + "\". Known outputs: " + knownOutputs + ".");
                 } else {
                     handledOutputs.add(output.commandOutputName());
                 }
 
                 if (!(wrapperInputNames.contains(output.targetName()) || wrapperOutputNames.contains(output.targetName()))) {
-                    errors.add(wrapperName + "output handler does not refer to a known wrapper input or output. \"as-a-child-of\": \"" + output.targetName() + "\"." +
+                    errors.add(wrapperName + "output handler does not refer to a known wrapper input or output. " +
+                            "\"as-a-child-of\": \"" + output.targetName() + "\"." +
                             "\nKnown inputs: " + knownWrapperInputs + "." +
                             "\nKnown outputs (so far): " + StringUtils.join(wrapperOutputNames, ", ") + ".");
                 }
@@ -439,7 +441,8 @@ public abstract class Command {
                 // We know at least one output is not handled. Now find out which.
                 for (final String commandOutput : outputNames) {
                     if (!handledOutputs.contains(commandOutput)) {
-                        errors.add(wrapperName + "command output \"" + commandOutput + "\" is not handled by any output handler.");
+                        errors.add(wrapperName + "command output \"" + commandOutput +
+                                "\" is not handled by any output handler.");
                     }
                 }
             }
@@ -612,6 +615,7 @@ public abstract class Command {
         @Nullable @JsonProperty("command-line-separator") public abstract String commandLineSeparator();
         @Nullable @JsonProperty("true-value") public abstract String trueValue();
         @Nullable @JsonProperty("false-value") public abstract String falseValue();
+        @Nullable @JsonProperty("possible-values") public abstract String possibleValues();
         @Nullable @JsonProperty("multiple-delimiter") public abstract String multipleDelimiter();
 
         @JsonCreator
@@ -628,6 +632,7 @@ public abstract class Command {
                                    @JsonProperty("true-value") final String trueValue,
                                    @JsonProperty("false-value") final String falseValue,
                                    @JsonProperty("sensitive") final Boolean sensitive,
+                                   @JsonProperty("possible-values") final String possibleValues,
                                    @JsonProperty("multiple-delimiter") final String multipleDelimiter) {
             return builder()
                     .name(name)
@@ -643,6 +648,7 @@ public abstract class Command {
                     .trueValue(trueValue)
                     .falseValue(falseValue)
                     .sensitive(sensitive)
+                    .possibleValues(possibleValues)
                     .multipleDelimiter(multipleDelimiter)
                     .build();
         }
@@ -667,6 +673,7 @@ public abstract class Command {
                     .trueValue(commandInputEntity.getTrueValue())
                     .falseValue(commandInputEntity.getFalseValue())
                     .sensitive(commandInputEntity.getSensitive())
+                    .possibleValues(commandInputEntity.getPossibleValues())
                     .multipleDelimiter(md == null ? null : md.getName())
                     .build();
         }
@@ -693,6 +700,7 @@ public abstract class Command {
                     .trueValue(this.trueValue())
                     .falseValue(this.falseValue())
                     .sensitive(this.sensitive())
+                    .possibleValues(this.possibleValues())
                     .multipleDelimiter(this.multipleDelimiter())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
@@ -718,6 +726,25 @@ public abstract class Command {
                 errors.add("Invalid multiple-delimiter \"" + md + "\", choose from: " +
                         StringUtils.join(names, ", "));
             }
+            String type = type();
+            String possibleValues = possibleValues();
+            if ((type.equals(CommandInputEntity.Type.MULTISELECT.getName()) ||
+                    type.equals(CommandInputEntity.Type.SELECT.getName())) && possibleValues == null) {
+                errors.add("Command input \"" +  name()  + "\" is designated as type " + type + " but doesn't list " +
+                        "possible-values. Note that command inputs with value provided by xnat input shouldn't be " +
+                        "designated as select (they'll render as a select if their xnat input resolves to more than one " +
+                        "value.");
+            } else if (!(type.equals(CommandInputEntity.Type.MULTISELECT.getName()) ||
+                    type.equals(CommandInputEntity.Type.SELECT.getName())) && possibleValues != null) {
+                errors.add("Command input \"" +  name()  + "\" has possible values set, but is not a select type.");
+            }
+            String defaultVal = defaultValue();
+            if (defaultVal != null && possibleValues != null &&
+                    !Arrays.stream(possibleValues.split(",")).map(String::trim).collect(Collectors.toList())
+                            .contains(defaultValue())) {
+                errors.add("Command input \"" +  name()  + "\" default value \"" + defaultVal + "\" is not one of the " +
+                        "possible values \"" + possibleValues + "\"");
+            }
             return errors;
         }
 
@@ -737,7 +764,8 @@ public abstract class Command {
             public abstract Builder trueValue(final String trueValue);
             public abstract Builder falseValue(final String falseValue);
             public abstract Builder sensitive(Boolean sensitive);
-            public abstract Builder multipleDelimiter(String multipleDelimiter);
+            public abstract Builder possibleValues(final String possibleValues);
+            public abstract Builder multipleDelimiter(final String multipleDelimiter);
 
             public abstract CommandInput build();
         }

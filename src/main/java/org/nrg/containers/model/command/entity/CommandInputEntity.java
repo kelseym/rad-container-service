@@ -39,6 +39,7 @@ public class CommandInputEntity implements Serializable {
     private String trueValue;
     private String falseValue;
     private Boolean sensitive;
+    private String possibleValues;
     private MultipleDelimiter multipleDelimiter;
 
     public static CommandInputEntity fromPojo(final Command.CommandInput commandInput) {
@@ -62,6 +63,7 @@ public class CommandInputEntity implements Serializable {
         this.setTrueValue(commandInput.trueValue());
         this.setFalseValue(commandInput.falseValue());
         this.setSensitive(commandInput.sensitive());
+        this.setPossibleValues(commandInput.possibleValues());
         this.setMultipleDelimiterByName(commandInput.multipleDelimiter());
 
         switch (commandInput.type()) {
@@ -73,6 +75,12 @@ public class CommandInputEntity implements Serializable {
                 break;
             case "number":
                 this.setType(Type.NUMBER);
+                break;
+            case "select-one":
+                this.setType(Type.SELECT);
+                break;
+            case "select-many":
+                this.setType(Type.MULTISELECT);
                 break;
             default:
                 this.setType(DEFAULT_TYPE);
@@ -229,6 +237,15 @@ public class CommandInputEntity implements Serializable {
         }
     }
 
+    @Column(columnDefinition = "TEXT")
+    public String getPossibleValues() {
+        return possibleValues;
+    }
+
+    public void setPossibleValues(String possibleValues) {
+        this.possibleValues = possibleValues;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -260,6 +277,7 @@ public class CommandInputEntity implements Serializable {
                 .add("trueValue", trueValue)
                 .add("falseValue", falseValue)
                 .add("sensitive", sensitive)
+                .add("possibleValues", possibleValues)
                 .add("multipleDelimiter", multipleDelimiter)
                 .toString();
     }
@@ -267,7 +285,9 @@ public class CommandInputEntity implements Serializable {
     public enum Type {
         STRING("string"),
         BOOLEAN("boolean"),
-        NUMBER("number");
+        NUMBER("number"),
+        SELECT("select-one"),
+        MULTISELECT("select-many");
 
         public final String name;
 
