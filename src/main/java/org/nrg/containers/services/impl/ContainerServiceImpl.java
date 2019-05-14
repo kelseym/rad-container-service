@@ -534,12 +534,8 @@ public class ContainerServiceImpl implements ContainerService {
         if (resolvedCommand.type().equals(DOCKER_SETUP.getName()) && workflow != null) {
             // Create a new workflow for setup (wrapup doesn't come through this method, gets its workflow
             // in createWrapupContainerInDbFromResolvedCommand)
-            try {
-                workflow = createContainerWorkflow(workflow.getId(), workflow.getDataType(),
-                        workflow.getPipelineName() + "-setup", workflow.getExternalid(), userI);
-            } catch (Exception e) {
-                workflow = null;
-            }
+            workflow = createContainerWorkflow(workflow.getId(), workflow.getDataType(),
+                    workflow.getPipelineName() + "-setup", workflow.getExternalid(), userI);
         }
 
         // Update workflow with resolved command (or try to create it if null)
@@ -606,14 +602,11 @@ public class ContainerServiceImpl implements ContainerService {
     private Container createWrapupContainerInDbFromResolvedCommand(final ResolvedCommand resolvedCommand, final Container parent,
                                                                    final UserI userI, PersistentWorkflowI parentWorkflow) {
 
-        String workflowid;
-        try {
-            PersistentWorkflowI workflow = createContainerWorkflow(parentWorkflow.getId(), parentWorkflow.getDataType(),
-                    parentWorkflow.getPipelineName() + "-wrapup", parentWorkflow.getExternalid(), userI);
-            workflowid = workflow.getWorkflowId().toString();
-        } catch (Exception e) {
-            workflowid = null;
-        }
+
+        PersistentWorkflowI workflow = createContainerWorkflow(parentWorkflow.getId(), parentWorkflow.getDataType(),
+                parentWorkflow.getPipelineName() + "-wrapup", parentWorkflow.getExternalid(), userI);
+        String workflowid = workflow == null ? null : workflow.getWorkflowId().toString();
+
         final Container toCreate = Container.containerFromResolvedCommand(resolvedCommand, null, userI.getLogin()).toBuilder()
                 .parent(parent)
                 .workflowId(workflowid)
@@ -1360,11 +1353,14 @@ public class ContainerServiceImpl implements ContainerService {
      * @param projectId the project ID
      * @param user the user
      * @return the workflow
-     * @throws Exception if unable to create workflow
      */
+    @Nullable
     public PersistentWorkflowI createContainerWorkflow(String xnatIdOrArchivePath, String containerInputType,
-                                                       String wrapperName, String projectId, UserI user)
-            throws Exception {
+                                                       String wrapperName, String projectId, UserI user) {
+        if (xnatIdOrArchivePath == null) {
+            return null;
+        }
+
         String xnatId = new File(xnatIdOrArchivePath).getName(); //sometimes, this is the archive path
         String xsiType = null;
         try {
@@ -1394,14 +1390,19 @@ public class ContainerServiceImpl implements ContainerService {
         } catch (NullPointerException e) {
             xsiType = "";
         }
-        PersistentWorkflowI workflow = WorkflowUtils.buildOpenWorkflow(user, xsiType, xnatId, projectId,
-                EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
-                        wrapperName,
-                        containerLaunchJustification,
-                        ""));
-        workflow.setStatus(PersistentWorkflowUtils.QUEUED);
-        WorkflowUtils.save(workflow, workflow.buildEvent());
-        log.debug("Created workflow {}.", workflow.getWorkflowId());
+        PersistentWorkflowI workflow = null;
+        try {
+            workflow = WorkflowUtils.buildOpenWorkflow(user, xsiType, xnatId, projectId,
+                    EventUtils.newEventInstance(EventUtils.CATEGORY.DATA, EventUtils.TYPE.PROCESS,
+                            wrapperName,
+                            containerLaunchJustification,
+                            ""));
+            workflow.setStatus(PersistentWorkflowUtils.QUEUED);
+            WorkflowUtils.save(workflow, workflow.buildEvent());
+            log.debug("Created workflow {}.", workflow.getWorkflowId());
+        } catch (Exception e) {
+            log.error("Issue creating workflow for {} {}", xnatId, wrapperName, e);
+        }
         return workflow;
     }
 

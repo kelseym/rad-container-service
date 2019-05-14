@@ -14,6 +14,7 @@ Not yet released
 * Live logging display
 * Add support for command inputs that resolve to mulitple values (e.g., multiple T1 scans)
 * Add label field to command.json inputs to allow customization of UI display
+* Add select-values field to command.json inputs to allow select box rendering of non-xnat inputs
 
 
 ### Bugfixes

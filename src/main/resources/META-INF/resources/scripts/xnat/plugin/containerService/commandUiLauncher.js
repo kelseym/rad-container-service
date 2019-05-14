@@ -245,7 +245,14 @@ var XNAT = getObject(XNAT || {});
             label = input.label,
             dataProps = input.dataProps || {},
             classes = ['panel-element panel-input'],
-            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {},
+            description = input.description || '',
+            required = input.required || false;
+
+        if (required) {
+            classes.push('required');
+            description += ' (Required)';
+        }
 
         if (input.childInputs) {
             classes.push('has-children');
@@ -258,6 +265,7 @@ var XNAT = getObject(XNAT || {});
             data: dataProps,
             attr: attr,
             className: classes.join(' '),
+            description: description,
             options: input.options
         }).element;
     };
@@ -267,7 +275,14 @@ var XNAT = getObject(XNAT || {});
             label = input.label,
             dataProps = input.dataProps || {},
             classes = ['panel-element panel-input'],
-            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {},
+            description = input.description || '',
+            required = input.required || false;
+
+        if (required) {
+            classes.push('required');
+            description += ' (Required)';
+        }
 
         // Cannot have children if multiple select
         // if (input.childInputs) {
@@ -281,6 +296,7 @@ var XNAT = getObject(XNAT || {});
             data: dataProps,
             attr: attr,
             className: classes.join(' '),
+            description: description,
             options: input.options
         }).element;
     };
@@ -549,43 +565,74 @@ var XNAT = getObject(XNAT || {});
             if (derivedInput) {
                 selectedLabel = configInput['derived-value-info'];
                 selectedVal = configInput['derived-value-message'];
-            } else if (!isArray(valueArr)) {
-                // if no values can be set, render the input without a value selected
-                selectedVal = '';
-                selectedLabel = '';
-                // if this is a required input, we might have a problem
-                if (configInput.required) {
-                    launcher.errorMessages.push('Error: <strong>'+ configInput.label +'</strong> is a required field and has no available values. You may not be able to submit this container.');
-                }
             } else {
-                valueArr = valueArr.filter(uniqueArray);
+                valueArr = !isArray(valueArr) ? [] : valueArr.filter(uniqueArray);
 
                 // HACK HACK HACK -- The top level element may return improperly-formatted JSON from the jsonPath query.
-                if (valueArr[0].values !== undefined) valueArr = valueArr[0].values;
+                if (valueArr.length > 0 && valueArr[0].values !== undefined) valueArr = valueArr[0].values;
 
-                if (valueArr.length > 1) {
-                    if (input['input-type'] === "select-one") {
-                        var options = { 'default': { label: 'Select One', attr: { 'selected':'selected'} }};
-                        valueArr.forEach(function(val,i){ options['option-'+i] = val });
-                        configInput.options = options;
-
-                        configInput.dataProps = { 'childValues': JSON.stringify(valueArr) };
-                    } else if (input['input-type'] === "select-many") {
-                        var options = {};
-                        valueArr.forEach(function(val,i){ options['option-'+i] = val });
-                        configInput.options = options;
-                    } else if (input['multiple']) {
-                        selectedVal = JSON.stringify($.map(valueArr, function(v) {return v.value;}));
-                        selectedLabel = $.map(valueArr, function(v) {return v.label;}).join('<br/>');
-                    } else {
-                        // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
+                if (input['select-values'].length > 0) {
+                    // valueArr will contain any default values
+                    var selectedValues = [];
+                    if (valueArr.length > 0) {
+                        selectedValues = $.map(valueArr, function(val){
+                            try {
+                                return JSON.parse(val.value);
+                            } catch (e) {
+                                return val.value;
+                            }
+                        }).flat();
+                    }
+                    var options = {};
+                    if (input['input-type'] === "select-one" && selectedValues.length === 0) {
+                        options['default'] = {label: 'Select one', selected: true};
+                    }
+                    input['select-values'].forEach(function (val, i) {
+                        options['option-' + i] = {value: val, label: val, selected: selectedValues.contains(val), children: []};
+                    });
+                    configInput.options = options;
+                } else {
+                    if (valueArr.length === 0) {
+                        // if no values can be set, render the input without a value selected
                         selectedVal = '';
                         selectedLabel = '';
+                        // if this is a required input, we might have a problem
+                        if (configInput.required) {
+                            launcher.errorMessages.push('Error: <strong>' + configInput.label + '</strong> is a ' +
+                                'required field and has no available values. You may not be able to submit this container.');
+                        }
+                    } else if (valueArr.length > 1) {
+                        // Multiple matches, usually derived inputs
+                        if (input['input-type'] === "select-one") {
+                            var options = {'default': {label: 'Select one', selected: true}};
+                            valueArr.forEach(function (val, i) {
+                                options['option-' + i] = val
+                            });
+                            configInput.options = options;
+
+                            configInput.dataProps = {'childValues': JSON.stringify(valueArr)};
+                        } else if (input['input-type'] === "select-many") {
+                            var options = {};
+                            valueArr.forEach(function (val, i) {
+                                options['option-' + i] = val
+                            });
+                            configInput.options = options;
+                        } else if (input['multiple']) {
+                            selectedVal = JSON.stringify($.map(valueArr, function (v) {
+                                return v.value;
+                            }));
+                            selectedLabel = $.map(valueArr, function (v) {
+                                return v.label;
+                            }).join('<br/>');
+                        } else {
+                            // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
+                            selectedVal = '';
+                            selectedLabel = '';
+                        }
+                    } else {
+                        selectedVal = valueArr[0].value;
+                        selectedLabel = valueArr[0].label || 'N/A';
                     }
-                }
-                else {
-                    selectedVal = valueArr[0].value;
-                    selectedLabel = valueArr[0].label || 'N/A';
                 }
             }
 

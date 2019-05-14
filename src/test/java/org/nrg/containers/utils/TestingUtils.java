@@ -9,6 +9,7 @@ import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.Task;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
 import org.nrg.containers.model.container.auto.Container;
@@ -156,7 +157,11 @@ public class TestingUtils {
         return new Callable<Boolean>() {
             public Boolean call() throws Exception {
                 try {
-                    final Service serviceResponse = CLIENT.inspectService(container.serviceId());
+                    String servicdId = container.serviceId();
+                    if (StringUtils.isBlank(servicdId)) {
+                        return null;
+                    }
+                    final Service serviceResponse = CLIENT.inspectService(servicdId);
                     final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
                     if (tasks.size() == 0) {
                         return false;

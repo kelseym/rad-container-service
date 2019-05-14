@@ -58,6 +58,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
                 "true-value": "",
                 "false-value": "",
                 "sensitive": false,
+                "select-values": [],
                 "multiple-delimiter": ""
             }
         ],
@@ -153,17 +154,18 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
     - **name** - The name of the input. You can use this to refer to the input elsewhere in the command.
     - **label** - The label for the input in the UI, if none is provided, the name will be used. If a derived or external input provides the value for this input, that input's label will be used instead.
     - **description** - A human-friendly description of the input.
-    - **type** - One of string, boolean, number, or file. See the section on [input types](#input-types) below for more. Default: string.
+    - **type** - One of `string`, `boolean`, `number`, `select-one`, or `select-many`. See the section on [input types](#input-types) below for more. If `select-one` or `select-many`, be sure to provide `"select-values"` (see entry, below). Default: `string`.
     - **required** - A boolean value (true/false) whether this input is required. If a required input does not have a value at runtime, an error is thrown. Default: false.
     - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not.
-    - **default-value** - A value that will be used if no other value is provided at runtime.
+    - **default-value** - A value that will be used if no other value is provided at runtime. If `"type":"select-many"` and you want to specify a default with multiple values, you may provide a JSON-stringified array here (e.g., `"[\"val1\",\"val2\"]"`).
     - **replacement-key** - A shorthand way to refer to this input's value elsewhere in the command. Default: the input's name bracketed by "#"; e.g. for an input named "foo" the default replacement-key is "#foo#".
     - **command-line-flag** - When this input's value is replaced in the command-line string, it is preceded by this flag. E.g. an input with value "foo" and command-line-flag "--flag" will appear in the command-line string as "--flag foo".
     - **command-line-separator** - The character separating the command-line-flag from the value in the command-line. Default: " ".
     - **true-value** - The string to use in the command line for a boolean input when its value is `true`. Some examples: "true", "T", "Y", "1", "--a-flag". Default: "true".
     - **false-value** - The string to use in the command line for a boolean input when its value is `false`. Some examples: "false", "F", "N", "0", "--some-other-flag". Default: "false".
-    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.
-	- **multiple-delimmiter** - One of "quoted-space", "space", "comma", or "flag" (or null). This parameter will only be relevant if this input's value is provided by a [derived-input](#wrapper-inputs) with "multiple":true. When this input's value is replaced in the command-line string, the multiple-delimiter defines how multiple values will be separated. Values are as follows: "space" = space-delimited (e.g, `1 2`), "comma" = comma-delimited (e.g, `1,2`), "quoted-space" = space-delimited within single quotes (e.g, `'1 2'`), "flag" = delimited by "command-line-flag" + "command-line-separator" (e.g., `--flag=1 --flag=2`). Default: "space"
+    - **sensitive** - A boolean value. Set to `true` if you want the value of this parameter to be masked out in the UI and REST API responses. The value will still be present in the database and logs. Default: `false`.   
+	- **select-values** - If type is `select-one` or `select-many`, you must provide an array of possible values for this input. _These are only relevant if the input's value is NOT provided by an external or derived input_. Default: `[]`.
+	- **multiple-delimmiter** - One of `quoted-space`, `space`, `comma`, or `flag` (or null). This parameter will only be relevant if `"type":"select-many"` OR if this input's value is provided by a [derived-input](#wrapper-inputs) with `"multiple":true`. When this input's value is replaced in the command-line string, the multiple-delimiter defines how multiple values will be separated. Values are as follows: "space" = space-delimited (e.g, `1 2`), "comma" = comma-delimited (e.g, `1,2`), "quoted-space" = space-delimited within single quotes (e.g, `'1 2'`), "flag" = delimited by "command-line-flag" + "command-line-separator" (e.g., `--flag=1 --flag=2`). Default: `space`
 - **outputs** - A list of outputs that will be used to upload files produced by the container. See [Command Outputs](#command-outputs).
     - **name** - The name of the output.
     - **description** - A human-friendly description of the output.
@@ -180,7 +182,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
         - **name**
         - **label** - The label for the input in the UI, if none is provided, the name will be used.
         - **description**
-        - **type** - One of the basic types (string, boolean, number, file) or the XNAT object types (Project, Subject, Session, Scan, Assessor, Resource, Config). See the section on [input types](#input-types) below for more.
+        - **type** - One of the basic types (string, boolean, number) or the XNAT object types (Project, Subject, Session, Scan, Assessor, Resource, Config). See the section on [input types](#input-types) below for more.
         - **matcher** - A [JSONPath filter](#jsonpath-filters) used to determine if an input value is valid or not. For instance, if the parent input is a `Session`, and this input is a `Scan`, we can make sure that this input only matches scans with a DICOM resource by setting the matcher to `"DICOM" in @.resources[*].label`, or only matches scans of a certain type by setting the matcher to `@.scan-type == "MPRAGE"`.
         - **default-value**
         - **user-settable** - true/false. Should this Input be exposed to users who are launching via a UI? See the section [User-settable or not?](#user-settable-or-not) for the use-cases where one might want to set this to "false".
@@ -389,9 +391,9 @@ The more common use-case for this parameter is in XNAT-project-specific settings
 
 ## Input Types
 
-Command input types: string, boolean, number
+Command input types: string, boolean, number, select-one, select-many. These control how the input is displayed in the UI, provided it doesn't get its value from an XNAT wrapper input (in which case, the "type" property is ignored).
 
-XNAT Wrapper input types: string, boolean, number, Directory, File, File[], Project, Subject, Session, Scan, Assessor, Resource, Config
+XNAT Wrapper input types: string, boolean, number, Directory, File, File[], Project, Subject, Session, Scan, Assessor, Resource, Config. These are more about how to resolve the input than how is is displayed in the UI (which is dictated by whether user input is needed to resolve it or not).
 
 **Note**: Some inputs are possible to make but aren't currently functional.
 
