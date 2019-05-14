@@ -140,6 +140,16 @@ public abstract class ResolvedCommand {
                                                                                          final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> derivedInputValuesAndChildren,
                                                                                          final List<String> commandInputChildrenValues)
             throws CommandResolutionException {
+        return collectCommandInputChildrenOfMultipleDerivedInput(wrapperInput, derivedInputValuesAndChildren,
+                commandInputChildrenValues, true);
+    }
+
+    @JsonIgnore
+    public static Command.CommandInput collectCommandInputChildrenOfMultipleDerivedInput(final Command.CommandWrapperInput wrapperInput,
+                                                                                         final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> derivedInputValuesAndChildren,
+                                                                                         final List<String> commandInputChildrenValues,
+                                                                                         final boolean throwExceptionOnError)
+            throws CommandResolutionException {
 
         String commandInputName = wrapperInput.providesValueForCommandInput();
         if (StringUtils.isBlank(commandInputName)) {
@@ -169,7 +179,7 @@ public abstract class ResolvedCommand {
             }
         }
 
-        if (ci == null) {
+        if (ci == null && throwExceptionOnError) {
             throw new CommandResolutionException(wrapperInput.name() + " must have precisely one command " +
                     "input child element");
         }

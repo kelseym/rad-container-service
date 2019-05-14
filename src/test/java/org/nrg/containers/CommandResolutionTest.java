@@ -618,6 +618,26 @@ public class CommandResolutionTest {
     }
 
     @Test
+    public void testSelectParamCommandLine() throws Exception {
+        final String commandJsonFile = resourceDir + "/select-command.json";
+        final Command tempCommand = mapper.readValue(new File(commandJsonFile), Command.class);
+        final Command command = commandService.create(tempCommand);
+
+        final Map<String, CommandWrapper> commandWrappers = Maps.newHashMap();
+        for (final CommandWrapper commandWrapper : command.xnatCommandWrappers()) {
+            commandWrappers.put(commandWrapper.name(), commandWrapper);
+        }
+        final CommandWrapper wrapper = commandWrappers.get("multiple");
+
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()), runtimeValues, mockUser);
+        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' " +
+                "scan1,scan2 scan1 scan2 scan1";
+        assertThat(resolvedCommand.commandLine(), is(cmdLine));
+    }
+
+    @Test
     public void testIllegalArgs() throws Exception {
         final String commandJsonFile = resourceDir + "/illegal-args-command.json";
         final Command tempCommand = mapper.readValue(new File(commandJsonFile), Command.class);

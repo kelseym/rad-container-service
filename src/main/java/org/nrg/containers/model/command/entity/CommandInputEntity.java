@@ -5,19 +5,9 @@ import org.nrg.containers.model.command.auto.Command;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
-import javax.persistence.Transient;
+import javax.persistence.*;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
@@ -39,7 +29,7 @@ public class CommandInputEntity implements Serializable {
     private String trueValue;
     private String falseValue;
     private Boolean sensitive;
-    private String possibleValues;
+    private List<String> selectValues = Collections.emptyList();
     private MultipleDelimiter multipleDelimiter;
 
     public static CommandInputEntity fromPojo(final Command.CommandInput commandInput) {
@@ -63,7 +53,7 @@ public class CommandInputEntity implements Serializable {
         this.setTrueValue(commandInput.trueValue());
         this.setFalseValue(commandInput.falseValue());
         this.setSensitive(commandInput.sensitive());
-        this.setPossibleValues(commandInput.possibleValues());
+        this.setSelectValues(commandInput.selectValues());
         this.setMultipleDelimiterByName(commandInput.multipleDelimiter());
 
         switch (commandInput.type()) {
@@ -237,13 +227,13 @@ public class CommandInputEntity implements Serializable {
         }
     }
 
-    @Column(columnDefinition = "TEXT")
-    public String getPossibleValues() {
-        return possibleValues;
+    @ElementCollection
+    public List<String> getSelectValues() {
+        return selectValues;
     }
 
-    public void setPossibleValues(String possibleValues) {
-        this.possibleValues = possibleValues;
+    public void setSelectValues(List<String> selectValues) {
+        this.selectValues = selectValues;
     }
 
     @Override
@@ -277,7 +267,7 @@ public class CommandInputEntity implements Serializable {
                 .add("trueValue", trueValue)
                 .add("falseValue", falseValue)
                 .add("sensitive", sensitive)
-                .add("possibleValues", possibleValues)
+                .add("selectValues", selectValues)
                 .add("multipleDelimiter", multipleDelimiter)
                 .toString();
     }

@@ -245,7 +245,14 @@ var XNAT = getObject(XNAT || {});
             label = input.label,
             dataProps = input.dataProps || {},
             classes = ['panel-element panel-input'],
-            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {},
+            description = input.description || '',
+            required = input.required || false;
+
+        if (required) {
+            classes.push('required');
+            description += ' (Required)';
+        }
 
         if (input.childInputs) {
             classes.push('has-children');
@@ -258,6 +265,7 @@ var XNAT = getObject(XNAT || {});
             data: dataProps,
             attr: attr,
             className: classes.join(' '),
+            description: description,
             options: input.options
         }).element;
     };
@@ -267,7 +275,14 @@ var XNAT = getObject(XNAT || {});
             label = input.label,
             dataProps = input.dataProps || {},
             classes = ['panel-element panel-input'],
-            attr = (input.disabled) ? { 'disabled':'disabled'} : {};
+            attr = (input.disabled) ? { 'disabled':'disabled'} : {},
+            description = input.description || '',
+            required = input.required || false;
+
+        if (required) {
+            classes.push('required');
+            description += ' (Required)';
+        }
 
         // Cannot have children if multiple select
         // if (input.childInputs) {
@@ -281,6 +296,7 @@ var XNAT = getObject(XNAT || {});
             data: dataProps,
             attr: attr,
             className: classes.join(' '),
+            description: description,
             options: input.options
         }).element;
     };
@@ -555,16 +571,23 @@ var XNAT = getObject(XNAT || {});
                 // HACK HACK HACK -- The top level element may return improperly-formatted JSON from the jsonPath query.
                 if (valueArr.length > 0 && valueArr[0].values !== undefined) valueArr = valueArr[0].values;
 
-                if (input['possible-values']) {
+                if (input['select-values'].length > 0) {
                     // valueArr will contain any default values
-                    var selectedValues = valueArr.length > 0 ?
-                        $.map(valueArr, function(val){ return val.value.split(/ *, */); }).flat() :
-                        [];
+                    var selectedValues = [];
+                    if (valueArr.length > 0) {
+                        selectedValues = $.map(valueArr, function(val){
+                            try {
+                                return JSON.parse(val.value);
+                            } catch (e) {
+                                return val.value;
+                            }
+                        }).flat();
+                    }
                     var options = {};
                     if (input['input-type'] === "select-one" && selectedValues.length === 0) {
                         options['default'] = {label: 'Select one', selected: true};
                     }
-                    input['possible-values'].split(/ *, */).forEach(function (val, i) {
+                    input['select-values'].forEach(function (val, i) {
                         options['option-' + i] = {value: val, label: val, selected: selectedValues.contains(val), children: []};
                     });
                     configInput.options = options;

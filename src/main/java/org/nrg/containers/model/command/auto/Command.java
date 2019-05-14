@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
@@ -19,10 +21,10 @@ import org.nrg.containers.model.configuration.CommandConfiguration.CommandOutput
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @AutoValue
 public abstract class Command {
@@ -51,7 +53,7 @@ public abstract class Command {
     @Nullable @JsonProperty("limit-cpu") public abstract Double limitCpu();
 
     @JsonIgnore private static Pattern regCharPattern = Pattern.compile("[^A-Za-z0-9_-]");
-
+    @JsonIgnore private static ObjectMapper mapper = new ObjectMapper();
 
     @JsonCreator
     static Command create(@JsonProperty("id") final long id,
@@ -298,6 +300,7 @@ public abstract class Command {
         final String knownMounts = StringUtils.join(mountNames, ", ");
 
         final Set<String> inputNames = Sets.newHashSet();
+        final Map<String, CommandInput> commandInputs = Maps.newHashMap();
         for (final CommandInput input : inputs()) {
             final List<String> inputErrors = Lists.newArrayList();
             inputErrors.addAll(Lists.transform(input.validate(), addCommandNameToError));
@@ -306,6 +309,7 @@ public abstract class Command {
                 errors.add(commandName + "input name \"" + input.name() + "\" is not unique.");
             } else {
                 inputNames.add(input.name());
+                commandInputs.put(input.name(), input);
             }
 
             if (!inputErrors.isEmpty()) {
@@ -364,6 +368,17 @@ public abstract class Command {
                     wrapperInputNames.add(external.name());
                 }
 
+                CommandInput provFor = commandInputs.get(external.providesValueForCommandInput());
+                if (provFor != null) {
+                    if (provFor.isSelect()) {
+                        errors.add(wrapperName + "external input name \"" + external.name() + "\" provides value for " +
+                                "command input \"" + provFor.name() + "\", which is marked as a select type.");
+                    }
+                    if (!provFor.selectValues().isEmpty()) {
+                        errors.add(wrapperName + "external input name \"" + external.name() + "\" provides value for " +
+                                "command input \"" + provFor.name() + "\", which has select values.");
+                    }
+                }
 
                 if (!inputErrors.isEmpty()) {
                     errors.addAll(inputErrors);
@@ -389,6 +404,18 @@ public abstract class Command {
                     errors.add(wrapperName + "derived input \"" + derived.name() +
                             "\" is derived from an unknown XNAT input \"" + derived.derivedFromWrapperInput() +
                             "\". Known inputs: " + StringUtils.join(wrapperInputNames, ", "));
+                }
+
+                CommandInput provFor = commandInputs.get(derived.providesValueForCommandInput());
+                if (provFor != null) {
+                    if (provFor.isSelect()) {
+                        errors.add(wrapperName + "derived input name \"" + derived.name() + "\" provides value for " +
+                                "command input \"" + provFor.name() + "\", which is marked as a select type.");
+                    }
+                    if (!provFor.selectValues().isEmpty()) {
+                        errors.add(wrapperName + "derived input name \"" + derived.name() + "\" provides value for " +
+                                "command input \"" + provFor.name() + "\", which has select values.");
+                    }
                 }
 
                 if (!inputErrors.isEmpty()) {
@@ -615,7 +642,7 @@ public abstract class Command {
         @Nullable @JsonProperty("command-line-separator") public abstract String commandLineSeparator();
         @Nullable @JsonProperty("true-value") public abstract String trueValue();
         @Nullable @JsonProperty("false-value") public abstract String falseValue();
-        @Nullable @JsonProperty("possible-values") public abstract String possibleValues();
+        @JsonProperty("select-values") public abstract ImmutableList<String> selectValues();
         @Nullable @JsonProperty("multiple-delimiter") public abstract String multipleDelimiter();
 
         @JsonCreator
@@ -632,7 +659,7 @@ public abstract class Command {
                                    @JsonProperty("true-value") final String trueValue,
                                    @JsonProperty("false-value") final String falseValue,
                                    @JsonProperty("sensitive") final Boolean sensitive,
-                                   @JsonProperty("possible-values") final String possibleValues,
+                                   @JsonProperty("select-values") final List<String> selectValues,
                                    @JsonProperty("multiple-delimiter") final String multipleDelimiter) {
             return builder()
                     .name(name)
@@ -648,7 +675,7 @@ public abstract class Command {
                     .trueValue(trueValue)
                     .falseValue(falseValue)
                     .sensitive(sensitive)
-                    .possibleValues(possibleValues)
+                    .selectValues(selectValues == null ? Collections.emptyList() : selectValues)
                     .multipleDelimiter(multipleDelimiter)
                     .build();
         }
@@ -673,7 +700,7 @@ public abstract class Command {
                     .trueValue(commandInputEntity.getTrueValue())
                     .falseValue(commandInputEntity.getFalseValue())
                     .sensitive(commandInputEntity.getSensitive())
-                    .possibleValues(commandInputEntity.getPossibleValues())
+                    .selectValues(commandInputEntity.getSelectValues())
                     .multipleDelimiter(md == null ? null : md.getName())
                     .build();
         }
@@ -683,7 +710,8 @@ public abstract class Command {
                     .id(0L)
                     .name("")
                     .type(CommandInputEntity.DEFAULT_TYPE.getName())
-                    .required(false);
+                    .required(false)
+                    .selectValues(Collections.emptyList());
         }
 
         public CommandInput applyConfiguration(final CommandInputConfiguration commandInputConfiguration) {
@@ -700,11 +728,23 @@ public abstract class Command {
                     .trueValue(this.trueValue())
                     .falseValue(this.falseValue())
                     .sensitive(this.sensitive())
-                    .possibleValues(this.possibleValues())
+                    .selectValues(this.selectValues())
                     .multipleDelimiter(this.multipleDelimiter())
                     .defaultValue(commandInputConfiguration.defaultValue())
                     .matcher(commandInputConfiguration.matcher())
                     .build();
+        }
+
+        @JsonIgnore
+        public boolean isSelect() {
+            String type = type();
+            return type.equals(CommandInputEntity.Type.MULTISELECT.getName()) ||
+                    type.equals(CommandInputEntity.Type.SELECT.getName());
+        }
+
+        @JsonIgnore
+        public boolean isMultiSelect() {
+            return type().equals(CommandInputEntity.Type.MULTISELECT.getName());
         }
 
         public abstract Builder toBuilder();
@@ -726,24 +766,32 @@ public abstract class Command {
                 errors.add("Invalid multiple-delimiter \"" + md + "\", choose from: " +
                         StringUtils.join(names, ", "));
             }
-            String type = type();
-            String possibleValues = possibleValues();
-            if ((type.equals(CommandInputEntity.Type.MULTISELECT.getName()) ||
-                    type.equals(CommandInputEntity.Type.SELECT.getName())) && possibleValues == null) {
-                errors.add("Command input \"" +  name()  + "\" is designated as type " + type + " but doesn't list " +
-                        "possible-values. Note that command inputs with value provided by xnat input shouldn't be " +
-                        "designated as select (they'll render as a select if their xnat input resolves to more than one " +
-                        "value.");
-            } else if (!(type.equals(CommandInputEntity.Type.MULTISELECT.getName()) ||
-                    type.equals(CommandInputEntity.Type.SELECT.getName())) && possibleValues != null) {
-                errors.add("Command input \"" +  name()  + "\" has possible values set, but is not a select type.");
+            List<String> selectValues = selectValues();
+            if (isSelect() && selectValues.isEmpty()) {
+                errors.add("Command input \"" +  name()  + "\" is designated as type " + type() + " but doesn't list " +
+                        "select-values. Note that command inputs with values provided by xnat inputs shouldn't be " +
+                        "designated as select (they'll automatically render as a select if their xnat input resolves " +
+                        "to more than one value.");
+            } else if (!isSelect() && !selectValues.isEmpty()) {
+                errors.add("Command input \"" +  name()  + "\" has select-values set, but is not a select type.");
             }
             String defaultVal = defaultValue();
-            if (defaultVal != null && possibleValues != null &&
-                    !Arrays.stream(possibleValues.split(",")).map(String::trim).collect(Collectors.toList())
-                            .contains(defaultValue())) {
+            List<String> defaultValList = null;
+            if (isMultiSelect()) {
+                try {
+                    defaultValList = mapper.readValue(defaultVal, new TypeReference<List<String>>() {});
+                } catch (IOException e) {
+                    // Not a list, treat defaultVal as string
+                }
+            }
+            if (defaultValList != null) {
+                if (!selectValues.isEmpty() && !selectValues.containsAll(defaultValList)) {
+                    errors.add("Command input \"" + name() + "\" one or more default values in \"" + defaultValList +
+                            "\" is not in the list of select-values \"" + selectValues + "\"");
+                }
+            } else if (defaultVal != null && !selectValues.isEmpty() && !selectValues.contains(defaultVal)) {
                 errors.add("Command input \"" +  name()  + "\" default value \"" + defaultVal + "\" is not one of the " +
-                        "possible values \"" + possibleValues + "\"");
+                        "select-values \"" + selectValues + "\"");
             }
             return errors;
         }
@@ -764,7 +812,7 @@ public abstract class Command {
             public abstract Builder trueValue(final String trueValue);
             public abstract Builder falseValue(final String falseValue);
             public abstract Builder sensitive(Boolean sensitive);
-            public abstract Builder possibleValues(final String possibleValues);
+            public abstract Builder selectValues(final List<String> selectValues);
             public abstract Builder multipleDelimiter(final String multipleDelimiter);
 
             public abstract CommandInput build();

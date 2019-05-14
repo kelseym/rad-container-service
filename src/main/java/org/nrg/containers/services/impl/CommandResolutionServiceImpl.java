@@ -1402,43 +1402,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 // command.json validation)
                 final List<String> commandInputChildrenValues = new ArrayList<>();
                 CommandInput ci = ResolvedCommand.collectCommandInputChildrenOfMultipleDerivedInput((CommandWrapperDerivedInput) input,
-                        resolvedValueAndChildren, commandInputChildrenValues);
+                        resolvedValueAndChildren, commandInputChildrenValues, resolveFully);
 
-                String values = String.join(" ", commandInputChildrenValues);
-                resolvedInputValuesByReplacementKey.put(ci.replacementKey(), values);
-                resolvedInputValuesByReplacementKey.put(input.replacementKey(), values);
+                String valString = commandInputChildrenValues.toString();
+                if (ci != null) resolvedInputValuesByReplacementKey.put(ci.replacementKey(), valString);
+                resolvedInputValuesByReplacementKey.put(input.replacementKey(), valString);
 
-                if (resolvedCommandLineValuesByReplacementKey != null) {
-                    // Handle command-line parsing
-                    String prefix = "";
-                    String suffix = "";
-                    String delimiter;
-                    CommandInputEntity.MultipleDelimiter multipleDelimiter =
-                            CommandInputEntity.MultipleDelimiter.getByName(ci.multipleDelimiter());
-                    switch (multipleDelimiter) {
-                        case QUOTED_SPACE:
-                            delimiter = " ";
-                            prefix = "'";
-                            suffix = "'";
-                            break;
-                        case SPACE:
-                            delimiter = " ";
-                            break;
-                        case COMMA:
-                            delimiter = ",";
-                            break;
-                        case FLAG:
-                            delimiter = " " + StringUtils.defaultIfBlank(ci.commandLineFlag(), " ") +
-                                    StringUtils.defaultIfBlank(ci.commandLineSeparator(), " ");
-                            break;
-                        default:
-                            // Should never happen per CommandInputEntity.MultipleDelimiter.getByName
-                            throw new CommandResolutionException("Invalid multiple-delimiter for \"" + input.name() + "\"");
-                    }
-
+                if (resolvedCommandLineValuesByReplacementKey != null && ci != null) {
                     resolvedCommandLineValuesByReplacementKey.put(ci.replacementKey(),
-                            getValueForCommandLine(ci,
-                                    prefix + String.join(delimiter, commandInputChildrenValues) + suffix));
+                            getMultipleValuesForCommandLine(ci, commandInputChildrenValues));
                 }
             } else {
                 // This node has multiple values, so we can't add any uniquely resolved values to the map
@@ -1455,21 +1427,79 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         }
 
         @Nonnull
-        private String getValueForCommandLine(final CommandInput input, final String resolvedInputValue) {
-            log.debug("Resolving command-line value.");
-            if (StringUtils.isBlank(resolvedInputValue)) {
-                log.debug("Input value is null. Using value \"\" on the command line.");
+        private String getMultipleValuesForCommandLine(final CommandInput ci,
+                                                       @Nonnull final List<String> commandInputChildrenValues)
+                throws CommandResolutionException {
+
+            if (commandInputChildrenValues.isEmpty()) {
+                log.debug("Input value is empty. Using value \"\" on the command line.");
                 return "";
             }
-            if (StringUtils.isBlank(input.commandLineFlag())) {
-                log.debug("Input flag is null. Using value \"{}\" on the command line.", resolvedInputValue);
-                return resolvedInputValue;
+
+            String prefix = "";
+            String suffix = "";
+            String delimiter;
+            CommandInputEntity.MultipleDelimiter multipleDelimiter =
+                    CommandInputEntity.MultipleDelimiter.getByName(ci.multipleDelimiter());
+            switch (multipleDelimiter) {
+                case QUOTED_SPACE:
+                    delimiter = " ";
+                    prefix = "'";
+                    suffix = "'";
+                    break;
+                case SPACE:
+                    delimiter = " ";
+                    break;
+                case COMMA:
+                    delimiter = ",";
+                    break;
+                case FLAG:
+                    prefix = StringUtils.defaultIfBlank(ci.commandLineFlag(), " ") +
+                             StringUtils.defaultIfBlank(ci.commandLineSeparator(), " ");
+                    delimiter = " " + prefix;
+                    break;
+                default:
+                    // Should never happen per CommandInputEntity.MultipleDelimiter.getByName
+                    throw new CommandResolutionException("Invalid multiple-delimiter for \"" + ci.name() + "\"");
+            }
+
+            String value = prefix + String.join(delimiter, commandInputChildrenValues) + suffix;
+            log.debug("Using value \"{}\" on the command line.", value);
+            return value;
+        }
+
+        @Nonnull
+        private String getValueForCommandLine(final CommandInput input, final String resolvedInputValue)
+                throws CommandResolutionException {
+
+            log.debug("Resolving command-line value.");
+            if (StringUtils.isBlank(resolvedInputValue)) {
+                log.debug("Input value is blank. Using value \"\" on the command line.");
+                return "";
+            }
+            List<String> valueList = null;
+            if (input.isMultiSelect()) {
+                try {
+                    valueList = mapper.readValue(resolvedInputValue, new TypeReference<List<String>>() {});
+                } catch (IOException e) {
+                    // Not a list, treat as string
+                }
+            }
+
+            if (valueList != null) {
+                // handle multiples
+                return getMultipleValuesForCommandLine(input, valueList);
             } else {
-                final String value = input.commandLineFlag() +
-                        (input.commandLineSeparator() == null ? " " : input.commandLineSeparator()) +
-                        resolvedInputValue;
-                log.debug("Using value \"{}\" on the command line.", value);
-                return value;
+                if (StringUtils.isBlank(input.commandLineFlag())) {
+                    log.debug("Input flag is null. Using value \"{}\" on the command line.", resolvedInputValue);
+                    return resolvedInputValue;
+                } else {
+                    final String value = input.commandLineFlag() +
+                            (input.commandLineSeparator() == null ? " " : input.commandLineSeparator()) +
+                            resolvedInputValue;
+                    log.debug("Using value \"{}\" on the command line.", value);
+                    return value;
+                }
             }
         }
 
