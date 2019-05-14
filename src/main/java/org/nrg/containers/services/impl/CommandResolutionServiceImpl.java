@@ -279,7 +279,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                                                                @Nullable final Map<String, String> resolvedCommandLineValuesByReplacementKey,
                                                                                boolean resolveFully)
                 throws CommandResolutionException, UnauthorizedException {
-            final List<PreresolvedInputTreeNode<? extends Input>> rootNodes = initializePreresolvedInputTree();
+            final List<PreresolvedInputTreeNode<? extends Input>> rootNodes = initializePreresolvedInputTree(resolvedCommandLineValuesByReplacementKey);
 
             final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = Lists.newArrayList();
             for (final PreresolvedInputTreeNode<? extends Input> rootNode : rootNodes) {
@@ -1222,7 +1222,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     parentType);
         }
 
-        private List<PreresolvedInputTreeNode<? extends Input>> initializePreresolvedInputTree() throws CommandResolutionException {
+        private List<PreresolvedInputTreeNode<? extends Input>> initializePreresolvedInputTree(@Nullable final Map<String, String> resolvedCommandLineValuesByReplacementKey)
+                throws CommandResolutionException {
             log.debug("Initializing tree of wrapper input parent-child relationships.");
             final Map<String, PreresolvedInputTreeNode<? extends Input>> nodesThatProvideValueForCommandInputs = Maps.newHashMap();
             final Map<String, PreresolvedInputTreeNode<? extends Input>> nodesByName = Maps.newHashMap();
@@ -1279,6 +1280,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 if (nodesThatProvideValueForCommandInputs.containsKey(input.name())) {
                     final PreresolvedInputTreeNode<? extends Input> parent = nodesThatProvideValueForCommandInputs.get(input.name());
                     commandInputNode = PreresolvedInputTreeNode.create(input, parent);
+                    if (!parent.input().required() && resolvedCommandLineValuesByReplacementKey != null) {
+                        // Add a default to remove command line replacement if parent is not required
+                        // (if parent doesn't resolve to anything, this replacement doesn't occur and we wind up with
+                        // a replacement key like #SCANID# in the commandline string
+                        resolvedCommandLineValuesByReplacementKey.put(input.replacementKey(), "");
+                    }
                 } else {
                     commandInputNode = PreresolvedInputTreeNode.create(input);
                     rootNodes.add(commandInputNode);
