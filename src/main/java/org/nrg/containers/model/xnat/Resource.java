@@ -21,8 +21,6 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.ResourceURII;
 import org.nrg.xnat.utils.CatalogUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -84,6 +82,11 @@ public class Resource extends XnatModelObject {
         if (loadFiles || (loadTypesMap != null && (loadTypesMap.get(CommandWrapperInputType.FILE.getName()) ||
                 loadTypesMap.get(CommandWrapperInputType.FILES.getName())))) {
             final CatCatalogBean cat = xnatResourcecatalog.getCatalog(rootArchivePath);
+            if (cat == null) {
+                // would prefer to throw CommandResolutionException, but Functions, below, can't throw checked exceptions
+                throw new RuntimeException("Unable to load catalog for resource " + xnatResourcecatalog
+                        + ", have your admin check utils.log for the cause");
+            }
             final List<Object[]> entryDetails = CatalogUtils.getEntryDetails(cat, this.directory, null,
                     xnatResourcecatalog, loadFiles, null, null, "absolutePath");
             for (final Object[] entry : entryDetails) {
