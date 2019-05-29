@@ -354,7 +354,7 @@ var XNAT = getObject(XNAT || {});
     var staticConfigList = function(input) {
         var value = input.value,
             name = input.name,
-            label = input.label,
+            label = input.label || input.name,
             valueLabel = input.valueLabel;
         var listArray = Array.isArray(valueLabel) ? valueLabel : valueLabel.split(",");
         var elemWrapperContent;
