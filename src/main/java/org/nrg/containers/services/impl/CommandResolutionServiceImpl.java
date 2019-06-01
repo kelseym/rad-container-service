@@ -70,7 +70,6 @@ import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
-import org.nrg.xnat.utils.CatalogUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -2237,7 +2236,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     rootDirectory = JsonPath.parse(resolvedInputValue.jsonValue()).read("directory", String.class);
                     uri = xnatModelObject.getUri();
-
                 } else {
                     final String message = String.format("I don't know how to provide files to a mount from an input of type \"%s\".", inputType);
                     log.error(message);
@@ -2271,7 +2269,9 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             return resolvedCommandMount;
         }
 
-        private ResolvedCommandMount transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount) throws CommandResolutionException {
+        private ResolvedCommandMount transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount)
+                throws CommandResolutionException {
+
             final String resolvedCommandMountName = partiallyResolvedCommandMount.name();
             final ResolvedCommandMount.Builder resolvedCommandMountBuilder = partiallyResolvedCommandMount.toResolvedCommandMountBuilder();
 
@@ -2284,8 +2284,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 final String directory = partiallyResolvedCommandMount.fromRootDirectory();
                 final boolean hasDirectory = StringUtils.isNotBlank(directory);
                 final boolean writable = partiallyResolvedCommandMount.writable();
-                //TODO how to determine if this particular root directory / catalog has remote files
-                final boolean hasRemoteFiles = CatalogUtils.hasActiveExternalFilesystem();
+                // Determine if this particular URI has remote files
+                boolean hasRemoteFiles;
+                try {
+                    hasRemoteFiles = catalogService.hasRemoteFiles(userI, partiallyResolvedCommandMount.fromUri());
+                } catch (ClientException | ServerException e) {
+                    throw new CommandResolutionException(e.getMessage());
+                }
 
                 if (hasDirectory && (writable || hasRemoteFiles)) {
                     // The mount has a directory and is set to "writable" or may have remote files. We must copy files
@@ -2312,7 +2317,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 " into writable build directory " + localDirectory, partiallyResolvedCommandMount, e);
                     } catch (ServerException | ClientException e) {
                         throw new ContainerMountResolutionException("Could not pull remote files into writable build " +
-                                "directory " + localDirectory, partiallyResolvedCommandMount, e);
+                                "directory " + localDirectory + ": " + e.getMessage(), partiallyResolvedCommandMount, e);
                     }
                 } else if (hasDirectory) {
                     // The source of files can be directly mounted
