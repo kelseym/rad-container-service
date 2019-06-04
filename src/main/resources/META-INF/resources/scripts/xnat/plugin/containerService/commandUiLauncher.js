@@ -834,7 +834,7 @@ var XNAT = getObject(XNAT || {});
                     launcher.populateForm($panel, workList, launcher.inputPresets, rootElement);
                     launcher.addSwarmConstraintsToForm($advancedInputContainer, configData['container-server-config']['swarm-constraints']);
                     if ($advancedInputContainer.children().length === 0) {
-                        $advancedInputContainer.hide();
+                        $panel.find('div.advanced-settings-container').hide();
                     }
                 },
                 afterShow: function(obj){
