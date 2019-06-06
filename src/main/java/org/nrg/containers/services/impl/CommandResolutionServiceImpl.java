@@ -15,8 +15,11 @@ import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.TypeRef;
 import com.jayway.jsonpath.spi.mapper.MappingException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.nrg.action.ClientException;
+import org.nrg.action.ServerException;
 import org.nrg.config.services.ConfigService;
 import org.nrg.containers.exceptions.CommandInputResolutionException;
 import org.nrg.containers.exceptions.CommandMountResolutionException;
@@ -60,16 +63,19 @@ import org.nrg.framework.constants.Scope;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
+import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
+import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -104,6 +110,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
     private final SiteConfigPreferences siteConfigPreferences;
     private final ObjectMapper mapper;
     private final DockerService dockerService;
+    private final CatalogService catalogService;
 
     public static final String swarmConstraintsTag = "swarm-constraints";
 
@@ -113,13 +120,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                         final DockerServerService dockerServerService,
                                         final SiteConfigPreferences siteConfigPreferences,
                                         final ObjectMapper mapper,
-                                        final DockerService dockerService) {
+                                        final DockerService dockerService,
+                                        final CatalogService catalogService) {
         this.commandService = commandService;
         this.configService = configService;
         this.dockerServerService = dockerServerService;
         this.siteConfigPreferences = siteConfigPreferences;
         this.mapper = mapper;
         this.dockerService = dockerService;
+        this.catalogService = catalogService;
     }
 
     @Override
@@ -2227,7 +2236,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     rootDirectory = JsonPath.parse(resolvedInputValue.jsonValue()).read("directory", String.class);
                     uri = xnatModelObject.getUri();
-
                 } else {
                     final String message = String.format("I don't know how to provide files to a mount from an input of type \"%s\".", inputType);
                     log.error(message);
@@ -2261,7 +2269,9 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             return resolvedCommandMount;
         }
 
-        private ResolvedCommandMount transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount) throws CommandResolutionException {
+        private ResolvedCommandMount transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount)
+                throws CommandResolutionException {
+
             final String resolvedCommandMountName = partiallyResolvedCommandMount.name();
             final ResolvedCommandMount.Builder resolvedCommandMountBuilder = partiallyResolvedCommandMount.toResolvedCommandMountBuilder();
 
@@ -2274,18 +2284,41 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 final String directory = partiallyResolvedCommandMount.fromRootDirectory();
                 final boolean hasDirectory = StringUtils.isNotBlank(directory);
                 final boolean writable = partiallyResolvedCommandMount.writable();
+                // Determine if this particular URI has remote files
+                boolean hasRemoteFiles;
+                try {
+                    hasRemoteFiles = catalogService.hasRemoteFiles(userI, partiallyResolvedCommandMount.fromUri());
+                } catch (ClientException | ServerException e) {
+                    throw new CommandResolutionException(e.getMessage());
+                }
 
-                if (hasDirectory && writable) {
-                    // The mount has a directory and is set to "writable". We must copy files from the root directory into a writable build directory.
+                if (hasDirectory && (writable || hasRemoteFiles)) {
+                    // The mount has a directory and is set to "writable" or may have remote files. We must copy files
+                    // from the root directory into a writable build directory.
                     try {
                         localDirectory = getBuildDirectory();
                     } catch (IOException e) {
-                        throw new ContainerMountResolutionException("Could not create build directory.", partiallyResolvedCommandMount, e);
+                        throw new ContainerMountResolutionException("Could not create build directory.",
+                                partiallyResolvedCommandMount, e);
                     }
-                    log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from the root directory to build directory.", resolvedCommandMountName);
+                    log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from " +
+                            "the root directory to build directory.", resolvedCommandMountName);
 
-                    // TODO CS-54 We must copy all files out of the root directory to a build directory.
-                    log.debug("TODO");
+                    // CS-54 Copy all files out of the root directory to a build directory.
+                    try {
+                        FileUtils.copyDirectory(new File(directory), new File(localDirectory));
+                        if (hasRemoteFiles) {
+                            log.debug("Pulling any remote files into mount \"{}\".", resolvedCommandMountName);
+                            catalogService.pullResourceCatalogsToDestination(Users.getAdminUser(),
+                                    partiallyResolvedCommandMount.fromUri(), localDirectory);
+                        }
+                    } catch (IOException e) {
+                        throw new ContainerMountResolutionException("Could not copy archive directory " + directory +
+                                " into writable build directory " + localDirectory, partiallyResolvedCommandMount, e);
+                    } catch (ServerException | ClientException e) {
+                        throw new ContainerMountResolutionException("Could not pull remote files into writable build " +
+                                "directory " + localDirectory + ": " + e.getMessage(), partiallyResolvedCommandMount, e);
+                    }
                 } else if (hasDirectory) {
                     // The source of files can be directly mounted
                     log.debug("Mount \"{}\" has a root directory and is not set to \"writable\". The root directory can be mounted directly into the container.", resolvedCommandMountName);

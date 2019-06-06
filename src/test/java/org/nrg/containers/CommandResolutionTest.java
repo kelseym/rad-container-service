@@ -35,19 +35,22 @@ import org.nrg.containers.model.configuration.CommandConfiguration;
 import org.nrg.containers.model.configuration.CommandConfiguration.CommandInputConfiguration;
 import org.nrg.containers.model.configuration.CommandConfigurationInternal;
 import org.nrg.containers.model.server.docker.DockerServerBase;
-import org.nrg.containers.model.xnat.Assessor;
-import org.nrg.containers.model.xnat.Project;
-import org.nrg.containers.model.xnat.Resource;
-import org.nrg.containers.model.xnat.Scan;
-import org.nrg.containers.model.xnat.Session;
-import org.nrg.containers.model.xnat.XnatFile;
+import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerConfigService;
 import org.nrg.containers.services.DockerService;
 import org.nrg.framework.constants.Scope;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
+import org.nrg.xdat.security.user.XnatUserProvider;
 import org.nrg.xft.security.UserI;
+import org.nrg.xnat.services.archive.CatalogService;
+import org.nrg.xnat.utils.CatalogUtils;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -68,11 +71,17 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.powermock.api.mockito.PowerMockito.doReturn;
 
 @Slf4j
-@RunWith(SpringJUnit4ClassRunner.class)
+@RunWith(PowerMockRunner.class)
+@PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = IntegrationTestConfig.class)
+@PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @Transactional
 public class CommandResolutionTest {
     private UserI mockUser;
@@ -90,6 +99,9 @@ public class CommandResolutionTest {
     @Autowired private ConfigService mockConfigService;
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private DockerService dockerService;
+    @Autowired private CatalogService mockCatalogService;
+    @Autowired private XnatUserProvider primaryAdminUserProvider;   //mocked but has to be named this way for
+                                                                    //org.nrg.xdat.security.helpers.Users.getAdminUser
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder(new File("/tmp"));
@@ -119,6 +131,7 @@ public class CommandResolutionTest {
 
         mockUser = Mockito.mock(UserI.class);
         when(mockUser.getLogin()).thenReturn("mockUser");
+        when(primaryAdminUserProvider.get()).thenReturn(mockUser);
 
         resourceDir = Paths.get(ClassLoader.getSystemResource("commandResolutionTest").toURI()).toString().replace("%20", " ");
         final String commandJsonFile = resourceDir + "/command.json";
@@ -132,6 +145,8 @@ public class CommandResolutionTest {
 
         buildDir = folder.newFolder().getAbsolutePath();
         when(mockSiteConfigPreferences.getBuildPath()).thenReturn(buildDir);
+
+        when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(false);
 
         dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null,
                 false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false, null, null));
@@ -819,5 +834,91 @@ public class CommandResolutionTest {
         final ResolvedCommandMount resolvedMount = resolvedCommand.mounts().get(0);
         assertThat(resolvedMount.xnatHostPath(), is(xnatHostDir));
         assertThat(resolvedMount.containerHostPath(), is(containerHostDir));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testWritableInputPath() throws Exception {
+
+        final String testResourceDir = Paths.get(ClassLoader.getSystemResource("commandResolutionTest/testWritableInputPath")
+                .toURI()).toString().replace("%20", " ");
+        final String commandJsonFile = testResourceDir + "/command.json";
+        final Command command = commandService.create(mapper.readValue(new File(commandJsonFile), Command.class));
+        final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
+
+        final String inputPath = testResourceDir + "/resource.json";
+
+        // Make a fake local directory path, and a fake container host directory path, using the prefixes.
+        final String archiveDir = testResourceDir + "/data";
+
+        final Resource resource = mapper.readValue(new File(inputPath), Resource.class);
+        resource.setDirectory(archiveDir);
+        final String resourceRuntimeJson = mapper.writeValueAsString(resource);
+
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("resource", resourceRuntimeJson);
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()),
+                runtimeValues, mockUser);
+
+        assertThat(resolvedCommand.mounts(), Matchers.<ResolvedCommandMount>hasSize(1));
+
+        final ResolvedCommandMount resolvedMount = resolvedCommand.mounts().get(0);
+        String buildCopyOfArchive = resolvedMount.xnatHostPath();
+        assertThat(buildCopyOfArchive.matches(buildDir + File.separator + "[^"+File.separator+"]*"),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "hello.txt")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).isDirectory(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir" + File.separator + "hello.txt")).exists(),
+                is(true));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testRemoteFilesMount() throws Exception {
+        when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(true);
+        // Just copy the archive dir over for now (ideally test pullResourceCatalogsToDestination elsewhere?)
+        doNothing().when(mockCatalogService).pullResourceCatalogsToDestination(eq(mockUser), any(String.class), any(String.class));
+
+        final String testResourceDir = Paths.get(ClassLoader.getSystemResource("commandResolutionTest/testRemoteFilesMount")
+                .toURI()).toString().replace("%20", " ");
+        final String commandJsonFile = testResourceDir + "/command.json";
+        final Command command = commandService.create(mapper.readValue(new File(commandJsonFile), Command.class));
+        final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
+
+        final String inputPath = testResourceDir + "/resource.json";
+
+        // Make a fake local directory path, and a fake container host directory path, using the prefixes.
+        final String archiveDir = testResourceDir + "/data";
+
+        final Resource resource = mapper.readValue(new File(inputPath), Resource.class);
+        resource.setDirectory(archiveDir);
+        final String resourceRuntimeJson = mapper.writeValueAsString(resource);
+
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("resource", resourceRuntimeJson);
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()),
+                runtimeValues, mockUser);
+
+        assertThat(resolvedCommand.mounts(), Matchers.<ResolvedCommandMount>hasSize(1));
+
+        final ResolvedCommandMount resolvedMount = resolvedCommand.mounts().get(0);
+        String buildCopyOfArchive = resolvedMount.xnatHostPath();
+        assertThat(buildCopyOfArchive.matches(buildDir + File.separator + "[^"+File.separator+"]*"),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "hello.txt")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).exists(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir")).isDirectory(),
+                is(true));
+        assertThat((new File(buildCopyOfArchive + File.separator + "subdir" + File.separator + "hello.txt")).exists(),
+                is(true));
+
     }
 }

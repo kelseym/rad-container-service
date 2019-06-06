@@ -37,6 +37,7 @@ import org.nrg.mail.services.MailService;
 import org.nrg.mail.services.impl.SpringBasedMailServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
+import org.nrg.xdat.security.user.XnatUserProvider;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.services.archive.CatalogService;
@@ -57,6 +58,8 @@ import reactor.core.dispatch.RingBufferDispatcher;
 
 import javax.sql.DataSource;
 import java.util.Properties;
+
+import static org.mockito.Mockito.when;
 
 @Configuration
 @EnableTransactionManagement
@@ -158,9 +161,10 @@ public class IntegrationTestConfig {
                                                              final DockerServerService serverService,
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final ObjectMapper objectMapper,
-                                                             final DockerService dockerService) {
+                                                             final DockerService dockerService,
+                                                             final CatalogService mockCatalogService) {
         return new CommandResolutionServiceImpl(commandService, configService, serverService,
-                siteConfigPreferences, objectMapper, dockerService);
+                siteConfigPreferences, objectMapper, dockerService, mockCatalogService);
     }
 
     @Bean
@@ -198,7 +202,7 @@ public class IntegrationTestConfig {
     }
 
     @Bean
-    public CatalogService catalogService() {
+    public CatalogService mockCatalogService() {
         return Mockito.mock(CatalogService.class);
     }
 
@@ -207,6 +211,11 @@ public class IntegrationTestConfig {
         final ContextService contextService = new ContextService();
         contextService.setApplicationContext(applicationContext);
         return contextService;
+    }
+
+    @Bean
+    public XnatUserProvider primaryAdminUserProvider() {
+        return Mockito.mock(XnatUserProvider.class);
     }
 
     /*

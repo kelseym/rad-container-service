@@ -1,4 +1,4 @@
-package org.nrg.containers.rest;
+package org.nrg.containers.jms.rest;
 
 import io.swagger.annotations.*;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +24,8 @@ import java.util.Map;
 import static org.nrg.xdat.security.helpers.AccessLevel.Admin;
 
 @XapiRestController
-@RequestMapping(value = "/queues/containers")
-@Api("JMS Queue Settings API for XNAT Container Service")
+@RequestMapping(value = "/jms_queues")
+@Api("JMS Queue Settings API")
 @Slf4j
 public class QueueSettingsRestApi extends AbstractXapiRestController {
     private QueuePrefsBean queuePrefsBean;

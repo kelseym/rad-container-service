@@ -459,7 +459,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         createdUri = parentUri + "/resources/" + resourcecatalog.getLabel();
                     }
                 } catch (ClientException e) {
-                    final String message = String.format(prefix + "User does not have permission to add resources to item with URI %s.", parentUri);
+                    final String message = String.format(prefix + ": " + e.getMessage(), parentUri);
                     log.error(message);
                     throw new UnauthorizedException(message);
                 } catch (Exception e) {

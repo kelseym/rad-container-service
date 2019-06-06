@@ -50,7 +50,9 @@ import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
 import org.nrg.xnat.helpers.uri.archive.impl.ProjURI;
+import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
+import org.nrg.xnat.utils.CatalogUtils;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -95,7 +97,8 @@ import static org.powermock.api.mockito.PowerMockito.*;
 @Slf4j
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(Parameterized.class)
-@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class, PersistentWorkflowUtils.class})
+@PrepareForTest({UriParserUtils.class, XFTManager.class, Users.class, WorkflowUtils.class,
+        PersistentWorkflowUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @ContextConfiguration(classes = EventPullingIntegrationTestConfig.class)
 @Parameterized.UseParametersRunnerFactory(SpringJUnit4ClassRunnerFactory.class)
@@ -139,6 +142,7 @@ public class CommandLaunchIntegrationTest {
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private UserManagementServiceI mockUserManagementServiceI;
     @Autowired private PermissionsServiceI mockPermissionsServiceI;
+    @Autowired private CatalogService mockCatalogService;
 
     @Rule public TemporaryFolder folder = new TemporaryFolder(new File(System.getProperty("user.dir") + "/build"));
 
@@ -212,6 +216,9 @@ public class CommandLaunchIntegrationTest {
         PowerMockito.spy(PersistentWorkflowUtils.class);
         doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
                 eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+
+        // mock external FS check
+        when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(false);
 
         // Setup docker server
         final String defaultHost = "unix:///var/run/docker.sock";
