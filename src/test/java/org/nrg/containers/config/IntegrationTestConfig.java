@@ -37,6 +37,7 @@ import org.nrg.mail.services.MailService;
 import org.nrg.mail.services.impl.SpringBasedMailServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
+import org.nrg.xdat.security.user.XnatUserProvider;
 import org.nrg.xdat.services.AliasTokenService;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.nrg.xnat.services.archive.CatalogService;
@@ -210,6 +211,11 @@ public class IntegrationTestConfig {
         final ContextService contextService = new ContextService();
         contextService.setApplicationContext(applicationContext);
         return contextService;
+    }
+
+    @Bean
+    public XnatUserProvider primaryAdminUserProvider() {
+        return Mockito.mock(XnatUserProvider.class);
     }
 
     /*
