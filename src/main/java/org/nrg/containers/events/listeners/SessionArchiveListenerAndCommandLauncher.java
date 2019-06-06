@@ -113,7 +113,7 @@ public class SessionArchiveListenerAndCommandLauncher implements Consumer<Event<
                                 log.debug(paramEntry.getKey() + ": " + paramEntry.getValue());
                             }
                         }
-                        PersistentWorkflowI workflow = containerService.createContainerWorkflow(session.getId(),
+                        PersistentWorkflowI workflow = containerService.createContainerWorkflow(session.getUri(),
                                 session.getXsiType(), wrapperName, subscriptionProjectId, subscriptionUser);
                         containerService.queueResolveCommandAndLaunchContainer(subscriptionProjectId, 0L,
                                 commandId, wrapperName, inputValues, subscriptionUser, workflow);

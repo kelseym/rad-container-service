@@ -12,6 +12,7 @@ import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.services.RoleHolder;
 import org.nrg.xdat.security.services.UserManagementServiceI;
 import org.nrg.xdat.services.AliasTokenService;
+import org.nrg.xnat.services.archive.CatalogService;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,10 +43,11 @@ public class ContainerRestApiTestConfig extends WebSecurityConfigurerAdapter {
                                              final CommandService commandService,
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
-                                             final ContainerFinalizeService containerFinalizeService) {
+                                             final ContainerFinalizeService containerFinalizeService,
+                                             final CatalogService catalogService) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService, commandResolutionService,
                 commandService, aliasTokenService, siteConfigPreferences, containerFinalizeService,
-                null);
+                null, catalogService);
     }
 
     @Bean

@@ -149,10 +149,11 @@ public class IntegrationTestConfig {
                                              final AliasTokenService aliasTokenService,
                                              final SiteConfigPreferences siteConfigPreferences,
                                              final ContainerFinalizeService containerFinalizeService,
-                                             @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo) {
+                                             @Qualifier("mockXnatAppInfo") final XnatAppInfo mockXnatAppInfo,
+                                             final CatalogService catalogService) {
         return new ContainerServiceImpl(containerControlApi, containerEntityService,
                         commandResolutionService, commandService, aliasTokenService, siteConfigPreferences,
-                        containerFinalizeService, mockXnatAppInfo);
+                        containerFinalizeService, mockXnatAppInfo, catalogService);
     }
 
     @Bean
