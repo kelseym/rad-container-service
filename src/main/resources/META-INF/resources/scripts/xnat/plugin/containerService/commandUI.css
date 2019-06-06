@@ -74,3 +74,7 @@ kbd {
     display: inline-block;
     margin-top: 3px;
 }
+
+.spinner {
+    margin: 0 10px 10px;
+}

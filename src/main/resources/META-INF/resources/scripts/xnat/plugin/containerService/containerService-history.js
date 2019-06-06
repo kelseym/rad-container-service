@@ -49,7 +49,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
     function errorHandler(e, title, closeAll) {
         console.log(e);
-        title = (title) ? 'Error Found: ' + title : 'Error';
+        title = (title) ? 'Error: ' + title : 'Error';
         closeAll = (closeAll === undefined) ? true : closeAll;
         var errormsg = (e.statusText) ? '<p><strong>Error ' + e.status + ': ' + e.statusText + '</strong></p><p>' + e.responseText + '</p>' : e;
         XNAT.dialog.open({
@@ -64,7 +64,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     action: function () {
                         if (closeAll) {
                             xmodal.closeAll();
-
+                            XNAT.ui.dialog.closeAll();
                         }
                     }
                 }
@@ -464,12 +464,23 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
             }
         }
 
+        var $container = $('#' + containerModalId(containerId, logFile) + ' .xnat-dialog-body');
+        var $waitElement = $('<span class="spinner"><i class="fa fa-spinner fa-spin"></i> Loading...</span>');
         XNAT.xhr.getJSON({
             url: rootUrl('/xapi/containers/' + containerId + '/logSince/' + logFile),
             data: refreshPrm,
+            beforeSend: function () {
+                if (!refreshPrm || $.isEmptyObject(refreshPrm)) {
+                    $waitElement.appendTo($container);
+                }
+            },
             success: function (dataJson) {
+                if (!refreshPrm || $.isEmptyObject(refreshPrm)) {
+                    $waitElement.remove();
+                }
+
                 var timestamp = dataJson.timestamp;
-                var $container = $('#' + containerModalId(containerId, logFile) + ' .xnat-dialog-body');
+
                 // Ensure that user didn't close modal
                 if ($container.length === 0) {
                     return;
@@ -490,8 +501,8 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
                 refreshLog(containerId, logFile, timestamp, startTime);
             },
-            fail: function (e) {
-                errorHandler(e, 'Cannot retrieve ' + logFile);
+            error: function (e) {
+                errorHandler(e, 'Cannot retrieve ' + logFile + '; container may have restarted.', true);
             }
         });
     };
