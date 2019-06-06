@@ -74,7 +74,7 @@ public class QueueSettingsRestApiTest {
         put(MAX_STAGING, Integer.parseInt(ContainersConfig.QUEUE_MAX_CONCURRENCY_DFLT));
     }};
 
-    private final String PATH = "/queues/containers";
+    private final String PATH = "/jms_queues";
 
     private final MediaType JSON = MediaType.APPLICATION_JSON_UTF8;
 

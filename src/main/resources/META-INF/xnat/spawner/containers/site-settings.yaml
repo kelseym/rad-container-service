@@ -194,7 +194,7 @@ queueSettingsForm:
     element:
         style:
             padding: 20px 0
-    action: "/xapi/queues/containers"
+    action: "/xapi/jms_queues"
     contents:
         stagingQueueMin:
             kind: panel.input.text

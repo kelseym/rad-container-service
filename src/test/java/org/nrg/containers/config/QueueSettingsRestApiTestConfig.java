@@ -3,7 +3,7 @@ package org.nrg.containers.config;
 import org.mockito.Mockito;
 import org.nrg.containers.jms.preferences.QueuePrefsBean;
 import org.nrg.containers.model.xnat.FakePrefsService;
-import org.nrg.containers.rest.QueueSettingsRestApi;
+import org.nrg.containers.jms.rest.QueueSettingsRestApi;
 import org.nrg.containers.rest.QueueSettingsRestApiTest;
 import org.nrg.framework.services.ContextService;
 import org.nrg.prefs.services.NrgPreferenceService;
