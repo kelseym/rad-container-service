@@ -75,7 +75,7 @@ public class Session extends XnatModelObject {
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    final Map<String, Boolean> loadTypesMap) {
+                                    @Nullable final Map<String, Boolean> loadTypesMap) {
         this.id = xnatImagesessiondataI.getId();
         this.label = xnatImagesessiondataI.getLabel();
         this.xsiType = xnatImagesessiondataI.getXSIType();

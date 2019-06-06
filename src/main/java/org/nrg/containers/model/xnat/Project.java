@@ -63,14 +63,14 @@ public class Project extends XnatModelObject {
         populateProperties(loadFiles, loadTypesMap, preload);
     }
 
-    private void populateProperties(final boolean loadFiles, final Map<String, Boolean> loadTypesMap, final boolean preload) {
+    private void populateProperties(final boolean loadFiles, @Nullable final Map<String, Boolean> loadTypesMap, final boolean preload) {
         this.id = xnatProjectdata.getId();
         this.label = xnatProjectdata.getName();
         this.xsiType = xnatProjectdata.getXSIType();
         this.directory = xnatProjectdata.getRootArchivePath() + xnatProjectdata.getCurrentArc();
 
         this.subjects = Lists.newArrayList();
-        if (preload && loadTypesMap.get(CommandWrapperInputType.SUBJECT.getName())) {
+        if (preload && loadTypesMap != null && loadTypesMap.get(CommandWrapperInputType.SUBJECT.getName())) {
             for (final XnatSubjectdata subject : xnatProjectdata.getParticipants_participant()) {
                 subjects.add(new Subject(subject, loadFiles, loadTypesMap, this.uri, xnatProjectdata.getRootArchivePath()));
             }

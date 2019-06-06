@@ -73,7 +73,7 @@ public class Assessor extends XnatModelObject {
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    final Map<String, Boolean> loadTypesMap) {
+                                    @Nullable final Map<String, Boolean> loadTypesMap) {
         this.id = xnatImageassessordataI.getId();
         this.label = xnatImageassessordataI.getLabel();
         this.xsiType = xnatImageassessordataI.getXSIType();
