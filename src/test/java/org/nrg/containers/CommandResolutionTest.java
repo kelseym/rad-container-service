@@ -43,6 +43,7 @@ import org.nrg.containers.services.DockerService;
 import org.nrg.framework.constants.Scope;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xft.security.UserI;
+import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.utils.CatalogUtils;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -69,6 +70,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.doReturn;
 
@@ -76,7 +79,6 @@ import static org.powermock.api.mockito.PowerMockito.doReturn;
 @RunWith(PowerMockRunner.class)
 @PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = IntegrationTestConfig.class)
-@PrepareForTest({CatalogUtils.class})
 @PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @Transactional
 public class CommandResolutionTest {
@@ -95,6 +97,7 @@ public class CommandResolutionTest {
     @Autowired private ConfigService mockConfigService;
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private DockerService dockerService;
+    @Autowired private CatalogService mockCatalogService;
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder(new File("/tmp"));
@@ -122,10 +125,6 @@ public class CommandResolutionTest {
             }
         });
 
-        // Stub external FS check
-        PowerMockito.spy(CatalogUtils.class);
-        doReturn(false).when(CatalogUtils.class, "hasActiveExternalFilesystem");
-
         mockUser = Mockito.mock(UserI.class);
         when(mockUser.getLogin()).thenReturn("mockUser");
 
@@ -141,6 +140,9 @@ public class CommandResolutionTest {
 
         buildDir = folder.newFolder().getAbsolutePath();
         when(mockSiteConfigPreferences.getBuildPath()).thenReturn(buildDir);
+
+
+        when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(false);
 
         dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null,
                 false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false, null, null));

@@ -58,6 +58,8 @@ import reactor.core.dispatch.RingBufferDispatcher;
 import javax.sql.DataSource;
 import java.util.Properties;
 
+import static org.mockito.Mockito.when;
+
 @Configuration
 @EnableTransactionManagement
 @Import({CommandConfig.class, HibernateConfig.class, RestApiTestConfig.class})
@@ -159,9 +161,9 @@ public class IntegrationTestConfig {
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final ObjectMapper objectMapper,
                                                              final DockerService dockerService,
-                                                             final CatalogService catalogService) {
+                                                             final CatalogService mockCatalogService) {
         return new CommandResolutionServiceImpl(commandService, configService, serverService,
-                siteConfigPreferences, objectMapper, dockerService, catalogService);
+                siteConfigPreferences, objectMapper, dockerService, mockCatalogService);
     }
 
     @Bean
@@ -199,7 +201,7 @@ public class IntegrationTestConfig {
     }
 
     @Bean
-    public CatalogService catalogService() {
+    public CatalogService mockCatalogService() {
         return Mockito.mock(CatalogService.class);
     }
 
