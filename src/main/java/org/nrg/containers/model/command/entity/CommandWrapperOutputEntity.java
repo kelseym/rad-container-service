@@ -53,6 +53,9 @@ public class CommandWrapperOutputEntity {
             case "Assessor":
                 this.setType(Type.ASSESSOR);
                 break;
+            case "Scan":
+                this.setType(Type.SCAN);
+                break;
             default:
                 this.setType(DEFAULT_TYPE);
         }
@@ -165,7 +168,8 @@ public class CommandWrapperOutputEntity {
 
     public enum Type {
         RESOURCE("Resource"),
-        ASSESSOR("Assessor");
+        ASSESSOR("Assessor"),
+        SCAN("Scan");
 
         private final String name;
 

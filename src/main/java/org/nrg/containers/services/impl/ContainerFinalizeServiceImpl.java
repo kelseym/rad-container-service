@@ -1,12 +1,10 @@
 package org.nrg.containers.services.impl;
 
+import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.SCAN;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -512,9 +510,35 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         String.format("%s/assessors/%s", parentUri, createdUriMatchesExperimentUri.group(2)) :
                         createdUriThatNeedsToBeChecked;
 
+            } else if (type.equals(SCAN.getName())) {
+                if (toUpload.size() != 1) {
+                    final String message = prefix + "Expecting precisely one file to upload for scan, " +
+                            "found " + toUpload;
+                    log.error(message);
+                    throw new ContainerException(message);
+                }
+
+                File scanXml = toUpload.get(0);
+
+                log.debug("{}Inserting scan.\n\tuser: {}\n\tparentUri: {}\n\tlabel: {}\n\txml: {}",
+                        prefix, userI.getLogin(), parentUri, label, scanXml);
+
+                try (FileInputStream fileInputStream = new FileInputStream(scanXml)) {
+                    XFTItem item = catalogService.insertXmlObject(userI, fileInputStream,
+                            true, Collections.<String, Object>emptyMap());
+                    createdUri = UriParserUtils.getArchiveUri(item);
+                } catch (IOException e) {
+                    final String message = prefix + "Could not read " + scanXml;
+                    log.error(message);
+                    throw new ContainerException(message, e);
+                } catch (Exception e) {
+                    final String message = prefix + "Could not insert scan from XML file " + scanXml;
+                    log.error(message);
+                    throw new ContainerException(message, e);
+                }
             }
 
-            log.info(prefix + "Done uploading output \"{}\". URI of created output: {}", output.name(), createdUri);
+            log.info("{}Done uploading output \"{}\". URI of created item: {}", prefix, output.name(), createdUri);
 
             // We use the "fromOutputHandler" property here rather than name. The reason is that we will be looking
             // up the value later based on what users set in subsequent handers' "handled-by" properties, and the value
