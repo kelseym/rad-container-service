@@ -1290,7 +1290,7 @@ public class ContainerServiceImpl implements ContainerService {
             try {
                 return new FileInputStream(logPath);
             } catch (FileNotFoundException e) {
-                log.error("Container %s log file %s not found. Path: %s", container.databaseId(), logFileName, logPath);
+                log.error("Container {} log file {} not found. Path: {}", container.databaseId(), logFileName, logPath);
             }
         }
 

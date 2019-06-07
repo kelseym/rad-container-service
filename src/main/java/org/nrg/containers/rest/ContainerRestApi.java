@@ -1,5 +1,6 @@
 package org.nrg.containers.rest;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -60,6 +61,8 @@ public class ContainerRestApi extends AbstractXapiRestController {
     private static final String TEXT = MediaType.TEXT_PLAIN_VALUE;
     private static final String ZIP = "application/zip";
     private static final String ATTACHMENT_DISPOSITION = "attachment; filename=\"%s.%s\"";
+
+    private static final String CONTENT_KEY = "content";
 
     private ContainerService containerService;
 
@@ -181,24 +184,33 @@ public class ContainerRestApi extends AbstractXapiRestController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, getAttachmentDisposition(containerId + "-" + file, "log"))
                 .header(HttpHeaders.CONTENT_TYPE, TEXT)
-                .body(doGetLog(containerId, file, null, String.class));
+                .body(doGetLog(containerId, file));
     }
 
     @XapiRequestMapping(value = "/containers/{containerId}/logSince/{file}", method = GET)
     @ApiOperation(value = "Get Container logs", notes = "Return either stdout or stderr logs")
     @ResponseBody
-    public ResponseEntity<Map> pollLog(final @PathVariable String containerId,
-                                          final @PathVariable @ApiParam(allowableValues = "stdout, stderr") String file,
-                                          final @RequestParam(required = false) Long since)
+    public ResponseEntity<Map<String, Object>> pollLog(final @PathVariable String containerId,
+                                       final @PathVariable @ApiParam(allowableValues = "stdout, stderr") String file,
+                                       final @RequestParam(required = false) Long since,
+                                       final @RequestParam(required = false) Long bytesRead,
+                                       final @RequestParam(required = false) Boolean loadAll)
             throws NoDockerServerException, DockerServerException, NotFoundException, IOException {
+
+        // IntelliJ hits a breakpoint set on the return line twice if I don't define a local var here. No idea why.
+        Map<String, Object> body = doGetLog(containerId, file, since, bytesRead, loadAll != null && loadAll);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, JSON)
-                .body(doGetLog(containerId, file, since, Map.class));
+                .body(body);
     }
 
-    private <T> T doGetLog(String containerId, String file, Long since, Class<T> type)
+    private String doGetLog(String containerId, String file)
             throws NotFoundException, IOException {
+        return (String) doGetLog(containerId, file, null, null, true).get(CONTENT_KEY);
+    }
 
+    private Map<String, Object> doGetLog(String containerId, String file, Long since, Long bytesRead, boolean loadAll)
+            throws NotFoundException, IOException {
         final UserI user = XDAT.getUserDetails();
         Integer sinceInt = null;
         try {
@@ -208,51 +220,90 @@ public class ContainerRestApi extends AbstractXapiRestController {
         }
 
         long queryTime = System.currentTimeMillis() / 1000L;
+        boolean containerDone = containerService.isFailedOrComplete(containerService.get(containerId), user);
         final InputStream logStream = containerService.getLogStream(containerId, file, true, sinceInt);
 
         String logContent;
         long lastTime = -1;
+        long currentBytesRead = -1;
+        boolean fromFile = false;
         if (logStream == null) {
             logContent = "";
         } else {
             final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            writeToOuputStream(logStream, byteArrayOutputStream);
-            logContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
-            if (!(logStream instanceof FileInputStream) &&
-                    !containerService.isFailedOrComplete(containerService.get(containerId), user)) {
-                // If it's not a file and the container/service is still active (aka still potentially logging),
-                // determine what to pass for "since" querying based on timestamps
-                String[] lines = logContent.replaceAll("(\\n)+$", "").split("\\n");
-                String lastLine;
-                try {
-                    if (lines.length == 0 ||
-                            StringUtils.isBlank(lastLine = lines[lines.length-1].replaceAll(" .*",""))) {
-                        throw new ParseException(null, 0);
-                    }
-                    lastTime = Instant.parse(lastLine).plus(1L, ChronoUnit.SECONDS).getEpochSecond();
-                } catch (ParseException e) {
-                    lastTime = since == null ? queryTime : since;
+            if (logStream instanceof FileInputStream) {
+                long maxBytes = 1048576; // 1MB chunks
+                if (loadAll) {
+                    maxBytes = Long.MAX_VALUE;
                 }
+                // 1MB chunks
+                currentBytesRead = writeToOuputStream(logStream, byteArrayOutputStream,
+                        maxBytes, bytesRead == null ? 0 : bytesRead);
+                logContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+                fromFile = true;
+            } else {
+                // It's not a file and the container/service is still active (aka still potentially logging)
+                writeToOuputStream(logStream, byteArrayOutputStream);
+                logContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+
+                if (!containerDone) {
+                    // Determine what to pass for "since" querying based on timestamps,
+                    // leave as -1 to stop querying if container finished
+                    String[] lines = logContent.replaceAll("(\\n)+$", "").split("\\n");
+                    String lastLine;
+                    try {
+                        if (lines.length == 0 ||
+                                StringUtils.isBlank(lastLine = lines[lines.length - 1].replaceAll(" .*", ""))) {
+                            throw new ParseException(null, 0);
+                        }
+                        lastTime = Instant.parse(lastLine).plus(1L, ChronoUnit.SECONDS).getEpochSecond();
+                    } catch (ParseException e) {
+                        lastTime = since == null ? queryTime : since;
+                    }
+                }
+
                 // Strip the timestamps
                 logContent = logContent.replaceAll("(^|\\n)\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z ","\n");
             }
         }
-        return type.cast( (type == String.class) ? logContent : logJsonMap(logContent, lastTime) );
-    }
-
-    private Map<String, Object> logJsonMap(String content, Long lastTime) {
-        Map<String, Object> jsonMap = new HashMap<>();
-        jsonMap.put("content", content);
-        jsonMap.put("timestamp", lastTime);
-        return jsonMap;
+        Map<String, Object> jsonContent = new HashMap<>();
+        jsonContent.put(CONTENT_KEY, logContent);
+        jsonContent.put("timestamp", lastTime);
+        jsonContent.put("bytesRead", currentBytesRead);
+        jsonContent.put("fromFile", fromFile);
+        return jsonContent;
     }
 
     private void writeToOuputStream(InputStream inputStream, OutputStream outputStream) throws IOException {
+        writeToOuputStream(inputStream, outputStream, Long.MAX_VALUE, 0);
+    }
+
+    private long writeToOuputStream(InputStream inputStream, OutputStream outputStream, long maxBytes, long bytesRead)
+            throws IOException {
+
+        long totalSkipped = 0;
+        if (bytesRead > 0) {
+            long skipped;
+            while (totalSkipped < bytesRead && (skipped = inputStream.skip(bytesRead - totalSkipped)) > 0) {
+                totalSkipped += skipped;
+            }
+            if (totalSkipped != bytesRead) {
+                log.error("Error skipping to proper location of input stream for paginated logging display");
+            }
+        }
         byte[] buffer = new byte[1024];
         int length;
+        long totalBytes = 0;
         while ((length = inputStream.read(buffer)) > 0) {
             outputStream.write(buffer, 0, length);
+            totalBytes += length;
+            if (totalBytes >= maxBytes) {
+                //TODO update so that we break on a line break or at least a whitespace character?
+                return totalBytes + totalSkipped;
+            }
         }
+        // Done reading
+        return -1;
     }
 
     private static String getAttachmentDisposition(final String name, final String extension) {
