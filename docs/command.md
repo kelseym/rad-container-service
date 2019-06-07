@@ -209,7 +209,7 @@ If you want XNAT to execute your docker image, you will need a Command. The Comm
 		- **multiple** - A boolean value indicating whether this input should be allowed to resolve to multiple values (e.g., you want this input to be all T1 scans, rather than matching precisely one or erroring-out). If `true`, this input cannot provide values for a command-mount, nor be the target for an output handler, nor have children apart from providing values for a command-input. Default: `false`.
     - **output-handlers** - A list of [output handlers](#output-handling). You use these to instruct the container service how and where to upload your container's outputs.
         - **name**
-        - **type** - The type of object that will be created in XNAT. Currently only `"Resource"` is accepted.
+        - **type** - The type of object that will be created in XNAT. Currently `"Resource", "Assessor", and "Scan"` are accepted. The latter two must be xml files.
         - **accepts-command-output** - The name of a [command output](#command-outputs) whose files will be handled.
         - **via-wrapup-command** - A reference to a wrapup command image (format: `repo/image:version[:commandname]` where the `commandname` is optional). See the page on [Wrapup Commands](https://wiki.xnat.org/display/CS/Wrapup+Commands) for more.
         - **as-a-child-of** - The name of a [wrapper input](#wrapper-inputs)—either external or derived—that refers to an XNAT object, or the name of a [wrapper output](#output-handling) that creates an XNAT object. The output files will be uploaded as a new child of that object.
