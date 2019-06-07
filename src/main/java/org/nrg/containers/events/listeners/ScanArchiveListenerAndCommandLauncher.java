@@ -105,9 +105,8 @@ public class ScanArchiveListenerAndCommandLauncher implements Consumer<Event<Sca
                                 }
                             }
                         }
-                        Session session = scan.getSession(subscriptionUser, false, null);
-                        PersistentWorkflowI workflow = containerService.createContainerWorkflow(session.getId(),
-                                session.getXsiType(), wrapperName, subscriptionProjectId, subscriptionUser);
+                        PersistentWorkflowI workflow = containerService.createContainerWorkflow(scan.getUri(),
+                                scan.getXsiType(), wrapperName, subscriptionProjectId, subscriptionUser);
                         containerService.queueResolveCommandAndLaunchContainer(subscriptionProjectId, 0L,
                                 commandId, wrapperName, inputValues, subscriptionUser, workflow);
                     } catch (UserNotFoundException | UserInitException e) {

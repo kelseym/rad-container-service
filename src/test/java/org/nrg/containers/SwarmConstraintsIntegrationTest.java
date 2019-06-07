@@ -403,7 +403,7 @@ public class SwarmConstraintsIntegrationTest {
         TestingUtils.commitTransaction();
         Container service2 = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         Thread.sleep(11000L); // > 10s since that seems to be enough for a service to get running
-        assertThat(TestingUtils.serviceIsRunning(CLIENT, service2).call(), is(false));
+        assertThat(TestingUtils.serviceIsRunning(CLIENT, service2, true).call(), is(false));
         assertThat(containerService.get(service2.serviceId()).status(), is(ContainerServiceImpl.CREATED));
     }
 

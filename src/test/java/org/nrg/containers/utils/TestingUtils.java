@@ -154,12 +154,18 @@ public class TestingUtils {
     }
 
     public static Callable<Boolean> serviceIsRunning(final DockerClient CLIENT, final Container container) {
+        return serviceIsRunning(CLIENT, container, false);
+    }
+
+    public static Callable<Boolean> serviceIsRunning(final DockerClient CLIENT, final Container container,
+                                                     boolean rtnForNoServiceId) {
         return new Callable<Boolean>() {
             public Boolean call() throws Exception {
                 try {
                     String servicdId = container.serviceId();
                     if (StringUtils.isBlank(servicdId)) {
-                        return null;
+                        // Want this to be the value we aren't waiting for
+                        return rtnForNoServiceId;
                     }
                     final Service serviceResponse = CLIENT.inspectService(servicdId);
                     final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());

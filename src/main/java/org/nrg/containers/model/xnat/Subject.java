@@ -63,14 +63,15 @@ public class Subject extends XnatModelObject {
         populateProperties(rootArchivePath, loadFiles, loadTypesMap);
     }
 
-    private void populateProperties(final String rootArchivePath, final boolean loadFiles, final Map<String, Boolean> loadTypesMap) {
+    private void populateProperties(final String rootArchivePath, final boolean loadFiles,
+                                    @Nullable final Map<String, Boolean> loadTypesMap) {
         this.id = xnatSubjectdataI.getId();
         this.label = xnatSubjectdataI.getLabel();
         this.xsiType = xnatSubjectdataI.getXSIType();
         this.projectId = xnatSubjectdataI.getProject();
 
         this.sessions = Lists.newArrayList();
-        if (loadTypesMap.get(CommandWrapperInputType.SESSION.getName())) {
+        if (loadTypesMap != null && loadTypesMap.get(CommandWrapperInputType.SESSION.getName())) {
             for (final XnatExperimentdataI xnatExperimentdataI : xnatSubjectdataI.getExperiments_experiment()) {
                 if (xnatExperimentdataI instanceof XnatImagesessiondataI) {
                     sessions.add(new Session((XnatImagesessiondataI) xnatExperimentdataI, loadFiles, loadTypesMap, this.uri, rootArchivePath));

@@ -66,7 +66,7 @@ public class Scan extends XnatModelObject {
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    final Map<String, Boolean> loadTypesMap) {
+                                    @Nullable final Map<String, Boolean> loadTypesMap) {
         this.integerId = xnatImagescandataI.getXnatImagescandataId();
         this.id = xnatImagescandataI.getId();
         this.xsiType = xnatImagescandataI.getXSIType();

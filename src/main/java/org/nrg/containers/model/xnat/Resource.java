@@ -72,7 +72,7 @@ public class Resource extends XnatModelObject {
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    final Map<String, Boolean> loadTypesMap) {
+                                    @Nullable final Map<String, Boolean> loadTypesMap) {
         this.integerId = xnatResourcecatalog.getXnatAbstractresourceId();
         this.id = xnatResourcecatalog.getLabel();
         this.label = xnatResourcecatalog.getLabel();

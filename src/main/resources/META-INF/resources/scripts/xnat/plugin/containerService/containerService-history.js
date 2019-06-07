@@ -49,7 +49,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
 
     function errorHandler(e, title, closeAll) {
         console.log(e);
-        title = (title) ? 'Error Found: ' + title : 'Error';
+        title = (title) ? 'Error: ' + title : 'Error';
         closeAll = (closeAll === undefined) ? true : closeAll;
         var errormsg = (e.statusText) ? '<p><strong>Error ' + e.status + ': ' + e.statusText + '</strong></p><p>' + e.responseText + '</p>' : e;
         XNAT.dialog.open({
@@ -64,7 +64,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     action: function () {
                         if (closeAll) {
                             xmodal.closeAll();
-
+                            XNAT.ui.dialog.closeAll();
                         }
                     }
                 }
@@ -418,92 +418,185 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
         return 'container-'+containerId+'-log-'+logFile;
     };
 
-    historyTable.refreshLog = refreshLog = function(containerId, logFile, refreshLogSince, startTime) {
-        var refreshPrm = {};
-        if (refreshLogSince) {
-            if (refreshLogSince === -1) return;
+    var checkContinueLiveLog = function(containerId, logFile, refreshLogSince, bytesRead) {
+        // This will stop making ajax requests until the user clicks "continue"
+        // thus allowing the session timeout to handle an expiring session
+        XNAT.dialog.open({
+            width: 360,
+            content: '' +
+                '<div style="font-size:14px;">' +
+                'Are you still watching this log?' +
+                '<br><br>'+
+                'Click <b>"Continue"</b> to continue tailing the log ' +
+                'or <b>"Close"</b> to close it.' +
+                '</div>',
+            buttons: [
+                {
+                    label: 'Close',
+                    close: true,
+                    action: function(){
+                        XNAT.dialog.closeAll();
+                    }
+                },
+                {
+                    label: 'Continue',
+                    isDefault: true,
+                    close: true,
+                    action: function(){
+                        refreshLog(containerId, logFile, refreshLogSince, bytesRead);
+                    }
+                }
+            ]
+        });
+    };
 
-            refreshPrm = {since: refreshLogSince};
+    historyTable.$loadAllBtn = false;
+    historyTable.refreshLog = refreshLog = function(containerId, logFile, refreshLogSince, bytesRead, loadAll, startTime) {
+        var fullWait;
+        var refreshPrm = {};
+        if (refreshLogSince) refreshPrm.since = refreshLogSince;
+        if (bytesRead) refreshPrm.bytesRead = bytesRead;
+        if (loadAll) {
+            fullWait = XNAT.ui.dialog.static.wait('Fetching log, please wait.');
+            refreshPrm.loadAll = loadAll;
         }
+
+        var firstRun = $.isEmptyObject(refreshPrm);
+
         if (!startTime) {
             startTime = new Date();
         } else {
+            // Check uptime
             var maxUptime = 900; //sec
             var uptime = Math.round((new Date() - startTime)/1000);
             if (uptime >= maxUptime) {
-                // This will stop making ajax requests until the user clicks "continue"
-                // thus allowing the session timeout to handle an expiring session
-                XNAT.dialog.open({
-                    width: 360,
-                    content: '' +
-                        '<div style="font-size:14px;">' +
-                        'Are you still watching this log?' +
-                        '<br><br>'+
-                        'Click <b>"Continue"</b> to continue tailing the log ' +
-                        'or <b>"Close"</b> to close it.' +
-                        '</div>',
-                    buttons: [
-                        {
-                            label: 'Close',
-                            close: true,
-                            action: function(){
-                                XNAT.dialog.closeAll();
-                            }
-                        },
-                        {
-                            label: 'Continue',
-                            isDefault: true,
-                            close: true,
-                            action: function(){
-                                refreshLog(containerId, logFile, refreshLogSince);
-                            }
-                        }
-                    ]
-                });
+                checkContinueLiveLog(containerId, logFile, refreshLogSince, bytesRead);
                 return;
             }
         }
 
+        var $container = historyTable.logModal.content$.parent();
+
+        // Functions for adding log content to modal
+        function appendContent(content, clear) {
+            if (firstRun || clear) historyTable.logModal.content$.empty();
+            var lines = content.split('\n').filter(function(line){return line;}); // remove empty lines
+            if (lines.length > 0) {
+                historyTable.logModal.content$.append(spawn('pre',
+                    {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, lines.join('<br/>')));
+            }
+        }
+
+        function addLiveLoggingContent(dataJson) {
+            // We're live logging
+            var currentScrollPos = $container.scrollTop(),
+                containerHeight = $container[0].scrollHeight,
+                autoScroll = $container.height() + currentScrollPos >= containerHeight; //user has not scrolled
+
+            //append content
+            appendContent(dataJson.content);
+
+            //scroll to bottom
+            if (autoScroll) $container.scrollTop($container[0].scrollHeight);
+
+            if (dataJson.timestamp !== -1) {
+                // Container is still running, check for more!
+                refreshLog(containerId, logFile, dataJson.timestamp, false, false, startTime);
+            }
+        }
+
+        function removeLoadAllBtn() {
+            if (historyTable.$loadAllBtn) {
+                historyTable.$loadAllBtn.remove();
+                historyTable.$loadAllBtn = false;
+            }
+        }
+
+        function addLoadAllBtn(curBytesRead) {
+            removeLoadAllBtn();
+            historyTable.$loadAllBtn = $('<button class="button btn" id="load-log">Load entire log file</button>');
+            historyTable.$loadAllBtn.appendTo(historyTable.logModal.footerButtons$);
+            historyTable.$loadAllBtn.click(function(){
+                $container.off("scroll");
+                $container.scrollTop($container[0].scrollHeight);
+                refreshLog(containerId, logFile, false, curBytesRead, true);
+            });
+        }
+
+        function startScrolling(curBytesRead) {
+            $container.scroll(function() {
+                if ($(this).scrollTop() + $(this).innerHeight() >= $(this)[0].scrollHeight) {
+                    $container.off("scroll");
+                    addLoadAllBtn(curBytesRead);
+                    refreshLog(containerId, logFile, false, curBytesRead);
+                }
+            });
+        }
+
+        function addFileContent(dataJson, clear) {
+            appendContent(dataJson.content, clear);
+            if (dataJson.bytesRead === -1) {
+                // File read in its entirety
+                removeLoadAllBtn();
+            } else {
+                startScrolling(dataJson.bytesRead);
+            }
+        }
+
+        var $waitElement = $('<span class="spinner text-info"><i class="fa fa-spinner fa-spin"></i> Loading...</span>');
         XNAT.xhr.getJSON({
             url: rootUrl('/xapi/containers/' + containerId + '/logSince/' + logFile),
             data: refreshPrm,
+            beforeSend: function () {
+                if (firstRun || bytesRead) $waitElement.appendTo(historyTable.logModal.content$);
+            },
             success: function (dataJson) {
-                var timestamp = dataJson.timestamp;
-                var $container = $('#' + containerModalId(containerId, logFile) + ' .xnat-dialog-body');
+                if (firstRun || bytesRead) $waitElement.remove();
+                if (fullWait) {
+                    fullWait.close();
+                }
+
                 // Ensure that user didn't close modal
-                if ($container.length === 0) {
+                if ($container.length === 0 || $container.is(':hidden')) {
                     return;
                 }
-                var currentScrollPos = $container.scrollTop(),
-                    containerHeight = $container[0].scrollHeight,
-                    autoScroll = $container.height() + currentScrollPos >= containerHeight; //user has not scrolled
 
-                //append content
-                var lines = dataJson.content.split('\n').filter(function(line){return line;}); // remove empty lines
-                if (lines.length > 0) {
-                    $container.find('.xnat-dialog-content').append(spawn('pre',
-                        {'style': {'font-size':'12px','margin':'0', 'white-space':'pre-wrap'}}, lines.join('<br/>')));
+                var fromFile = dataJson.fromFile;
+                if (fromFile) {
+                    // file content
+                    var emptyFirst = false;
+                    if (firstRun) {
+                        historyTable.logModal.title$.text(historyTable.logModal.title$.text() + ' (from file)');
+                    } else if (refreshLogSince) {
+                        // We were live logging, but we swapped to reading a file, notify user since we're starting back from the top
+                        XNAT.ui.dialog.alert('Processing competed');
+                        historyTable.logModal.title$.text(
+                            historyTable.logModal.title$.text().replace('(live)', '(from file)')
+                        );
+                        emptyFirst = true;
+                    }
+                    addFileContent(dataJson, emptyFirst);
+                } else {
+                    // live logging content
+                    if (firstRun) {
+                        historyTable.logModal.title$.text(historyTable.logModal.title$.text() + ' (live)');
+                    }
+                    addLiveLoggingContent(dataJson);
                 }
-
-                //scroll to bottom
-                if (autoScroll) $container.scrollTop($container[0].scrollHeight);
-
-                refreshLog(containerId, logFile, timestamp, startTime);
             },
-            fail: function (e) {
-                errorHandler(e, 'Cannot retrieve ' + logFile);
+            error: function (e) {
+                errorHandler(e, 'Cannot retrieve ' + logFile + '; container may have restarted.', true);
             }
         });
     };
 
     historyTable.viewLog = viewLog = function (containerId, logFile) {
-        XNAT.dialog.open({
+        historyTable.logModal = XNAT.dialog.open({
             title: 'View ' + logFile,
             id: containerModalId(containerId, logFile),
             width: 850,
             header: true,
             maxBtn: true,
-            content: null,
             beforeShow: function() {
                 refreshLog(containerId, logFile);
             },
@@ -591,7 +684,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                     }
                     formattedVal+="</tr>";
                 });
-                formattedVal+="</table>"
+                formattedVal+="</table>";
                 putInTable = false;
             } else if (typeof val === 'object') {
                 formattedVal = spawn('code', JSON.stringify(val));
