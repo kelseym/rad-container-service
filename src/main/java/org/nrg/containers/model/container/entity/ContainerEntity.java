@@ -436,21 +436,16 @@ public class ContainerEntity extends AbstractHibernateEntity {
         this.history.add(historyItem);
     }
 
-    @Transient
-    /*
-     * Does this item have a different status that the most recent event. 
-     * 
+    /**
+     * Does this item have a different status (and externalTimestamp) than any previously recorded history item?
      */
-    public boolean isItemInHistory(final ContainerEntityHistory historyItem) {
+    @Transient
+    public synchronized boolean isItemInHistory(final ContainerEntityHistory historyItem) {
     	if (this.history == null){
     		return false;
-    	}    	
-    	
+    	}
     	historyItem.setContainerEntity(this);
-    	
-    	
     	return this.history.contains(historyItem);
-    	 
     }
 
     @ElementCollection
