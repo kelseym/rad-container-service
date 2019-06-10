@@ -1,6 +1,5 @@
 package org.nrg.containers.services.impl;
 
-import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.SCAN;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperOutputEntity.Type.RESOURCE;
 
@@ -28,6 +27,7 @@ import org.nrg.containers.exceptions.DockerServerException;
 import org.nrg.containers.exceptions.NoDockerServerException;
 import org.nrg.containers.exceptions.UnauthorizedException;
 import org.nrg.containers.jms.requests.ContainerRequest;
+import org.nrg.containers.model.command.entity.CommandWrapperOutputEntity;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.Container.ContainerMount;
 import org.nrg.containers.model.container.auto.Container.ContainerOutput;
@@ -472,67 +472,45 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 //    final String message = String.format(prefix + "Could not refresh catalog for resource %s.", createdUri);
                 //    log.error(message, e);
                 //}
-            } else if (type.equals(ASSESSOR.getName())) {
+            } else if (CommandWrapperOutputEntity.Type.xmlUploadTypes().contains(type)) {
 
-                final ContainerMount mount = getMount(output.mount());
-                final String absoluteFilePath = FilenameUtils.concat(mount.xnatHostPath(), output.path());
-                final InputStream fileInputStream;
-                try {
-                    fileInputStream = new FileInputStream(absoluteFilePath);
-                } catch (FileNotFoundException e) {
-                    final String message = prefix + String.format("Could not read file from mount %s at path %s.", mount.name(), output.path());
-                    log.error(message);
-                    throw new ContainerException(message, e);
-                }
-
-                XFTItem item;
-                try {
-                    item = catalogService.insertXmlObject(userI, fileInputStream, true, Collections.<String, Object>emptyMap());
-                } catch (Exception e) {
-                    final String message = prefix + String.format("Could not insert object from XML file from mount %s at path %s.", mount.name(), output.path());
-                    log.error(message);
-                    throw new ContainerException(message, e);
-                }
-
-                if (item == null) {
-                    final String message = prefix + String.format("An unknown error occurred creating object from XML file from mount %s at path %s.", mount.name(), output.path());
+                File itemXml;
+                if (toUpload.size() != 1 || !(itemXml = toUpload.get(0)).getName().matches(".*\\.xml$")) {
+                    final String message = prefix + "Expecting precisely one xml file to upload for " + type +
+                            "; found " + toUpload;
                     log.error(message);
                     throw new ContainerException(message);
                 }
 
-                final String createdUriThatNeedsToBeChecked = UriParserUtils.getArchiveUri(item);
+                log.debug("{}Inserting {}.\n\tuser: {}\n\tparentUri: {}\n\tlabel: {}\n\txml: {}",
+                        prefix, type, userI.getLogin(), parentUri, label, itemXml);
 
-                // The URI that is returned from UriParserUtils is technically correct, but doesn't work very well.
-                // It is of the form /experiments/{assessorId}. If we try to upload resources to it, that will fail.
-                // We have to manually turn it into a URI of the form /experiments/{sessionId}/assessors/{assessorId}.
-                final Matcher createdUriMatchesExperimentUri = experimentUri.matcher(createdUriThatNeedsToBeChecked);
-                createdUri = createdUriMatchesExperimentUri.matches() ?
-                        String.format("%s/assessors/%s", parentUri, createdUriMatchesExperimentUri.group(2)) :
-                        createdUriThatNeedsToBeChecked;
+                try {
+                    // Get item from xml
+                    XFTItem item = catalogService.insertXmlObject(userI, itemXml,
+                            true, Collections.<String, Object>emptyMap(), uploadEventId);
 
-            } else if (type.equals(SCAN.getName())) {
-                if (toUpload.size() != 1) {
-                    final String message = prefix + "Expecting precisely one file to upload for scan, " +
-                            "found " + toUpload;
-                    log.error(message);
-                    throw new ContainerException(message);
-                }
+                    if (item == null) {
+                        throw new Exception();
+                    }
 
-                File scanXml = toUpload.get(0);
-
-                log.debug("{}Inserting scan.\n\tuser: {}\n\tparentUri: {}\n\tlabel: {}\n\txml: {}",
-                        prefix, userI.getLogin(), parentUri, label, scanXml);
-
-                try (FileInputStream fileInputStream = new FileInputStream(scanXml)) {
-                    XFTItem item = catalogService.insertXmlObject(userI, fileInputStream,
-                            true, Collections.<String, Object>emptyMap());
                     createdUri = UriParserUtils.getArchiveUri(item);
+
+                    if (type.equals(ASSESSOR.getName())) {
+                        // The URI that is returned from UriParserUtils is technically correct, but doesn't work very well.
+                        // It is of the form /experiments/{assessorId}. If we try to upload resources to it, that will fail.
+                        // We have to manually turn it into a URI of the form /experiments/{sessionId}/assessors/{assessorId}.
+                        final Matcher createdUriMatchesExperimentUri = experimentUri.matcher(createdUri);
+                        createdUri = createdUriMatchesExperimentUri.matches() ?
+                                String.format("%s/assessors/%s", parentUri, createdUriMatchesExperimentUri.group(2)) :
+                                createdUri;
+                    }
                 } catch (IOException e) {
-                    final String message = prefix + "Could not read " + scanXml;
+                    final String message = prefix + "Could not read " + itemXml;
                     log.error(message);
                     throw new ContainerException(message, e);
                 } catch (Exception e) {
-                    final String message = prefix + "Could not insert scan from XML file " + scanXml;
+                    final String message = prefix + "Could not insert scan from XML file " + itemXml;
                     log.error(message);
                     throw new ContainerException(message, e);
                 }
