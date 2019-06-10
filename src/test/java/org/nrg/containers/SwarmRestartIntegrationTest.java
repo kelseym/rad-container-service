@@ -336,7 +336,7 @@ public class SwarmRestartIntegrationTest {
         containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
-
+        containersToCleanUp.add(service.serviceId());
         TestingUtils.commitTransaction();
 
         // Restart
@@ -377,6 +377,7 @@ public class SwarmRestartIntegrationTest {
             // ensure that container restarted & status updates, etc
             service = containerService.get(service.databaseId());
             if (i == 6) {
+                containersToCleanUp.add(service.serviceId());
                 break;
             }
             assertThat(service.countRestarts(), is(i++));
@@ -394,7 +395,7 @@ public class SwarmRestartIntegrationTest {
         containerService.consumeResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow.getWorkflowId().toString());
         final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
-
+        containersToCleanUp.add(service.serviceId());
         TestingUtils.commitTransaction();
 
         log.debug("Kill service as if through API");

@@ -114,12 +114,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
     public static final String swarmConstraintsTag = "swarm-constraints";
 
-
-    private static final List<String> supportedParentOutputTypes = Arrays.asList(
-            CommandWrapperOutputEntity.Type.ASSESSOR.getName(),
-            CommandWrapperOutputEntity.Type.SCAN.getName()
-    );
-
     @Autowired
     public CommandResolutionServiceImpl(final CommandService commandService,
                                         final ConfigService configService,
@@ -1940,7 +1934,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     // Basically, *this* output handler needs to make a resource, and the
                     // *target* output handler needs to make an assessor or a scan.
                     final boolean thisHandlerIsAResource = commandOutputHandler.type().equals(CommandWrapperOutputEntity.Type.RESOURCE.getName());
-                    final boolean targetHandlerIsSupported = supportedParentOutputTypes.contains(otherOutputHandler.type());
+                    final boolean targetHandlerIsSupported = CommandWrapperOutputEntity.Type.supportedParentOutputTypeNames()
+                            .contains(otherOutputHandler.type());
                     if (!(thisHandlerIsAResource && targetHandlerIsSupported)) {
                         // This output is supposed to be uploaded to an object that is created by another output,
                         // but that can only happen when the first (parent) output is an assessor or a scan
@@ -1950,7 +1945,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                         "Handler \"%1$s\" must be type Resource, target handler \"%3$s\" needs to be type %5$s.",
                                 commandOutputHandler.name(), commandOutputHandler.type(),
                                 commandOutputHandler.targetName(), otherOutputHandler.type(),
-                                String.join(" OR ", supportedParentOutputTypes));
+                                String.join(" OR ", CommandWrapperOutputEntity.Type.supportedParentOutputTypeNames()));
                         if (Boolean.TRUE.equals(commandOutput.required()) && !outputHasAtLeastOneLegitHandler) {
                             throw new CommandResolutionException(message);
                         } else {

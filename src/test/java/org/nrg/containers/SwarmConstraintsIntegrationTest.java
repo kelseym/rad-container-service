@@ -293,6 +293,7 @@ public class SwarmConstraintsIntegrationTest {
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        containersToCleanUp.add(service.serviceId());
         await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
     }
 
@@ -308,6 +309,7 @@ public class SwarmConstraintsIntegrationTest {
                 null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        containersToCleanUp.add(service.serviceId());
         await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
     }
 
@@ -388,6 +390,7 @@ public class SwarmConstraintsIntegrationTest {
                 null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        containersToCleanUp.add(service.serviceId());
         await().until(TestingUtils.serviceIsRunning(CLIENT, service)); //Running = success!
 
         // Now update it so that it fails
@@ -402,6 +405,7 @@ public class SwarmConstraintsIntegrationTest {
                 null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service2 = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        containersToCleanUp.add(service2.serviceId());
         Thread.sleep(11000L); // > 10s since that seems to be enough for a service to get running
         assertThat(TestingUtils.serviceIsRunning(CLIENT, service2, true).call(), is(false));
         assertThat(containerService.get(service2.serviceId()).status(), is(ContainerServiceImpl.CREATED));
@@ -446,6 +450,7 @@ public class SwarmConstraintsIntegrationTest {
                 null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
+        containersToCleanUp.add(container.containerId());
         await().until(TestingUtils.containerIsRunning(CLIENT, false, container)); //Running = success!
     }
 
