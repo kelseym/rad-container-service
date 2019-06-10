@@ -138,7 +138,7 @@ public class IntegrationTestConfig {
                                                              final SiteConfigPreferences siteConfigPreferences,
                                                              final CatalogService catalogService,
                                                              final MailService mailService) {
-        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService,mailService);
+        return new ContainerFinalizeServiceImpl(containerControlApi, siteConfigPreferences, catalogService, mailService);
     }
 
     @Bean

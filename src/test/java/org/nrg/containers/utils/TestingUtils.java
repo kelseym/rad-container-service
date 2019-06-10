@@ -252,8 +252,8 @@ public class TestingUtils {
             public Boolean call() throws Exception {
                 PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(user, container.workflowId());
                 return wrk != null &&
-                        wrk.getStatus().equals(PersistentWorkflowUtils.COMPLETE) ||
-                        wrk.getStatus().contains(PersistentWorkflowUtils.FAILED);
+                        (wrk.getStatus().equals(PersistentWorkflowUtils.COMPLETE) ||
+                        wrk.getStatus().contains(PersistentWorkflowUtils.FAILED));
             }
         };
     }
