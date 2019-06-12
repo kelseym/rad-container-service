@@ -63,6 +63,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -327,7 +328,7 @@ public class SwarmRestartIntegrationTest {
         final Container restartedContainer = containerService.get(service.databaseId());
         containersToCleanUp.add(restartedContainer.serviceId());
         assertThat(restartedContainer.countRestarts(), is(1));
-        await().until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running again = success!
+        await().atMost(30L, TimeUnit.SECONDS).until(TestingUtils.serviceIsRunning(CLIENT, restartedContainer)); //Running again = success!
     }
 
     @Test
