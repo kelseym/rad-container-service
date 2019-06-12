@@ -438,6 +438,8 @@ public class ContainerEntity extends AbstractHibernateEntity {
 
     /**
      * Does this item have a different status (and externalTimestamp) than any previously recorded history item?
+     * @param historyItem the candidate history item
+     * @return T/F
      */
     @Transient
     public synchronized boolean isItemInHistory(final ContainerEntityHistory historyItem) {

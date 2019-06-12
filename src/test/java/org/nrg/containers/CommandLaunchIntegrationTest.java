@@ -1063,7 +1063,7 @@ public class CommandLaunchIntegrationTest {
         final XnatResourcecatalog mockCatalog = mock(XnatResourcecatalog.class);
         when(mockCatalog.getLabel()).thenReturn(dicomLabel);
         when(mockCatalogService.insertResources(eq(mockUser), eq(uri), argThat(matchesFileList), any(Integer.class),
-                eq(true), eq(dicomLabel), any(String.class), any(String.class), any(String.class)))
+                eq(true), eq(true), eq(dicomLabel), any(String.class), any(String.class), any(String.class)))
                 .thenReturn(mockCatalog);
 
         final Map<String, String> runtimeValues = Maps.newHashMap();
@@ -1178,7 +1178,7 @@ public class CommandLaunchIntegrationTest {
         final XnatResourcecatalog mockCatalog = mock(XnatResourcecatalog.class);
         when(mockCatalog.getLabel()).thenReturn(label);
         when(mockCatalogService.insertResources(eq(mockUser), eq(uri), argThat(matchesFileList), any(Integer.class),
-                eq(true), eq(label), any(String.class), any(String.class), any(String.class)))
+                eq(true), eq(true), eq(label), any(String.class), any(String.class), any(String.class)))
                 .thenReturn(mockCatalog);
 
         final Map<String, String> runtimeValues = Maps.newHashMap();

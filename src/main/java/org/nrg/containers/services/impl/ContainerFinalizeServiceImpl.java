@@ -450,8 +450,9 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         throw new UnauthorizedException(message);
                     }
 
-                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri, toUpload,
-                            uploadEventId, true, label, null, output.format(), null);
+                    final XnatResourcecatalog resourcecatalog = catalogService.insertResources(userI, parentUri,
+                            toUpload, uploadEventId, true, true,
+                            label, null, output.format(), null);
                     createdUri = UriParserUtils.getArchiveUri(resourcecatalog);
                     if (StringUtils.isBlank(createdUri)) {
                         createdUri = parentUri + "/resources/" + resourcecatalog.getLabel();
