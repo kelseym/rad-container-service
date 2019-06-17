@@ -21,7 +21,7 @@ public class XnatFile extends XnatModelObject {
     private List<String> tags;
     private String format;
     private String content;
-    private Integer size;
+    private Long size;
     private String checksum;
 
     public XnatFile() {}
@@ -32,7 +32,7 @@ public class XnatFile extends XnatModelObject {
                     final String tagsCsv,
                     final String format,
                     final String content,
-                    final Integer size,
+                    final Long size,
                     final String checksum) {
         if (parentUri == null) {
             log.error("Cannot construct a file URI. Parent URI is null.");
@@ -95,11 +95,11 @@ public class XnatFile extends XnatModelObject {
         this.content = content;
     }
 
-    public Integer getSize() {
+    public Long getSize() {
         return size;
     }
 
-    public void setSize(Integer size) {
+    public void setSize(Long size) {
         this.size = size;
     }
 
