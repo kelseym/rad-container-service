@@ -104,7 +104,7 @@ public class Resource extends XnatModelObject {
                 String format   = (String) entry[5];
                 String content  = (String) entry[5];
                 String sizeStr  = StringUtils.defaultIfBlank((String) entry[1], null);
-                Integer size    = sizeStr == null ? null : Integer.parseInt(sizeStr);
+                Long size       = sizeStr == null ? null : Long.parseLong(sizeStr);
                 String checksum = (String) entry[8];
                 files.add(new XnatFile(this.uri, relPath, filePath, tagsCsv, format, content, size, checksum));
             }

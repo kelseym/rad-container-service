@@ -511,7 +511,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                     log.error(message);
                     throw new ContainerException(message, e);
                 } catch (Exception e) {
-                    final String message = prefix + "Could not insert scan from XML file " + itemXml;
+                    final String message = prefix + "Could not insert item from XML file " + itemXml;
                     log.error(message);
                     throw new ContainerException(message, e);
                 }
