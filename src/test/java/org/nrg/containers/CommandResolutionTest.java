@@ -18,6 +18,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.nrg.config.services.ConfigService;
 import org.nrg.containers.config.IntegrationTestConfig;
 import org.nrg.containers.exceptions.CommandResolutionException;

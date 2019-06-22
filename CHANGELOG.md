@@ -31,6 +31,8 @@ Not yet released
 * [CS-577][]: Ports, hash, and index fields of command.json can now be updated
 * [CS-578][]: Enforce ordering on uploading outputs so that we never try to upload to an object that has yet to be inserted
 * [CS-580][]: Add client-side validation for required inputs
+* [CS-572][]: Change command listing permissions to require only project-read permissions. Viewing the "Run containers" action is still restricted by item "canEdit" permissions, although this does need to be modified since, for example, a custom user group ought to be able to read an MR session and write a QC assessor by launching a container on the read-only session
+
 
 ### Other
 
@@ -41,6 +43,7 @@ Not yet released
 [CS-577]: https://issues.xnat.org/browse/CS-577
 [CS-578]: https://issues.xnat.org/browse/CS-578
 [CS-580]: https://issues.xnat.org/browse/CS-580
+[CS-572]: https://issues.xnat.org/browse/CS-572
 
 
 

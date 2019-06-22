@@ -20,7 +20,7 @@ import org.nrg.framework.annotations.XapiRestController;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.framework.exceptions.NrgRuntimeException;
 import org.nrg.xapi.rest.AbstractXapiRestController;
-import org.nrg.xapi.rest.ProjectId;
+import org.nrg.xapi.rest.Project;
 import org.nrg.xapi.rest.XapiRequestMapping;
 import org.nrg.xdat.XDAT;
 import org.nrg.xdat.security.helpers.Permissions;
@@ -209,27 +209,19 @@ public class CommandRestApi extends AbstractXapiRestController {
     @XapiRequestMapping(value = {"/commands/available"}, params = {"project", "xsiType"}, method = GET, restrictTo = Read)
     @ApiOperation(value = "Get Commands available in given project context and XSIType")
     @ResponseBody
-    public List<CommandSummaryForContext> availableCommands(final @RequestParam @ProjectId String project,
+    public List<CommandSummaryForContext> availableCommands(final @RequestParam @Project String project,
                                                             final @RequestParam String xsiType)
             throws ElementNotFoundException {
-        final UserI userI = XDAT.getUserDetails();
-
-        return Permissions.canEditProject(userI, project) ?
-                commandService.available(project, xsiType, userI) :
-                Collections.<CommandSummaryForContext>emptyList();
+        return commandService.available(project, xsiType, getSessionUser());
     }
 
     @XapiRequestMapping(value = {"/projects/{project}/commands/available"}, params = {"xsiType"}, method = GET, restrictTo = Read)
     @ApiOperation(value = "Get Commands available in given project context and XSIType")
     @ResponseBody
-    public List<CommandSummaryForContext> availableCommands2(final @PathVariable @ProjectId String project,
+    public List<CommandSummaryForContext> availableCommands2(final @PathVariable @Project String project,
                                                              final @RequestParam String xsiType)
             throws ElementNotFoundException {
-        final UserI userI = XDAT.getUserDetails();
-
-        return Permissions.canEditProject(userI, project) ?
-                commandService.available(project, xsiType, userI) :
-                Collections.<CommandSummaryForContext>emptyList();
+        return commandService.available(project, xsiType, getSessionUser());
     }
 
     @XapiRequestMapping(value = {"/commands/available/site"}, params = {"xsiType"}, method = GET, restrictTo = Admin)
