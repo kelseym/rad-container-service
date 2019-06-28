@@ -1079,13 +1079,16 @@ var XNAT = getObject(XNAT || {});
     };
 
     launcher.bulkLaunchDialog = function(wrapperId,rootElement,targets,targetLabels,project){
-        // 'targets' should be formatted as a one-dimensional array of XNAT data values (i.e. scan IDs) that a container will run on in series.
-        // the 'root element' should match one of the inputs in the command config object, and overwrite it with the values provided in the 'targets' array
+        // 'targets' should be formatted as a one-dimensional array of XNAT URIs (i.e. scan URIs, session URIs)
+        // the 'root element' should match one of the inputs in the command config object, and overwrite it with the
+        // values provided in the 'targets' array
 
         if (projectId.length && !project) project = projectId;
 
         if (!targets || targets.length === 0) return false;
-        if (!targetLabels || targetLabels.length !== targets.length) targetLabels = targets;
+        if (!targetLabels || targetLabels.length !== targets.length) {
+            targetLabels = $.map(targets, function(t) {return t.replace(/.*\//,'');});
+        }
 
         xmodal.loading.open({ title: 'Configuring Container Launcher' });
 
