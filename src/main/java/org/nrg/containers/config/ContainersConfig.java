@@ -16,12 +16,8 @@ import org.nrg.xnat.initialization.RootConfig;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.*;
 import org.springframework.context.annotation.ComponentScan.Filter;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
@@ -121,8 +117,8 @@ public class ContainersConfig {
         );
     }
 
-    @Bean
-    public ThreadPoolExecutorFactoryBean threadPoolExecutorFactoryBean() {
+    @Bean(name = "containerServiceThreadPoolExecutorFactoryBean")
+    public ThreadPoolExecutorFactoryBean containerServiceThreadPoolExecutorFactoryBean() {
         ThreadPoolExecutorFactoryBean tBean = new ThreadPoolExecutorFactoryBean();
         tBean.setCorePoolSize(5);
         tBean.setThreadNamePrefix("container-");

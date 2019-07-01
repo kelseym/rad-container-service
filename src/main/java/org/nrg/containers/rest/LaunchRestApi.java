@@ -39,6 +39,7 @@ import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -91,14 +92,15 @@ public class LaunchRestApi extends AbstractXapiRestController {
                          final UserManagementServiceI userManagementService,
                          final RoleHolder roleHolder,
                          final ObjectMapper mapper,
-                         final ThreadPoolExecutorFactoryBean executorFactoryBean) {
+                         @Qualifier("containerServiceThreadPoolExecutorFactoryBean")
+                             final ThreadPoolExecutorFactoryBean containerServiceThreadPoolExecutorFactoryBean) {
         super(userManagementService, roleHolder);
         this.commandService = commandService;
         this.containerService = containerService;
         this.dockerServerService = dockerServerService;
         this.commandResolutionService = commandResolutionService;
         this.mapper = mapper;
-        this.executorService = executorFactoryBean.getObject();
+        this.executorService = containerServiceThreadPoolExecutorFactoryBean.getObject();
     }
 
     /*
