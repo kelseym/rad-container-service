@@ -53,15 +53,13 @@ public class ContainersConfig {
         return factory;
     }
 
-    @Bean
-    @Qualifier("finalizingQueueListenerFactory")
+    @Bean(name = {"finalizingQueueListenerFactory", "jmsListenerContainerFactory"})
     public DefaultJmsListenerContainerFactory finalizingQueueListenerFactory(@Qualifier("springConnectionFactory")
                                                                                            ConnectionFactory connectionFactory) {
         return defaultFactory(connectionFactory);
     }
 
-    @Bean
-    @Qualifier("stagingQueueListenerFactory")
+    @Bean(name = "stagingQueueListenerFactory")
     public DefaultJmsListenerContainerFactory stagingQueueListenerFactory(@Qualifier("springConnectionFactory")
                                                                                        ConnectionFactory connectionFactory) {
         return defaultFactory(connectionFactory);
