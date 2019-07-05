@@ -10,6 +10,7 @@ import com.jayway.jsonpath.spi.json.JsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,12 +46,6 @@ import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.user.XnatUserProvider;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.services.archive.CatalogService;
-import org.nrg.xnat.utils.CatalogUtils;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -73,15 +68,11 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
-import static org.powermock.api.mockito.PowerMockito.doReturn;
+import static org.mockito.Mockito.*;
 
 @Slf4j
-@RunWith(PowerMockRunner.class)
-@PowerMockRunnerDelegate(SpringJUnit4ClassRunner.class)
+@RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = IntegrationTestConfig.class)
-@PowerMockIgnore({"org.apache.*", "java.*", "javax.*", "org.w3c.*", "com.sun.*"})
 @Transactional
 public class CommandResolutionTest {
     private UserI mockUser;
@@ -881,8 +872,15 @@ public class CommandResolutionTest {
     @DirtiesContext
     public void testRemoteFilesMount() throws Exception {
         when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(true);
-        // Just copy the archive dir over for now (ideally test pullResourceCatalogsToDestination elsewhere?)
-        doNothing().when(mockCatalogService).pullResourceCatalogsToDestination(eq(mockUser), any(String.class), any(String.class));
+
+        // Just copy the archive dir over for now (tests for pullResourceCatalogsToDestination in xnat-web and filesystems_plugin)
+        doAnswer(inv -> {
+            String src = inv.getArgumentAt(2, String.class);
+            String dest = inv.getArgumentAt(3, String.class);
+            FileUtils.copyDirectory(new File(src), new File(dest));
+            return null;
+        }).when(mockCatalogService).pullResourceCatalogsToDestination(eq(mockUser),
+                any(String.class), any(String.class), any(String.class));
 
         final String testResourceDir = Paths.get(ClassLoader.getSystemResource("commandResolutionTest/testRemoteFilesMount")
                 .toURI()).toString().replace("%20", " ");

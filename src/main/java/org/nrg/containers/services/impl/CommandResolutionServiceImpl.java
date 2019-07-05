@@ -2308,11 +2308,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
                     // CS-54 Copy all files out of the root directory to a build directory.
                     try {
-                        FileUtils.copyDirectory(new File(directory), new File(localDirectory));
                         if (hasRemoteFiles) {
                             log.debug("Pulling any remote files into mount \"{}\".", resolvedCommandMountName);
                             catalogService.pullResourceCatalogsToDestination(Users.getAdminUser(),
-                                    partiallyResolvedCommandMount.fromUri(), localDirectory);
+                                    partiallyResolvedCommandMount.fromUri(), directory, localDirectory);
+                        } else {
+                            // CS-54 Copy all files out of the root directory to a build directory.
+                            log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files " +
+                                    "from the root directory to build directory.", resolvedCommandMountName);
+                            FileUtils.copyDirectory(new File(directory), new File(localDirectory));
                         }
                     } catch (IOException e) {
                         throw new ContainerMountResolutionException("Could not copy archive directory " + directory +
