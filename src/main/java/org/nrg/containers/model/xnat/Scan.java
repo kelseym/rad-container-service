@@ -69,6 +69,8 @@ public class Scan extends XnatModelObject {
                                     @Nullable final Map<String, Boolean> loadTypesMap) {
         this.integerId = xnatImagescandataI.getXnatImagescandataId();
         this.id = xnatImagescandataI.getId();
+        this.sessionId = xnatImagescandataI.getImageSessionId();
+        this.projectId = xnatImagescandataI.getProject();
         this.xsiType = xnatImagescandataI.getXSIType();
         this.scanType = xnatImagescandataI.getType();
         this.label = String.format("%s - %s", this.id, this.scanType);
