@@ -36,6 +36,7 @@ import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.utils.ContainerUtils;
 import org.nrg.mail.services.MailService;
 import org.nrg.xdat.om.XnatExperimentdata;
+import org.nrg.xdat.om.XnatProjectdata;
 import org.nrg.xdat.om.XnatResourcecatalog;
 import org.nrg.xdat.om.XnatSubjectdata;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
@@ -49,6 +50,7 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.restlet.util.XNATRestConstants;
 import org.nrg.xnat.services.archive.CatalogService;
+import org.nrg.xnat.turbine.utils.ArchivableItem;
 import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -148,15 +150,16 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 pipeline_name = wrkFlow.getPipelineName();
                 eventId = wrkFlow.buildEvent().getEventId().intValue();
                 try {
-                	XnatExperimentdata exp = XnatExperimentdata.getXnatExperimentdatasById(xnatId, userI, false);
-                	if (exp != null){
-                		xnatLabel = exp.getLabel();
-                	} else {
-                    	XnatSubjectdata subject = XnatSubjectdata.getXnatSubjectdatasById(xnatId, userI, false);
-                    	if (subject != null) {
-                    		xnatLabel = subject.getLabel();
-                    	}
+                    XnatExperimentdata exp = XnatExperimentdata.getXnatExperimentdatasById(xnatId, userI, false);
+                    xnatLabel = exp != null ? exp.getLabel() : null;
+                	if (xnatLabel == null){
+                    	XnatSubjectdata sub = XnatSubjectdata.getXnatSubjectdatasById(xnatId, userI, false);
+                        xnatLabel = sub != null ? sub.getLabel() : null;
                 	}
+                	if (xnatLabel == null) {
+                	    XnatProjectdata proj = XnatProjectdata.getProjectByIDorAlias(xnatId, userI, false);
+                        xnatLabel = proj != null ? proj.getId() : null;
+                    }
                 } catch(Exception e) {
                 	log.error("Unable to get the XNAT Label for " + xnatId);
                 }

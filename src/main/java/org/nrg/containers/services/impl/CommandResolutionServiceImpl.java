@@ -623,7 +623,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValue = null;
                     } else {
                         resolvedModelObject = xnatModelObject;
-                        final String resolvedXnatObjectValue = xnatModelObject.getExternalWrapperInputValue();
+                        final String resolvedXnatObjectValue = xnatModelObject.getUri();
                         if (resolvedXnatObjectValue != null) {
                             log.debug("Setting resolved value to \"{}\".", resolvedXnatObjectValue);
                             resolvedValue = resolvedXnatObjectValue;
@@ -787,7 +787,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             parentJson,
                             valueCouldContainId,
                             "files",
-                            "name",
+                            "uri",
                             resolvedMatcher,
                             new TypeRef<List<XnatFile>>() {},
                             multiple);
@@ -800,7 +800,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new Function<XnatFile, String>() {
                                     @Override
                                     public String apply(final XnatFile xnatFile) {
-                                        return xnatFile.getDerivedWrapperInputValue();
+                                        return xnatFile.getUri();
                                     }
                                 }));
                     }
@@ -831,7 +831,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         project = ((Assessor)parentXnatObject).getProject(userI, false, loadTypesMap);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
-                    resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
+                    resolvedValues = Collections.singletonList(project.getUri());
                 }
             } else if (type.equals(SUBJECT.getName())) {
                 if (parentXnatObject == null) {
@@ -848,28 +848,28 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 parentJson,
                                 valueCouldContainId,
                                 "subjects",
-                                "id",
+                                "uri",
                                 resolvedMatcher,
                                 new TypeRef<List<Subject>>() {},
                                 multiple);
-                        if (childList == null) {
+                        if (childList == null || childList.isEmpty()) {
+                            // It is also possible that the value they gave us contains an id
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "subjects",
+                                    "id",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Subject>>() {},
+                                    multiple);
+                        }
+                        if (childList == null || childList.isEmpty()) {
                             // It is also possible that the value they gave us contains a label
                             childList = matchChildFromParent(
                                     parentJson,
                                     valueCouldContainId,
                                     "subjects",
                                     "label",
-                                    resolvedMatcher,
-                                    new TypeRef<List<Subject>>() {},
-                                    multiple);
-                        }
-                        if (childList == null) {
-                            // It is also possible that the value they gave us contains a URI
-                            childList = matchChildFromParent(
-                                    parentJson,
-                                    valueCouldContainId,
-                                    "subjects",
-                                    "uri",
                                     resolvedMatcher,
                                     new TypeRef<List<Subject>>() {},
                                     multiple);
@@ -882,7 +882,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Subject, String>() {
                                 @Override
                                 public String apply(final Subject subject) {
-                                    return subject.getDerivedWrapperInputValue();
+                                    return subject.getUri();
                                 }
                             }));
                         }
@@ -908,28 +908,28 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 parentJson,
                                 valueCouldContainId,
                                 "sessions",
-                                "id",
+                                "uri",
                                 resolvedMatcher,
                                 new TypeRef<List<Session>>() {},
                                 multiple);
-                        if (childList == null) {
+                        if (childList == null || childList.isEmpty()) {
+                            // It is also possible that the value they gave us contains an id
+                            childList = matchChildFromParent(
+                                    parentJson,
+                                    valueCouldContainId,
+                                    "sessions",
+                                    "id",
+                                    resolvedMatcher,
+                                    new TypeRef<List<Session>>() {},
+                                    multiple);
+                        }
+                        if (childList == null || childList.isEmpty()) {
                             // It is also possible that the value they gave us contains a label
                             childList = matchChildFromParent(
                                     parentJson,
                                     valueCouldContainId,
                                     "sessions",
                                     "label",
-                                    resolvedMatcher,
-                                    new TypeRef<List<Session>>() {},
-                                    multiple);
-                        }
-                        if (childList == null) {
-                            // It is also possible that the value they gave us contains a URI
-                            childList = matchChildFromParent(
-                                    parentJson,
-                                    valueCouldContainId,
-                                    "sessions",
-                                    "uri",
                                     resolvedMatcher,
                                     new TypeRef<List<Session>>() {},
                                     multiple);
@@ -942,7 +942,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Session, String>() {
                                 @Override
                                 public String apply(final Session session) {
-                                    return session.getDerivedWrapperInputValue();
+                                    return session.getUri();
                                 }
                             }));
                         }
@@ -971,17 +971,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             parentJson,
                             valueCouldContainId,
                             "scans",
-                            "id",
+                            "uri",
                             resolvedMatcher,
                             new TypeRef<List<Scan>>() {},
                             multiple);
-                    if (childList == null) {
-                        // It is also possible that the value they gave us contains a URI
+                    if (childList == null || childList.isEmpty()) {
+                        // It is also possible that the value they gave us contains an id
                         childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "scans",
-                                "uri",
+                                "id",
                                 resolvedMatcher,
                                 new TypeRef<List<Scan>>() {},
                                 multiple);
@@ -994,7 +994,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Scan, String>() {
                             @Override
                             public String apply(final Scan scan) {
-                                return scan.getDerivedWrapperInputValue();
+                                return scan.getUri();
                             }
                         }));
                     }
@@ -1013,11 +1013,11 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             parentJson,
                             valueCouldContainId,
                             "assessors",
-                            "label",
+                            "uri",
                             resolvedMatcher,
                             new TypeRef<List<Assessor>>() {},
                             multiple);
-                    if (childList == null) {
+                    if (childList == null || childList.isEmpty()) {
                         // It is also possible that the value they gave us contains an ID
                         childList = matchChildFromParent(
                                 parentJson,
@@ -1028,13 +1028,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new TypeRef<List<Assessor>>() {},
                                 multiple);
                     }
-                    if (childList == null) {
-                        // It is also possible that the value they gave us contains a URI
+                    if (childList == null || childList.isEmpty()) {
+                        // It is also possible that the value they gave us contains a label
                         childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "assessors",
-                                "uri",
+                                "label",
                                 resolvedMatcher,
                                 new TypeRef<List<Assessor>>() {},
                                 multiple);
@@ -1047,7 +1047,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Assessor, String>() {
                             @Override
                             public String apply(final Assessor assessor) {
-                                return assessor.getDerivedWrapperInputValue();
+                                return assessor.getUri();
                             }
                         }));
                     }
@@ -1064,17 +1064,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
-                    // Try matching the value they gave us against the resource label.
+                    // Try matching the value they gave us against the resource uri.
                     // That's what the UI will send.
                     List<Resource> childList = matchChildFromParent(
                             parentJson,
                             valueCouldContainId,
                             "resources",
-                            "label",
+                            "uri",
                             resolvedMatcher,
                             new TypeRef<List<Resource>>() {},
                             multiple);
-                    if (childList == null) {
+                    if (childList == null || childList.isEmpty()) {
                         // It is also possible that the value they gave us contains an ID
                         childList = matchChildFromParent(
                                 parentJson,
@@ -1085,13 +1085,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                 new TypeRef<List<Resource>>() {},
                                 multiple);
                     }
-                    if (childList == null) {
-                        // It is also possible that the value they gave us contains a URI
+                    if (childList == null || childList.isEmpty()) {
+                        // It is also possible that the value they gave us contains a label
                         childList = matchChildFromParent(
                                 parentJson,
                                 valueCouldContainId,
                                 "resources",
-                                "URI",
+                                "label",
                                 resolvedMatcher,
                                 new TypeRef<List<Resource>>() {},
                                 multiple);
@@ -1104,7 +1104,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         resolvedValues = Lists.newArrayList(Lists.transform(childList, new Function<Resource, String>() {
                             @Override
                             public String apply(final Resource resource) {
-                                return resource.getDerivedWrapperInputValue();
+                                return resource.getUri();
                             }
                         }));
                     }
