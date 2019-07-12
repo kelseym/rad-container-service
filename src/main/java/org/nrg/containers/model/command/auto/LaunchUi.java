@@ -558,11 +558,11 @@ public abstract class LaunchUi {
                 derivedValueInfo = "<code>[Derived from " + derivedFrom + "</code>";
             }
 
-            if (minNumValues == 0) {
-                // This input has zero values somewhere in the tree.
+            if (minNumValues == 0 && maxNumValues <= 1) {
+                // This input has zero values somewhere in the tree and it's not a child of something for which alternative children do have values
                 // We need to make it a text box so the user can enter something.
-                // It is also possible we should throw an error here, because usually this means
-                //  something didn't get resolved properly. But right now we just continue on.
+                // It is also possible we should throw an error here (though only if the input is required), because
+                // usually this means something didn't get resolved properly. But right now we just continue on.
                 if (bulkLaunch) {
                     derivedValueMessage = "Unable to resolve for first " + itemType + ": " +
                             getWarningString(input, itemType,"general");

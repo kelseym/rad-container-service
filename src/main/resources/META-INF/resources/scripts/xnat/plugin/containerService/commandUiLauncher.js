@@ -601,8 +601,7 @@ var XNAT = getObject(XNAT || {});
                             launcher.errorMessages.push('Error: <strong>' + configInput.label + '</strong> is a ' +
                                 'required field and has no available values. You may not be able to submit this container.');
                         }
-                    } else if (valueArr.length > 1) {
-                        // Multiple matches, usually derived inputs
+                    } else {
                         if (input['input-type'] === "select-one") {
                             var options = {'default': {label: 'Select one', selected: true}};
                             valueArr.forEach(function (val, i) {
@@ -617,21 +616,24 @@ var XNAT = getObject(XNAT || {});
                                 options['option-' + i] = val
                             });
                             configInput.options = options;
-                        } else if (input['multiple']) {
-                            selectedVal = JSON.stringify($.map(valueArr, function (v) {
-                                return v.value;
-                            }));
-                            selectedLabel = $.map(valueArr, function (v) {
-                                return v.label;
-                            }).join('<br/>');
+                        } else if (valueArr.length > 1) {
+                            // Multiple matches, usually derived inputs
+                            if (input['multiple']) {
+                                selectedVal = JSON.stringify($.map(valueArr, function (v) {
+                                    return v.value;
+                                }));
+                                selectedLabel = $.map(valueArr, function (v) {
+                                    return v.label;
+                                }).join('<br/>');
+                            } else {
+                                // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
+                                selectedVal = '';
+                                selectedLabel = '';
+                            }
                         } else {
-                            // if multiple options exist for an input that isn't designated as a select, treat it as a dependent child
-                            selectedVal = '';
-                            selectedLabel = '';
+                            selectedVal = valueArr[0].value;
+                            selectedLabel = valueArr[0].label || 'N/A';
                         }
-                    } else {
-                        selectedVal = valueArr[0].value;
-                        selectedLabel = valueArr[0].label || 'N/A';
                     }
                 }
             }

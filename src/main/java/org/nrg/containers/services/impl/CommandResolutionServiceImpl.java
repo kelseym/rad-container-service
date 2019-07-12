@@ -221,7 +221,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private final CommandWrapper commandWrapper;
         private final ConfiguredCommand command;
-        private Map<String, Boolean> loadTypesMap = null;
+        private Map<String, Boolean> loadTypesMap;
 
         private final UserI userI;
         private final Pattern jsonpathSubstringPattern;
@@ -265,6 +265,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     inputValues;
 
             this.resolvedSetupCommands = new ArrayList<>();
+
+            // During preresolution, we want to work as quickly as possible (user is waiting for UI form). As such,
+            // we determine how deeply we need to resolve the XNAT objects for JSON serialization.
+            this.loadTypesMap = getTypeLoadMapForWrapper();
         }
 
         private DocumentContext serializeToJson(Object command, Configuration c)
@@ -314,9 +318,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             log.info("Resolving command wrapper inputs.");
             log.debug("{}", commandWrapper);
 
-            // Since we're pre-resolving, we want to work as quickly as possible (user is waiting for UI form). As such,
-            // we determine how deeply we need to resolve the XNAT objects for JSON serialization
-            this.loadTypesMap = getTypeLoadMapForWrapper();
             final List<ResolvedInputTreeNode<? extends Input>> resolvedInputTrees = preResolveInputTrees();
 
             return PartiallyResolvedCommand.builder()
@@ -813,21 +814,21 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     log.error("Cannot derive input \"{}\". Parent input's XNAT object is null.", input.name());
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
-                } else if (!(parentType.equals(SUBJECT.getName()) || parentType.equals(SESSION.getName())) ||
-                        parentType.equals(SCAN.getName()) || parentType.equals(ASSESSOR.getName())) {
+                } else if (!(parentType.equals(SUBJECT.getName()) || parentType.equals(SESSION.getName()) ||
+                        parentType.equals(SCAN.getName()) || parentType.equals(ASSESSOR.getName()))) {
                     logIncompatibleTypes(input.type(), parentType);
                     resolvedXnatObjects = Collections.emptyList();
                     resolvedValues = Collections.emptyList();
                 } else {
                     final Project project;
                     if (parentType.equals(SUBJECT.getName())) {
-                        project = ((Subject)parentXnatObject).getProject(userI, false, null);
+                        project = ((Subject)parentXnatObject).getProject(userI, false, loadTypesMap);
                     } else if (parentType.equals(SESSION.getName())) {
-                        project = ((Session)parentXnatObject).getProject(userI, false, null);
+                        project = ((Session)parentXnatObject).getProject(userI, false, loadTypesMap);
                     } else if (parentType.equals(SCAN.getName())) {
-                        project = ((Scan)parentXnatObject).getProject(userI, false, null);
+                        project = ((Scan)parentXnatObject).getProject(userI, false, loadTypesMap);
                     } else {
-                        project = ((Assessor)parentXnatObject).getProject(userI, false, null);
+                        project = ((Assessor)parentXnatObject).getProject(userI, false, loadTypesMap);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
                     resolvedValues = Collections.singletonList(project.getDerivedWrapperInputValue());
@@ -887,7 +888,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         }
                     } else {
                         // Parent is session
-                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, false, null);
+                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, false, loadTypesMap);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(subject);
                         resolvedValues = Collections.singletonList(subject.getUri());
                     }
@@ -946,12 +947,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             }));
                         }
                     } else if (parentType.equals(ASSESSOR.getName())) {
-                        final Session session = ((Assessor)parentXnatObject).getSession(userI, false, null);
+                        final Session session = ((Assessor)parentXnatObject).getSession(userI, false, loadTypesMap);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     } else {
                         // Parent is scan
-                        final Session session = ((Scan)parentXnatObject).getSession(userI, false, null);
+                        final Session session = ((Scan)parentXnatObject).getSession(userI, false, loadTypesMap);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     }
@@ -1429,9 +1430,16 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             getMultipleValuesForCommandLine(ci, commandInputChildrenValues));
                 }
             } else {
-                // This node has multiple values, so we can't add any uniquely resolved values to the map
-                String message = "Input \"" + node.input().name() + "\" does not have a unique, resolved value and " +
-                        "multiple = true is not set.";
+                String message = "Input \"" + node.input().name() + "\" ";
+                if (resolvedValueAndChildren.size() == 0) {
+                    // This node has no values, so we can't add any uniquely resolved values to the map
+                    message += "could not be resolved for this item. You might check the JSONPath matchers in " +
+                            "command.json and confirm that this item has " + node.input().type() + " data.";
+                } else {
+                    // This node has multiple or no values, so we can't add any uniquely resolved values to the map
+                    message += " does not have a unique, resolved value and multiple = true is not set in command.json.";
+                }
+
                 if (resolveFully) {
                     // we're resolving for real, throw exception
                     throw new CommandResolutionException(message);
@@ -1861,8 +1869,17 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     log.debug("Handler \"{}\"'s target is input \"{}\". Checking if the input's value makes a legit target.", commandOutputHandler.name(), commandOutputHandler.targetName());
 
                     // Next check that the handler target input's value is an XNAT object
-                    final String parentValueMayBeNull = parentInputResolvedValue.value();
-                    final String parentValue = parentValueMayBeNull != null ? parentValueMayBeNull : "";
+                    final String parentValue;
+                    final XnatModelObject parentXnatObject = parentInputResolvedValue.xnatModelObject();
+                    if (parentXnatObject != null) {
+                        // If we have an XNAT object, use the URI
+                        parentValue = parentXnatObject.getUri();
+                    } else {
+                        // If not, the input's value needs to be a URI
+                        final String parentValueMayBeNull = parentInputResolvedValue.value();
+                        parentValue = parentValueMayBeNull != null ? parentValueMayBeNull : "";
+                    }
+
                     URIManager.DataURIA uri = null;
                     try {
                         uri = UriParserUtils.parseURI(parentValue.startsWith("/archive") ? parentValue : "/archive" + parentValue);
@@ -1870,7 +1887,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         // ignored
                     }
 
-                    if (uri == null || !(uri instanceof ArchiveItemURI)) {
+                    if (!(uri instanceof ArchiveItemURI)) {
                         final String message = String.format("Cannot resolve output \"%s\". " +
                                         "Input \"%s\" is supposed to handle the output, but it does not have an XNAT object value.",
                                 commandOutput.name(), commandOutputHandler.targetName());
