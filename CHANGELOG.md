@@ -12,11 +12,12 @@ Not yet released
 * Allow admin to define docker swarm constraints (which may be user-settable).
 * Automatically restart containers that are killed due to docker swarm nodes being removed from swarm.
 * Live logging display
-* Add support for command inputs that resolve to mulitple values (e.g., multiple T1 scans)
+* Support command inputs that resolve to mulitple values (e.g., multiple T1 scans)
 * Add label field to command.json inputs to allow customization of UI display
 * Add select-values field to command.json inputs to allow select box rendering of non-xnat inputs
 * Support scan output type (via scan xml) and resource uploads to it
 * Make use of "derived-from-xnat-object-property" for XNAT object type derived inputs (previously, this was only used when derived input was type="string")
+* Allow an input with type="File" to provide files for command mount
 
 ### Bugfixes
 

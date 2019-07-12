@@ -445,6 +445,7 @@ public abstract class ResolvedCommand {
         @Nullable public abstract String viaSetupCommand();
         @Nullable public abstract String fromUri();
         @Nullable public abstract String fromRootDirectory();
+        @Nullable public abstract String fromFilePath();
 
         public static Builder builder() {
             return new AutoValue_ResolvedCommand_PartiallyResolvedCommandMount.Builder();
@@ -458,7 +459,8 @@ public abstract class ResolvedCommand {
                     .fromWrapperInput(this.fromWrapperInput())
                     .viaSetupCommand(this.viaSetupCommand())
                     .fromUri(this.fromUri())
-                    .fromRootDirectory(this.fromRootDirectory());
+                    .fromRootDirectory(this.fromRootDirectory())
+                    .fromFilePath(this.fromFilePath());
         }
 
         @AutoValue.Builder
@@ -470,6 +472,7 @@ public abstract class ResolvedCommand {
             public abstract Builder viaSetupCommand(String viaSetupCommand);
             public abstract Builder fromUri(String fromUri);
             public abstract Builder fromRootDirectory(String fromRootDirectory);
+            public abstract Builder fromFilePath(String fromFilePath);
 
             public abstract PartiallyResolvedCommandMount build();
         }
