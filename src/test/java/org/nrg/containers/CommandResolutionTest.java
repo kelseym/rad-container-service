@@ -260,9 +260,9 @@ public class CommandResolutionTest {
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getExternalWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan", scan.getDerivedWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("dicom", scan.getResources().get(0).getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan", scan.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("dicom", scan.getResources().get(0).getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan-id", scan.getId()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("frames", String.valueOf(scan.getFrames())));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("series-description", scan.getSeriesDescription()));
@@ -302,9 +302,9 @@ public class CommandResolutionTest {
 
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("a-scan", scan.getExternalWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-resource", resource.getDerivedWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-file", file.getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("a-scan", scan.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-resource", resource.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-file", file.getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("a-file-path", file.getPath()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan-id", scan.getId()));
 
@@ -335,7 +335,7 @@ public class CommandResolutionTest {
 
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getExternalWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("project-label", project.getLabel()));
 
         // command inputs
@@ -365,8 +365,8 @@ public class CommandResolutionTest {
 
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getExternalWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("subject", project.getSubjects().get(0).getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("project", project.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("subject", project.getSubjects().get(0).getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("project-label", project.getLabel()));
 
         // command inputs
@@ -396,8 +396,8 @@ public class CommandResolutionTest {
         runtimeValues.put("session", sessionRuntimeJson);
 
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getExternalWrapperInputValue()));
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("assessor", assessor.getDerivedWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("assessor", assessor.getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("assessor-label", assessor.getLabel()));
 
         final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
@@ -507,15 +507,15 @@ public class CommandResolutionTest {
 
         // xnat wrapper inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
-        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getExternalWrapperInputValue()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan",
-                session.getScans().stream().map(Scan::getDerivedWrapperInputValue).collect(Collectors.joining(", "))));
+                session.getScans().stream().map(Scan::getUri).collect(Collectors.joining(", "))));
 
         // command inputs
         final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
         expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever",
-                session.getScans().stream().map(Scan::getId).collect(Collectors.joining(" "))));
+                session.getScans().stream().map(Scan::getUri).collect(Collectors.joining(" "))));
         expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
 
         final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
@@ -602,7 +602,7 @@ public class CommandResolutionTest {
         final Session session = mapper.readValue(new File(inputPath), Session.class);
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("session", mapper.writeValueAsString(session));
-        List<String> scanIds = session.getScans().stream().map(Scan::getId).collect(Collectors.toList());
+        List<String> scanIds = session.getScans().stream().map(Scan::getUri).collect(Collectors.toList());
         String spacedScanIds = String.join(" ", scanIds);
 
         final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()), runtimeValues, mockUser);
@@ -618,8 +618,11 @@ public class CommandResolutionTest {
                 )
         );
 
-        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' " +
-                "scan1,scan2 scan1 scan2 scan1 scan2";
+        String cmdLine = "echo --flag=/experiments/session1/scans/scan1 --flag=/experiments/session1/scans/scan2 " +
+                "--flag /experiments/session1/scans/scan1 --flag /experiments/session1/scans/scan2 " +
+                "'/experiments/session1/scans/scan1 /experiments/session1/scans/scan2' " +
+                "/experiments/session1/scans/scan1,/experiments/session1/scans/scan2 /experiments/session1/scans/scan1 " +
+                "/experiments/session1/scans/scan2 /experiments/session1/scans/scan1 /experiments/session1/scans/scan2";
         assertThat(resolvedCommand.commandLine(), is(cmdLine));
     }
 

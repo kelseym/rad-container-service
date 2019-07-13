@@ -334,11 +334,11 @@ public class CommandLaunchIntegrationTest {
 
         // xnat wrapper inputs
         final Map<String, String> expectedXnatInputValues = Maps.newHashMap();
-        expectedXnatInputValues.put("session", session.getExternalWrapperInputValue());
+        expectedXnatInputValues.put("session", session.getUri());
         expectedXnatInputValues.put("T1-scantype", t1Scantype);
         expectedXnatInputValues.put("label", session.getLabel());
-        expectedXnatInputValues.put("T1", session.getScans().get(0).getDerivedWrapperInputValue());
-        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getDerivedWrapperInputValue());
+        expectedXnatInputValues.put("T1", session.getScans().get(0).getUri());
+        expectedXnatInputValues.put("resource", session.getScans().get(0).getResources().get(0).getUri());
         assertThat(execution.getWrapperInputs(), is(expectedXnatInputValues));
 
         // command inputs

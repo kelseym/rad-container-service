@@ -241,7 +241,6 @@
                     "name": "scan",
                     "type": "Scan",
                     "derived-from-wrapper-input": "session",
-                    "derived-from-xnat-object-property": "id",
                     "provides-value-for-command-input": "whatever",
                     "matcher": "@.scan-type in [#T1-scantype#]",
                     "required": true,
