@@ -18,10 +18,11 @@ import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
 import org.nrg.xnat.helpers.uri.archive.ScanURII;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @JsonInclude(Include.NON_NULL)
 public class Scan extends XnatModelObject {
@@ -48,25 +49,25 @@ public class Scan extends XnatModelObject {
     public Scan() {}
 
     public Scan(final ScanURII scanURII, final boolean loadFiles,
-                final Map<String, Boolean> loadTypesMap) {
+                @Nonnull final Set<String> loadTypes) {
         this.xnatImagescandataI = scanURII.getScan();
         this.uri = ((URIManager.ArchiveItemURI)scanURII).getUri();
-        populateProperties(null, loadFiles, loadTypesMap);
+        populateProperties(null, loadFiles, loadTypes);
     }
 
     public Scan(final XnatImagescandataI xnatImagescandataI, final boolean loadFiles,
-                final Map<String, Boolean> loadTypesMap, final String parentUri, final String rootArchivePath) {
+                @Nonnull final Set<String> loadTypes, final String parentUri, final String rootArchivePath) {
         this.xnatImagescandataI = xnatImagescandataI;
         if (parentUri == null) {
             this.uri = UriParserUtils.getArchiveUri(xnatImagescandataI);
         } else {
             this.uri = parentUri + "/scans/" + xnatImagescandataI.getId();
         }
-        populateProperties(rootArchivePath, loadFiles, loadTypesMap);
+        populateProperties(rootArchivePath, loadFiles, loadTypes);
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    @Nullable final Map<String, Boolean> loadTypesMap) {
+                                    @Nonnull final Set<String> loadTypes) {
         this.integerId = xnatImagescandataI.getXnatImagescandataId();
         this.id = xnatImagescandataI.getId();
         this.sessionId = xnatImagescandataI.getImageSessionId();
@@ -92,11 +93,11 @@ public class Scan extends XnatModelObject {
         }
 
         this.resources = Lists.newArrayList();
-        if (loadFiles || (loadTypesMap != null && loadTypesMap.get(CommandWrapperInputType.RESOURCE.getName()))) {
+        if (loadFiles || loadTypes.contains(CommandWrapperInputType.RESOURCE.getName())) {
             for (final XnatAbstractresourceI xnatAbstractresourceI : this.xnatImagescandataI.getFile()) {
                 if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
                     resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles,
-                            loadTypesMap, this.uri, rootArchivePath));
+                            loadTypes, this.uri, rootArchivePath));
                 }
             }
         }
@@ -104,14 +105,14 @@ public class Scan extends XnatModelObject {
     }
 
     public static Function<URIManager.ArchiveItemURI, Scan> uriToModelObject(final boolean loadFiles,
-                                                                             final Map<String, Boolean> loadTypesMap) {
+                                                                             @Nonnull final Set<String> loadTypes) {
         return new Function<URIManager.ArchiveItemURI, Scan>() {
             @Nullable
             @Override
             public Scan apply(@Nullable URIManager.ArchiveItemURI uri) {
                 if (uri != null &&
                         ScanURII.class.isAssignableFrom(uri.getClass())) {
-                    return new Scan((ScanURII) uri, loadFiles, loadTypesMap);
+                    return new Scan((ScanURII) uri, loadFiles, loadTypes);
                 }
 
                 return null;
@@ -120,20 +121,20 @@ public class Scan extends XnatModelObject {
     }
 
     public static Function<String, Scan> idToModelObject(final UserI userI, final boolean loadFiles,
-                                                         final Map<String, Boolean> loadTypesMap) {
+                                                         @Nonnull final Set<String> loadTypes) {
         return null;
     }
 
     public Project getProject(final UserI userI, final boolean loadFiles,
-                              final Map<String, Boolean> loadTypesMap) {
+                              @Nonnull final Set<String> loadTypes) {
         loadXnatImagescandataI(userI);
-        return new Project(xnatImagescandataI.getProject(), userI, loadFiles, loadTypesMap);
+        return new Project(xnatImagescandataI.getProject(), userI, loadFiles, loadTypes);
     }
 
     public Session getSession(final UserI userI, final boolean loadFiles,
-                              final Map<String, Boolean> loadTypesMap) {
+                              @Nonnull final Set<String> loadTypes) {
         loadXnatImagescandataI(userI);
-        return new Session(xnatImagescandataI.getImageSessionId(), userI, loadFiles, loadTypesMap);
+        return new Session(xnatImagescandataI.getImageSessionId(), userI, loadFiles, loadTypes);
     }
 
     public void loadXnatImagescandataI(final UserI userI) {

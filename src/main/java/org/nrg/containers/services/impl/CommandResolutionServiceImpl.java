@@ -84,6 +84,8 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.ASSESSOR;
 import static org.nrg.containers.model.command.entity.CommandWrapperInputType.BOOLEAN;
@@ -221,7 +223,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private final CommandWrapper commandWrapper;
         private final ConfiguredCommand command;
-        private Map<String, Boolean> loadTypesMap;
+        private Map<String, Set<String>> loadTypesMap;
 
         private final UserI userI;
         private final Pattern jsonpathSubstringPattern;
@@ -474,13 +476,41 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             }
         }
 
-        private void addTypeDependencies(CommandWrapperInput input, Set<String> typesUsed) {
+        /**
+         * Determine depth needed for json serialization of input
+         * @param typesMap  the current map
+         * @param input     the input
+         * @param childToParentsMap child input name -> list of parents (parent, grandparent, etc)
+         */
+        private void addTypeDependencies(Map<String, Set<String>> typesMap, CommandWrapperInput input,
+                                         @Nonnull Map<String, Set<String>> childToParentsMap) {
+
+            String name = input.name();
+            Set<String> typesUsed = typesMap.computeIfAbsent(name, k -> new HashSet<>());
+            Set<String> typesUsedByInput = findTypesUsed(input);
+            typesUsed.addAll(typesUsedByInput);
+
+            if (input instanceof CommandWrapperDerivedInput) {
+                // add child types to parents, too
+                for (String parentName : childToParentsMap.get(input.name())) {
+                    Set<String> typesUsedByParent = typesMap.computeIfAbsent(parentName, k -> new HashSet<>());
+                    typesUsedByParent.addAll(typesUsedByInput);
+                }
+            }
+        }
+
+        /**
+         * Get types used by input
+         * @param input     the input
+         */
+        private Set<String> findTypesUsed(CommandWrapperInput input) {
+            Set<String> typesUsed  = new HashSet<>();
             typesUsed.add(input.type());
 
             // Very hacky way to determine if the JSON matcher needs any deeper object types
             String matcher = input.matcher();
             if (matcher == null) {
-                return;
+                return typesUsed;
             }
             matcher = matcher.toLowerCase();
             Set<String> matcherTypes = new HashSet<>();
@@ -490,6 +520,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 }
             }
             typesUsed.addAll(matcherTypes);
+
+            return typesUsed;
         }
 
         /**
@@ -498,46 +530,90 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
          * @return the map
          */
         @Nonnull
-        private Map<String, Boolean> getTypeLoadMapForWrapper() {
-            Map<String, Boolean> loadMap = Maps.newHashMap();
+        private Map<String, Set<String>> getTypeLoadMapForWrapper() {
+            // quick resolve to determine hierarchy
+            Map<String, CommandWrapperInput> inputsByName = Stream.concat(commandWrapper.externalInputs().stream(),
+                    commandWrapper.derivedInputs().stream()).collect(Collectors.toMap(CommandWrapperInput::name, i -> i));
+
+            Map<String, Set<String>> childToParentsMap = new HashMap<>();
+            for (CommandWrapperDerivedInput input : commandWrapper.derivedInputs()) {
+                if (!childToParentsMap.containsKey(input.name())) {
+                    getParents(childToParentsMap, input, inputsByName);
+                }
+            }
 
             // Determine the input types for the wrapper
-            Set<String> typesUsed = new HashSet<>();
-            for (CommandWrapperInput input : commandWrapper.externalInputs()) {
-                addTypeDependencies(input, typesUsed);
+            Map<String, Set<String>> typesMap = new HashMap<>();
+            for (CommandWrapperExternalInput input : commandWrapper.externalInputs()) {
+                addTypeDependencies(typesMap, input, childToParentsMap);
             }
-            for (CommandWrapperInput input : commandWrapper.derivedInputs()) {
-                addTypeDependencies(input, typesUsed);
+            for (CommandWrapperDerivedInput input : commandWrapper.derivedInputs()) {
+                addTypeDependencies(typesMap, input, childToParentsMap);
             }
-
-            // TODO we should determine the parent of file/files/directory and resources and only load those
-            // Load input types plus any dependencies
-            if (typesUsed.contains(CommandWrapperInputType.FILE.getName()) ||
-                    typesUsed.contains(CommandWrapperInputType.FILES.getName()) ||
-                    typesUsed.contains(CommandWrapperInputType.DIRECTORY.getName())) {
-                // We need to load everything
-                for (String type : CommandWrapperInputType.names()) {
-                    loadMap.put(type, true);
-                }
-            } else {
-                // We only need to load each input and its parents
-                for (String type : CommandWrapperInputType.names()) {
-                    loadMap.put(type, typesUsed.contains(type));
-                }
-                if (typesUsed.contains(CommandWrapperInputType.RESOURCE.getName())) {
-                    loadMap.put(CommandWrapperInputType.ASSESSOR.getName(), true);
-                    loadMap.put(CommandWrapperInputType.SCAN.getName(), true);
-                }
-                if (typesUsed.contains(CommandWrapperInputType.SCAN.getName()) ||
-                        typesUsed.contains(CommandWrapperInputType.ASSESSOR.getName())) {
-                    loadMap.put(CommandWrapperInputType.SESSION.getName(), true);
-                    if (typesUsed.contains(CommandWrapperInputType.SESSION.getName())) {
-                        loadMap.put(CommandWrapperInputType.SUBJECT.getName(), true);
-                    }
-                }
-            }
-            return loadMap;
+            return typesMap;
         }
+
+        /**
+         * Get all parents (parent, grandparent, etc) for input
+         *
+         * @param childToParentsMap map input name -> parent names
+         * @param input             the input
+         * @param inputsByName      map of input names to input POJOs
+         */
+        private void getParents(Map<String, Set<String>> childToParentsMap, CommandWrapperDerivedInput input,
+                                Map<String, CommandWrapperInput> inputsByName) {
+            String derivedFrom = input.derivedFromWrapperInput();
+            Set<String> parents = new HashSet<>();
+            if (StringUtils.isNotBlank(derivedFrom)) {
+                CommandWrapperInput parent = inputsByName.get(derivedFrom);
+                if (parentIsAboveInHierarchy(input, parent)) {
+                    // We only need to add load type dependencies from parents who are above us in the tree
+                    // (project > subject > session > [assessor/scan] > resource > file); we don't need to pass
+                    // loadtypes back down the tree
+                    if (parent instanceof CommandWrapperDerivedInput) {
+                        getParents(childToParentsMap, (CommandWrapperDerivedInput) parent, inputsByName);
+                        parents.addAll(childToParentsMap.get(parent.name()));
+                    }
+                    parents.add(parent.name());
+                }
+            }
+            childToParentsMap.put(input.name(), parents);
+        }
+
+        /**
+         * "Parent" element can actually be below child in XNAT hierarchy.
+         * @param input the input
+         * @param parent the parent
+         * @return true if parent is above input in XNAT hierarchy
+         */
+        private boolean parentIsAboveInHierarchy(CommandWrapperDerivedInput input, CommandWrapperInput parent) {
+            CommandWrapperInputType type = CommandWrapperInputType.fromName(input.type());
+            CommandWrapperInputType parentType = CommandWrapperInputType.fromName(parent.type());
+            if (parentType == null || type == null) {
+                log.warn("Unable to determine type for parent {} and/or input {}", parent, input);
+                return false;
+            }
+            switch (type) {
+                case PROJECT:
+                    return false;
+                case SUBJECT:
+                    return parentType == PROJECT;
+                case SESSION:
+                    return Arrays.asList(PROJECT, SUBJECT).contains(parentType);
+                case ASSESSOR:
+                case SCAN:
+                    return Arrays.asList(PROJECT, SUBJECT, SESSION).contains(parentType);
+                case RESOURCE:
+                    return Arrays.asList(PROJECT, SUBJECT, SESSION, ASSESSOR, SCAN).contains(parentType);
+                case FILE:
+                case FILES:
+                case DIRECTORY:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
 
         @Nonnull
         private ResolvedInputValue resolveExternalWrapperInput(final CommandWrapperExternalInput input,
@@ -584,33 +660,35 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 if (type.equals(PROJECT.getName()) || type.equals(SUBJECT.getName()) || type.equals(SESSION.getName()) || type.equals(SCAN.getName())
                         || type.equals(ASSESSOR.getName()) || type.equals(RESOURCE.getName())) {
 
+                    Set<String> typesNeeded = loadTypesMap.get(input.name());
+
                     final XnatModelObject xnatModelObject;
                     final boolean preload = input.loadChildren();
                     try {
                         if (type.equals(PROJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Project.class, Project.uriToModelObject(loadFiles, loadTypesMap, preload),
-                                    Project.idToModelObject(userI, loadFiles, loadTypesMap, preload));
+                                    Project.class, Project.uriToModelObject(loadFiles, typesNeeded, preload),
+                                    Project.idToModelObject(userI, loadFiles, typesNeeded, preload));
                         } else if (type.equals(SUBJECT.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Subject.class, Subject.uriToModelObject(loadFiles, loadTypesMap),
-                                    Subject.idToModelObject(userI, loadFiles, loadTypesMap));
+                                    Subject.class, Subject.uriToModelObject(loadFiles, typesNeeded),
+                                    Subject.idToModelObject(userI, loadFiles, typesNeeded));
                         } else if (type.equals(SESSION.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Session.class, Session.uriToModelObject(loadFiles, loadTypesMap),
-                                    Session.idToModelObject(userI, loadFiles, loadTypesMap));
+                                    Session.class, Session.uriToModelObject(loadFiles, typesNeeded),
+                                    Session.idToModelObject(userI, loadFiles, typesNeeded));
                         } else if (type.equals(SCAN.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Scan.class, Scan.uriToModelObject(loadFiles, loadTypesMap),
-                                    Scan.idToModelObject(userI, loadFiles, loadTypesMap));
+                                    Scan.class, Scan.uriToModelObject(loadFiles, typesNeeded),
+                                    Scan.idToModelObject(userI, loadFiles, typesNeeded));
                         } else if (type.equals(ASSESSOR.getName())) {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Assessor.class, Assessor.uriToModelObject(loadFiles, loadTypesMap),
-                                    Assessor.idToModelObject(userI, loadFiles, loadTypesMap));
+                                    Assessor.class, Assessor.uriToModelObject(loadFiles, typesNeeded),
+                                    Assessor.idToModelObject(userI, loadFiles, typesNeeded));
                         } else {
                             xnatModelObject = resolveXnatObject(resolvedValue, resolvedMatcher,
-                                    Resource.class, Resource.uriToModelObject(loadFiles, loadTypesMap),
-                                    Resource.idToModelObject(userI, loadFiles, loadTypesMap));
+                                    Resource.class, Resource.uriToModelObject(loadFiles, typesNeeded),
+                                    Resource.idToModelObject(userI, loadFiles, typesNeeded));
                         }
                     } catch (CommandInputResolutionException e) {
                         // When resolveXnatObject throws this, it does not have the input object in scope
@@ -735,6 +813,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             final List<XnatModelObject> resolvedXnatObjects;
             final List<String> resolvedValues;
 
+            Set<String> typesNeeded = loadTypesMap.get(input.name());
+
             final String propertyToGet = input.derivedFromXnatObjectProperty();
             if (type.equals(STRING.getName())) {
                 if (StringUtils.isBlank(parentJson)) {
@@ -821,13 +901,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 } else {
                     final Project project;
                     if (parentType.equals(SUBJECT.getName())) {
-                        project = ((Subject)parentXnatObject).getProject(userI, false, loadTypesMap);
+                        project = ((Subject)parentXnatObject).getProject(userI, false, typesNeeded);
                     } else if (parentType.equals(SESSION.getName())) {
-                        project = ((Session)parentXnatObject).getProject(userI, false, loadTypesMap);
+                        project = ((Session)parentXnatObject).getProject(userI, false, typesNeeded);
                     } else if (parentType.equals(SCAN.getName())) {
-                        project = ((Scan)parentXnatObject).getProject(userI, false, loadTypesMap);
+                        project = ((Scan)parentXnatObject).getProject(userI, false, typesNeeded);
                     } else {
-                        project = ((Assessor)parentXnatObject).getProject(userI, false, loadTypesMap);
+                        project = ((Assessor)parentXnatObject).getProject(userI, false, typesNeeded);
                     }
                     resolvedXnatObjects = Collections.<XnatModelObject>singletonList(project);
                     resolvedValues = Collections.singletonList(project.getUri());
@@ -887,7 +967,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         }
                     } else {
                         // Parent is session
-                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, false, loadTypesMap);
+                        final Subject subject = ((Session)parentXnatObject).getSubject(userI, false, typesNeeded);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(subject);
                         resolvedValues = Collections.singletonList(subject.getUri());
                     }
@@ -946,12 +1026,12 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                             }));
                         }
                     } else if (parentType.equals(ASSESSOR.getName())) {
-                        final Session session = ((Assessor)parentXnatObject).getSession(userI, false, loadTypesMap);
+                        final Session session = ((Assessor)parentXnatObject).getSession(userI, false, typesNeeded);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     } else {
                         // Parent is scan
-                        final Session session = ((Scan)parentXnatObject).getSession(userI, false, loadTypesMap);
+                        final Session session = ((Scan)parentXnatObject).getSession(userI, false, typesNeeded);
                         resolvedXnatObjects = Collections.<XnatModelObject>singletonList(session);
                         resolvedValues = Collections.singletonList(session.getUri());
                     }
@@ -1575,9 +1655,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                                                 final String parentJson) {
             final String jsonPathSearch = rootJsonPathSearch +
                     (StringUtils.isNotBlank(resolvedMatcher) ? "[?(" + resolvedMatcher + ")]" : "");
-            if (log.isInfoEnabled()) {
-                log.info(String.format("Attempting to pull value from parent using matcher \"%s\".", jsonPathSearch));
-            }
+            log.info("Attempting to pull value from parent using matcher \"{}\".", jsonPathSearch);
 
             return jsonPathSearch(parentJson, jsonPathSearch, new TypeRef<String>() {});
         }
@@ -2341,7 +2419,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         throw new ContainerMountResolutionException("Could not copy archive directory " + directory +
                                 " into writable build directory " + localDirectory, partiallyResolvedCommandMount, e);
                     } catch (ServerException | ClientException e) {
-                        throw new ContainerMountResolutionException("Could not pull remote files into writable build " +
+                        throw new ContainerMountResolutionException("Could not pull remote files into build " +
                                 "directory " + localDirectory + ": " + e.getMessage(), partiallyResolvedCommandMount, e);
                     }
                 } else if (hasDirectory) {

@@ -23,11 +23,12 @@ import org.nrg.xnat.helpers.uri.archive.AssessorURII;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptAssessorURI;
 import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @JsonInclude(Include.NON_NULL)
 public class Assessor extends XnatModelObject {
@@ -41,22 +42,22 @@ public class Assessor extends XnatModelObject {
     public Assessor() {}
 
     public Assessor(final AssessorURII assessorURII, final boolean loadFiles,
-                    final Map<String, Boolean> loadTypesMap) {
+                    @Nonnull final Set<String> loadTypes) {
         this.xnatImageassessordataI = assessorURII.getAssessor();
         if (ExptAssessorURI.class.isAssignableFrom(assessorURII.getClass())) {
             parent = ((ExptAssessorURI) assessorURII).getSession();
         }
         this.uri = ((URIManager.DataURIA) assessorURII).getUri();
-        populateProperties(null, loadFiles, loadTypesMap);
+        populateProperties(null, loadFiles, loadTypes);
     }
 
     public Assessor(final XnatImageassessordataI xnatImageassessordataI, final boolean loadFiles,
-                    final Map<String, Boolean> loadTypesMap) {
-        this(xnatImageassessordataI, loadFiles, loadTypesMap, null, null);
+                    @Nonnull final Set<String> loadTypes) {
+        this(xnatImageassessordataI, loadFiles, loadTypes, null, null);
     }
 
     public Assessor(final XnatImageassessordataI xnatImageassessordataI, final boolean loadFiles,
-                    final Map<String, Boolean> loadTypesMap, final String parentUri, final String rootArchivePath) {
+                    @Nonnull final Set<String> loadTypes, final String parentUri, final String rootArchivePath) {
         this.xnatImageassessordataI = xnatImageassessordataI;
 
         if (parentUri == null) {
@@ -69,11 +70,11 @@ public class Assessor extends XnatModelObject {
         } else {
             this.uri = parentUri + "/assessors/" + xnatImageassessordataI.getId();
         }
-        populateProperties(rootArchivePath, loadFiles, loadTypesMap);
+        populateProperties(rootArchivePath, loadFiles, loadTypes);
     }
 
     private void populateProperties(final String rootArchivePath, final boolean loadFiles,
-                                    @Nullable final Map<String, Boolean> loadTypesMap) {
+                                    @Nonnull final Set<String> loadTypes) {
         this.id = xnatImageassessordataI.getId();
         this.label = xnatImageassessordataI.getLabel();
         this.xsiType = xnatImageassessordataI.getXSIType();
@@ -94,10 +95,10 @@ public class Assessor extends XnatModelObject {
         }
 
         this.resources = Lists.newArrayList();
-        if (loadFiles || (loadTypesMap != null && loadTypesMap.get(CommandWrapperInputType.RESOURCE.getName()))) {
+        if (loadFiles || loadTypes.contains(CommandWrapperInputType.RESOURCE.getName())) {
             for (final XnatAbstractresourceI xnatAbstractresourceI : xnatImageassessordataI.getResources_resource()) {
                 if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                    resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, loadTypesMap,
+                    resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, loadTypes,
                             this.uri, rootArchivePath));
                 }
             }
@@ -105,7 +106,7 @@ public class Assessor extends XnatModelObject {
     }
 
     public static Function<URIManager.ArchiveItemURI, Assessor> uriToModelObject(final boolean loadFiles,
-                                                                                 final Map<String, Boolean> loadTypesMap) {
+                                                                                 @Nonnull final Set<String> loadTypes) {
         return new Function<URIManager.ArchiveItemURI, Assessor>() {
             @Nullable
             @Override
@@ -113,16 +114,15 @@ public class Assessor extends XnatModelObject {
                 if (uri != null &&
                         AssessorURII.class.isAssignableFrom(uri.getClass())) {
                     final XnatImageassessordata assessor = ((AssessorURII) uri).getAssessor();
-                    if (assessor != null &&
-                            XnatImageassessordata.class.isAssignableFrom(assessor.getClass())) {
-                        return new Assessor((AssessorURII) uri, loadFiles, loadTypesMap);
+                    if (assessor != null) {
+                        return new Assessor((AssessorURII) uri, loadFiles, loadTypes);
                     }
                 } else if (uri != null &&
                         ExptURI.class.isAssignableFrom(uri.getClass())) {
                     final XnatExperimentdata expt = ((ExptURI) uri).getExperiment();
                     if (expt != null &&
                             XnatImageassessordata.class.isAssignableFrom(expt.getClass())) {
-                        return new Assessor((XnatImageassessordata) expt, loadFiles, loadTypesMap);
+                        return new Assessor((XnatImageassessordata) expt, loadFiles, loadTypes);
                     }
                 }
 
@@ -132,7 +132,7 @@ public class Assessor extends XnatModelObject {
     }
 
     public static Function<String, Assessor> idToModelObject(final UserI userI, final boolean loadFiles,
-                                                             final Map<String, Boolean> loadTypesMap) {
+                                                             @Nonnull final Set<String> loadTypes) {
         return new Function<String, Assessor>() {
             @Nullable
             @Override
@@ -143,7 +143,7 @@ public class Assessor extends XnatModelObject {
                 final XnatImageassessordata xnatImageassessordata =
                         XnatImageassessordata.getXnatImageassessordatasById(s, userI, true);
                 if (xnatImageassessordata != null) {
-                    return new Assessor(xnatImageassessordata, loadFiles, loadTypesMap);
+                    return new Assessor(xnatImageassessordata, loadFiles, loadTypes);
                 }
                 return null;
             }
@@ -151,15 +151,15 @@ public class Assessor extends XnatModelObject {
     }
 
     public Project getProject(final UserI userI, final boolean loadFiles,
-                              final Map<String, Boolean> loadTypesMap) {
+                              @Nonnull final Set<String> loadTypes) {
         loadXnatImageassessordataI(userI);
-        return new Project(xnatImageassessordataI.getProject(), userI, loadFiles, loadTypesMap);
+        return new Project(xnatImageassessordataI.getProject(), userI, loadFiles, loadTypes);
     }
 
     public Session getSession(final UserI userI, final boolean loadFiles,
-                              final Map<String, Boolean> loadTypesMap) {
+                              @Nonnull final Set<String> loadTypes) {
         loadXnatImageassessordataI(userI);
-        return new Session(xnatImageassessordataI.getImagesessionId(), userI, loadFiles, loadTypesMap);
+        return new Session(xnatImageassessordataI.getImagesessionId(), userI, loadFiles, loadTypes);
     }
 
     public void loadXnatImageassessordataI(final UserI userI) {

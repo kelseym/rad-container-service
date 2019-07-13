@@ -360,17 +360,16 @@ public class ContainerServiceImpl implements ContainerService {
                 final UserI userI = Users.getUser(userLogin);
                 Date now = new Date();
                 Date lastStatusTime = service.statusTime();
-                long diffHours = (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
-                if (diffHours < 72) {
+                Long diffHours = lastStatusTime == null ? null :
+                        (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
+                if (diffHours != null && diffHours < 72) {
                     addContainerHistoryItem(service, ContainerHistory.fromSystem(WAITING,
                             "Reset status from Finalizing to Waiting." ), userI);
-                    log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
-                            " Workflow: " + service.workflowId() + " to Waiting state");
+                    log.info("Updated service {} to Waiting state", service);
                 } else {
                     addContainerHistoryItem(service, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED +
                             "("+FINALIZING+")", FINALIZING + " for more than 72 Hours"), userI);
-                    log.info("Updated Service " + service.serviceId() + " Task: " + service.taskId() +
-                            " Workflow: " + service.workflowId() + " to FAILED state");
+                    log.info("Updated service {} to FAILED state", service);
                 }
             } catch(UserNotFoundException | UserInitException e) {
                 log.error("Could not update container status. Could not get user details for user " + userLogin, e);
@@ -609,9 +608,11 @@ public class ContainerServiceImpl implements ContainerService {
     private Container createWrapupContainerInDbFromResolvedCommand(final ResolvedCommand resolvedCommand, final Container parent,
                                                                    final UserI userI, PersistentWorkflowI parentWorkflow) {
 
-
-        PersistentWorkflowI workflow = createContainerWorkflow(parentWorkflow.getId(), parentWorkflow.getDataType(),
-                parentWorkflow.getPipelineName() + "-wrapup", parentWorkflow.getExternalid(), userI);
+        PersistentWorkflowI workflow = null;
+        if (parentWorkflow != null) {
+            workflow = createContainerWorkflow(parentWorkflow.getId(), parentWorkflow.getDataType(),
+                    parentWorkflow.getPipelineName() + "-wrapup", parentWorkflow.getExternalid(), userI);
+        }
         String workflowid = workflow == null ? null : workflow.getWorkflowId().toString();
 
         final Container toCreate = Container.containerFromResolvedCommand(resolvedCommand, null, userI.getLogin()).toBuilder()
@@ -777,6 +778,12 @@ public class ContainerServiceImpl implements ContainerService {
                     final String exitCodeString = task.exitCode() == null ? null : String.valueOf(task.exitCode());
                     final Container serviceWithAddedEvent = retrieve(service.databaseId());
 
+                    if (serviceWithAddedEvent == null) {
+                        // Shouldn't ever happen
+                        log.error("Could not retrieve updated service {}", service);
+                        return;
+                    }
+
                     queueFinalize(exitCodeString, task.isSuccessfulStatus(), serviceWithAddedEvent, userI);
                 } else {
                     log.debug("Docker event has not exited yet. Service: {} Workflow: {} Status: {}",
@@ -913,6 +920,11 @@ public class ContainerServiceImpl implements ContainerService {
         log.debug("Finalizing service {}", containerOrService);
         final Container containerOrServiceWithAddedEvent = retrieve(containerOrService.databaseId());
         try {
+            if (containerOrServiceWithAddedEvent == null) {
+                // Shouldn't ever happen
+                log.error("Could not retrieve updated containerOrService {}", containerOrService);
+                return;
+            }
             ContainerServiceImpl.this.finalize(containerOrServiceWithAddedEvent, userI, exitCodeString, isSuccessfulStatus);
         } catch (ContainerException | NoDockerServerException | DockerServerException e) {
             //Dont want to deal with RejectionHandler just yet
@@ -1521,7 +1533,7 @@ public class ContainerServiceImpl implements ContainerService {
             }
 
             final List<ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren> valuesAndChildren = node.valuesAndChildren();
-            if (valuesAndChildren == null || valuesAndChildren.isEmpty() || valuesAndChildren.size() > 1) {
+            if (valuesAndChildren == null || valuesAndChildren.size() != 1) {
                 log.debug("Skipping. {} values.", (valuesAndChildren == null || valuesAndChildren.isEmpty()) ? "No" : "Multiple");
                 continue;
             }
@@ -1547,7 +1559,8 @@ public class ContainerServiceImpl implements ContainerService {
             if (type.equals(SCAN.getName())) {
                 // If the external input is a scan, the workflow will not show up anywhere. So we
                 // use its parent session as the root object instead.
-                final XnatModelObject parentSession = ((Scan) inputValueXnatObject).getSession(userI, false, null);
+                final XnatModelObject parentSession = ((Scan) inputValueXnatObject).getSession(userI, false,
+                        new HashSet<>());
                 if (parentSession != null) {
                     xnatObjectToUseAsRoot = parentSession;
                 } else {
