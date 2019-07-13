@@ -641,15 +641,17 @@ public class CommandResolutionTest {
                         ResolvedCommand.ResolvedCommandInput.command("MULTI_FLAG1", spacedScanIds),
                         ResolvedCommand.ResolvedCommandInput.command("MULTI_FLAG2", spacedScanIds),
                         ResolvedCommand.ResolvedCommandInput.command("MULTI_QSPACE", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_QSPACE_FLAG", spacedScanIds),
                         ResolvedCommand.ResolvedCommandInput.command("MULTI_COMMA", spacedScanIds),
                         ResolvedCommand.ResolvedCommandInput.command("MULTI_SPACE", spacedScanIds),
-                        ResolvedCommand.ResolvedCommandInput.command("MULTI_DEFAULT", spacedScanIds)
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_DEFAULT", spacedScanIds),
+                        ResolvedCommand.ResolvedCommandInput.command("MULTI_COMMA_FLAG", spacedScanIds)
 
                 )
         );
 
-        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' " +
-                "scan1,scan2 scan1 scan2 scan1 scan2";
+        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' --flag='scan1 scan2' " +
+                "scan1,scan2 scan1 scan2 scan1 scan2 -alt scan1,scan2";
         assertThat(resolvedCommand.commandLine(), is(cmdLine));
     }
 

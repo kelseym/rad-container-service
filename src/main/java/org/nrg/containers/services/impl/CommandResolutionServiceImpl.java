@@ -1462,7 +1462,9 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 return "";
             }
 
-            String prefix = "";
+            // Prefix contains commandline flag + separator if we have them, empty string if not
+            String prefix = StringUtils.defaultIfBlank(StringUtils.defaultIfBlank(ci.commandLineFlag(), " ") +
+                            StringUtils.defaultIfBlank(ci.commandLineSeparator(), " "), "");
             String suffix = "";
             String delimiter;
             CommandInputEntity.MultipleDelimiter multipleDelimiter =
@@ -1470,7 +1472,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             switch (multipleDelimiter) {
                 case QUOTED_SPACE:
                     delimiter = " ";
-                    prefix = "'";
+                    prefix += "'";
                     suffix = "'";
                     break;
                 case SPACE:
@@ -1480,8 +1482,6 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     delimiter = ",";
                     break;
                 case FLAG:
-                    prefix = StringUtils.defaultIfBlank(ci.commandLineFlag(), " ") +
-                             StringUtils.defaultIfBlank(ci.commandLineSeparator(), " ");
                     delimiter = " " + prefix;
                     break;
                 default:
