@@ -357,26 +357,25 @@ public abstract class Command {
                 }
             };
 
-            final Set<String> wrapperInputNames = Sets.newHashSet();
+            final Map<String, CommandWrapperInput> wrapperInputs = Maps.newHashMap();
             for (final CommandWrapperInput external : commandWrapper.externalInputs()) {
                 final List<String> inputErrors = Lists.newArrayList();
                 inputErrors.addAll(Lists.transform(external.validate(), addWrapperNameToError));
 
-                if (wrapperInputNames.contains(external.name())) {
+                if (wrapperInputs.containsKey(external.name())) {
                     errors.add(wrapperName + "external input name \"" + external.name() + "\" is not unique.");
                 } else {
-                    wrapperInputNames.add(external.name());
+                    wrapperInputs.put(external.name(), external);
                 }
 
                 CommandInput provFor = commandInputs.get(external.providesValueForCommandInput());
                 if (provFor != null) {
-                    if (provFor.isSelect()) {
-                        errors.add(wrapperName + "external input name \"" + external.name() + "\" provides value for " +
-                                "command input \"" + provFor.name() + "\", which is marked as a select type.");
-                    }
-                    if (!provFor.selectValues().isEmpty()) {
-                        errors.add(wrapperName + "external input name \"" + external.name() + "\" provides value for " +
-                                "command input \"" + provFor.name() + "\", which has select values.");
+                    if (provFor.isSelect() || !provFor.selectValues().isEmpty()) {
+                        errors.add(wrapperName + "external input \"" + external.name() + "\" provides values for " +
+                                "command input \"" + provFor.name() + "\", which is a select type. Note that command " +
+                                "inputs with values provided by xnat inputs shouldn't be designated as select " +
+                                "(they'll automatically render as a select if their xnat input resolves " +
+                                "to more than one value).");
                     }
                 }
 
@@ -391,30 +390,29 @@ public abstract class Command {
                 inputErrors.addAll(Lists.transform(derived.validate(), addWrapperNameToError));
 
 
-                if (wrapperInputNames.contains(derived.name())) {
+                if (wrapperInputs.containsKey(derived.name())) {
                     errors.add(wrapperName + "derived input name \"" + derived.name() + "\" is not unique.");
                 } else {
-                    wrapperInputNames.add(derived.name());
+                    wrapperInputs.put(derived.name(), derived);
                 }
 
                 if (derived.name().equals(derived.derivedFromWrapperInput())) {
                     errors.add(wrapperName + "derived input \"" + derived.name() + "\" is derived from itself.");
                 }
-                if (!wrapperInputNames.contains(derived.derivedFromWrapperInput())) {
+                if (!wrapperInputs.containsKey(derived.derivedFromWrapperInput())) {
                     errors.add(wrapperName + "derived input \"" + derived.name() +
                             "\" is derived from an unknown XNAT input \"" + derived.derivedFromWrapperInput() +
-                            "\". Known inputs: " + StringUtils.join(wrapperInputNames, ", "));
+                            "\". Known inputs: " + StringUtils.join(wrapperInputs, ", "));
                 }
 
                 CommandInput provFor = commandInputs.get(derived.providesValueForCommandInput());
                 if (provFor != null) {
-                    if (provFor.isSelect()) {
-                        errors.add(wrapperName + "derived input name \"" + derived.name() + "\" provides value for " +
-                                "command input \"" + provFor.name() + "\", which is marked as a select type.");
-                    }
-                    if (!provFor.selectValues().isEmpty()) {
-                        errors.add(wrapperName + "derived input name \"" + derived.name() + "\" provides value for " +
-                                "command input \"" + provFor.name() + "\", which has select values.");
+                    if (provFor.isSelect() || !provFor.selectValues().isEmpty()) {
+                        errors.add(wrapperName + "derived input \"" + derived.name() + "\" provides values for " +
+                                "command input \"" + provFor.name() + "\", which is a select type. Note that command " +
+                                "inputs with values provided by xnat inputs shouldn't be designated as select " +
+                                "(they'll automatically render as a select if their xnat input resolves " +
+                                "to more than one value).");
                     }
                 }
 
@@ -424,7 +422,7 @@ public abstract class Command {
 
                 if (derived.multiple()) derivedInputsWithMultiple.add(derived.name());
             }
-            final String knownWrapperInputs = StringUtils.join(wrapperInputNames, ", ");
+            final String knownWrapperInputs = StringUtils.join(wrapperInputs, ", ");
 
             final Set<String> wrapperOutputNames = Sets.newHashSet();
             final Set<String> handledOutputs = Sets.newHashSet();
@@ -439,17 +437,28 @@ public abstract class Command {
                     handledOutputs.add(output.commandOutputName());
                 }
 
-                if (!(wrapperInputNames.contains(output.targetName()) || wrapperOutputNames.contains(output.targetName()))) {
+                String target = output.targetName();
+                if (!(wrapperInputs.containsKey(target) || wrapperOutputNames.contains(target))) {
                     errors.add(wrapperName + "output handler does not refer to a known wrapper input or output. " +
-                            "\"as-a-child-of\": \"" + output.targetName() + "\"." +
+                            "\"as-a-child-of\": \"" + target + "\"." +
                             "\nKnown inputs: " + knownWrapperInputs + "." +
                             "\nKnown outputs (so far): " + StringUtils.join(wrapperOutputNames, ", ") + ".");
                 }
 
-                if (derivedInputsWithMultiple.contains(output.targetName())) {
-                    errors.add(wrapperName + " output handler \"" + output.name() + "\" has \"as-a-child-of\": \"" +
-                            output.targetName() + "\", but the \"" + output.targetName() + "\" input is set to allow " +
-                            "multiple values.");
+                if (derivedInputsWithMultiple.contains(target)) {
+                    errors.add(wrapperName + "output handler \"" + output.name() + "\" has \"as-a-child-of\": \"" +
+                            target + "\", but that input is set to allow multiple values.");
+                }
+
+                CommandWrapperInput input;
+                String derivedFromProp;
+                if (wrapperInputs.containsKey(target) &&
+                        (input = wrapperInputs.get(target)) instanceof CommandWrapperDerivedInput &&
+                        (derivedFromProp = ((CommandWrapperDerivedInput) input).derivedFromXnatObjectProperty()) != null &&
+                        !derivedFromProp.equals("uri")) {
+                    errors.add(wrapperName + "output handler \"" + output.name() + "\" has \"as-a-child-of\": \"" +
+                            target + "\", but that input's value is set to \"" + derivedFromProp + "\", which will " +
+                            "cause the upload to fail (a \"uri\" is required for upload).");
                 }
 
                 if (wrapperOutputNames.contains(output.name())) {
@@ -768,10 +777,10 @@ public abstract class Command {
             }
             List<String> selectValues = selectValues();
             if (isSelect() && selectValues.isEmpty()) {
-                errors.add("Command input \"" +  name()  + "\" is designated as type " + type() + " but doesn't list " +
+                errors.add("Command input \"" +  name()  + "\" is designated as type \"" + type() + "\" but doesn't list " +
                         "select-values. Note that command inputs with values provided by xnat inputs shouldn't be " +
                         "designated as select (they'll automatically render as a select if their xnat input resolves " +
-                        "to more than one value.");
+                        "to more than one value).");
             } else if (!isSelect() && !selectValues.isEmpty()) {
                 errors.add("Command input \"" +  name()  + "\" has select-values set, but is not a select type.");
             }
@@ -1371,11 +1380,12 @@ public abstract class Command {
 
             if (multiple()) {
                 if (StringUtils.isNotBlank(providesFilesForCommandMount())) {
-                    errors.add("Inputs with multiple values cannot provide files for command mounts, " +
-                            "consider mounting the parent element.");
+                    errors.add("derived input \"" + name() + "\" is designated as a \"multiple\" input, which " +
+                            "means it cannot provide files for command mounts (consider mounting the parent element).");
                 }
                 if (StringUtils.isBlank(providesValueForCommandInput())) {
-                    errors.add("Inputs with multiple values must directly provide values for some command input.");
+                    errors.add("derived input \"" + name() + "\" is designated as a \"multiple\" input, which" +
+                            "means it must directly provide values for some command input.");
                 }
             }
 

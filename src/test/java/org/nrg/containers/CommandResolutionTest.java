@@ -510,6 +510,36 @@ public class CommandResolutionTest {
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
         expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan",
+                session.getScans().stream().map(Scan::getId).collect(Collectors.joining(", "))));
+
+        // command inputs
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedCommandInputValues = new HashSet<>();
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("whatever",
+                session.getScans().stream().map(Scan::getId).collect(Collectors.joining(" "))));
+        expectedCommandInputValues.add(ResolvedCommand.ResolvedCommandInput.command("file-path", "null"));
+
+        final CommandWrapper commandWrapper = xnatCommandWrappers.get(commandWrapperName);
+        assertThat(commandWrapper, is(not(nullValue())));
+
+        final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(commandWrapper.id()), runtimeValues, mockUser);
+        assertStuffAboutResolvedCommand(resolvedCommand, dummyCommand, commandWrapper,
+                runtimeValues, expectedWrapperInputValues, expectedCommandInputValues);
+    }
+
+    @Test
+    public void testSessionScanMultipleUri() throws Exception {
+        final String commandWrapperName = "session-scan-mult-uri";
+        final String inputPath = resourceDir + "/testSessionScanMult/session.json";
+
+        final Session session = mapper.readValue(new File(inputPath), Session.class);
+        final Map<String, String> runtimeValues = Maps.newHashMap();
+        runtimeValues.put("session", mapper.writeValueAsString(session));
+
+        // xnat wrapper inputs
+        final Set<ResolvedCommand.ResolvedCommandInput> expectedWrapperInputValues = new HashSet<>();
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("session", session.getUri()));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperExternal("T1-scantype", "\"SCANTYPE\", \"OTHER_SCANTYPE\""));
+        expectedWrapperInputValues.add(ResolvedCommand.ResolvedCommandInput.wrapperDerived("scan",
                 session.getScans().stream().map(Scan::getUri).collect(Collectors.joining(", "))));
 
         // command inputs
@@ -602,7 +632,7 @@ public class CommandResolutionTest {
         final Session session = mapper.readValue(new File(inputPath), Session.class);
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("session", mapper.writeValueAsString(session));
-        List<String> scanIds = session.getScans().stream().map(Scan::getUri).collect(Collectors.toList());
+        List<String> scanIds = session.getScans().stream().map(Scan::getId).collect(Collectors.toList());
         String spacedScanIds = String.join(" ", scanIds);
 
         final ResolvedCommand resolvedCommand = commandResolutionService.resolve(commandService.getAndConfigure(wrapper.id()), runtimeValues, mockUser);
@@ -618,11 +648,8 @@ public class CommandResolutionTest {
                 )
         );
 
-        String cmdLine = "echo --flag=/experiments/session1/scans/scan1 --flag=/experiments/session1/scans/scan2 " +
-                "--flag /experiments/session1/scans/scan1 --flag /experiments/session1/scans/scan2 " +
-                "'/experiments/session1/scans/scan1 /experiments/session1/scans/scan2' " +
-                "/experiments/session1/scans/scan1,/experiments/session1/scans/scan2 /experiments/session1/scans/scan1 " +
-                "/experiments/session1/scans/scan2 /experiments/session1/scans/scan1 /experiments/session1/scans/scan2";
+        String cmdLine = "echo --flag=scan1 --flag=scan2 --flag scan1 --flag scan2 'scan1 scan2' " +
+                "scan1,scan2 scan1 scan2 scan1 scan2";
         assertThat(resolvedCommand.commandLine(), is(cmdLine));
     }
 

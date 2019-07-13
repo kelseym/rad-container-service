@@ -16,6 +16,7 @@ Not yet released
 * Add label field to command.json inputs to allow customization of UI display
 * Add select-values field to command.json inputs to allow select box rendering of non-xnat inputs
 * Support scan output type (via scan xml) and resource uploads to it
+* Make use of "derived-from-xnat-object-property" for XNAT object type derived inputs (previously, this was only used when derived input was type="string")
 
 ### Bugfixes
 

@@ -735,9 +735,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             final List<XnatModelObject> resolvedXnatObjects;
             final List<String> resolvedValues;
 
+            final String propertyToGet = input.derivedFromXnatObjectProperty();
             if (type.equals(STRING.getName())) {
-                final String propertyToGet = input.derivedFromXnatObjectProperty();
-
                 if (StringUtils.isBlank(parentJson)) {
                     log.error("Cannot derive input \"{}\". Parent input's JSON representation is blank.", input.name());
                     resolvedXnatObjects = Collections.emptyList();
@@ -1124,8 +1123,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             // Create a ResolvedInputValue object for each String resolvedValue
             final List<ResolvedInputValue> resolvedInputs = Lists.newArrayList();
             for (int i = 0; i < resolvedValues.size(); i++) {
-                final String resolvedValue = resolvedValues.get(i);
-                checkForIllegalInputValue(input.name(), resolvedValue);
+                String resolvedValue = resolvedValues.get(i);
                 final XnatModelObject xnatModelObject = resolvedXnatObjects == null ? null : resolvedXnatObjects.get(i);
                 String jsonValue = resolvedValue;
                 String valueLabel = resolvedValue;
@@ -1133,11 +1131,15 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     valueLabel = xnatModelObject.getLabel();
                     try {
                         jsonValue = mapper.writeValueAsString(xnatModelObject);
+                        if (StringUtils.isNotBlank(propertyToGet)) {
+                            resolvedValue = pullStringFromParentJson("$." + propertyToGet,
+                                    null, jsonValue);
+                        }
                     } catch (JsonProcessingException e) {
                         log.error("Could not serialize model object to json.", e);
                     }
                 }
-
+                checkForIllegalInputValue(input.name(), resolvedValue);
                 resolvedInputs.add(ResolvedInputValue.builder()
                         .type(input.type())
                         .value(resolvedValue)

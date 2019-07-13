@@ -823,4 +823,44 @@ public class CommandEntityTest {
 
         assertThat(commandEntityService.get(command.getId()).getCommandLine(), is(longString));
     }
+
+    @Test
+    public void testDerivedInputsValidation() throws Exception {
+        final String commandJsonFile = Paths.get(ClassLoader.getSystemResource("commandEntityTest").toURI())
+                .toString().replace("%20", " ") + "/bad-command.json";
+        final Command tempCommand = mapper.readValue(new File(commandJsonFile), Command.class);
+        String wrapperName = tempCommand.xnatCommandWrappers().get(0).name();
+        String prefix = "Command \"" + tempCommand.name() + "\" - " ;
+        String wrapperPrefix = "wrapper \"" + wrapperName + "\" - " ;
+        List<String> errors = tempCommand.validate();
+        assertThat(errors, hasSize(8));
+        assertThat(errors,
+                containsInAnyOrder(
+                        prefix + "Command input \"some_bad_config\" is designated as type \"select-one\" but doesn't list " +
+                                "select-values. Note that command inputs with values provided by xnat inputs shouldn't be " +
+                                "designated as select (they'll automatically render as a select if their xnat input resolves " +
+                                "to more than one value).",
+                        prefix + "Command input \"some_bad_config2\" has select-values set, but is not a select type.",
+                        prefix + wrapperPrefix + "derived input \"scan\" is designated as a \"multiple\" input, which " +
+                                "means it cannot provide files for command mounts (consider mounting the parent element).",
+                        prefix + wrapperPrefix + "derived input \"scan\" is designated as a \"multiple\" input, which" +
+                                "means it must directly provide values for some command input.",
+                        prefix + wrapperPrefix + "output handler \"output-handler\" has \"as-a-child-of\": \"scan\", but " +
+                                "that input is set to allow multiple values.",
+                        prefix + wrapperPrefix + "output handler \"output-handler2\" has \"as-a-child-of\": \"scan2\", but that " +
+                                "input's value is set to \"id\", which will cause the upload to fail (a \"uri\" is " +
+                                "required for upload).",
+                        prefix + wrapperPrefix + "external input \"session\" provides values for " +
+                                "command input \"some_config\", which is a select type. Note that command " +
+                                "inputs with values provided by xnat inputs shouldn't be designated as select " +
+                                "(they'll automatically render as a select if their xnat input resolves " +
+                                "to more than one value).",
+                        prefix + wrapperPrefix + "derived input \"scan3\" provides values for " +
+                                "command input \"some_mult_config\", which is a select type. Note that command " +
+                                "inputs with values provided by xnat inputs shouldn't be designated as select " +
+                                "(they'll automatically render as a select if their xnat input resolves " +
+                                "to more than one value)."
+                )
+        );
+    }
 }
