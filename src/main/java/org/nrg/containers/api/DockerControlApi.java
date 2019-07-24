@@ -11,21 +11,15 @@ import com.spotify.docker.client.DockerClient.ListImagesParam;
 import com.spotify.docker.client.DockerClient.LogsParam;
 import com.spotify.docker.client.EventStream;
 import com.spotify.docker.client.LogStream;
+import com.spotify.docker.client.auth.ConfigFileRegistryAuthSupplier;
+import com.spotify.docker.client.auth.FixedRegistryAuthSupplier;
+import com.spotify.docker.client.auth.RegistryAuthSupplier;
 import com.spotify.docker.client.exceptions.ContainerNotFoundException;
 import com.spotify.docker.client.exceptions.DockerCertificateException;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.exceptions.ImageNotFoundException;
 import com.spotify.docker.client.exceptions.ServiceNotFoundException;
-import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.ContainerCreation;
-import com.spotify.docker.client.messages.ContainerInfo;
-import com.spotify.docker.client.messages.Event;
-import com.spotify.docker.client.messages.HostConfig;
-import com.spotify.docker.client.messages.Image;
-import com.spotify.docker.client.messages.ImageInfo;
-import com.spotify.docker.client.messages.PortBinding;
-import com.spotify.docker.client.messages.RegistryAuth;
-import com.spotify.docker.client.messages.ServiceCreateResponse;
+import com.spotify.docker.client.messages.*;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
@@ -54,7 +48,6 @@ import org.nrg.containers.model.container.auto.ContainerMessage;
 import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.dockerhub.DockerHubBase.DockerHub;
 import org.nrg.containers.model.image.docker.DockerImage;
-import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.services.CommandLabelService;
 import org.nrg.containers.services.DockerServerService;
@@ -115,7 +108,7 @@ public class DockerControlApi implements ContainerControlApi {
         try (final DockerClient client = getClient(dockerServer)) {
             return client.ping();
         } catch (DockerException | InterruptedException e) {
-            log.error("Unable to connect with Docker server:\n" + (dockerServer == null ? "" : dockerServer.toString()), e.getMessage());
+            log.error("Unable to connect with Docker server {}:\n{}", dockerServer == null ? "" : dockerServer.toString(), e.getMessage());
             throw new DockerServerException(e);
         }
     }
@@ -236,10 +229,10 @@ public class DockerControlApi implements ContainerControlApi {
         try (final DockerClient dockerClient = getClient()) {
             return dockerClient.listImages(dockerParams);
         } catch (DockerException | InterruptedException e) {
-            log.error("Failed to list images. " + e.getMessage());
+            log.error("Failed to list images. {}", e.getMessage(), e);
             throw new DockerServerException(e);
         } catch (Error e) {
-            log.error("Failed to list images. " + e.getMessage());
+            log.error("Failed to list images. {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -726,9 +719,11 @@ public class DockerControlApi implements ContainerControlApi {
                                 final DockerServer server) throws DockerServerException {
         final boolean swarmMode = server.swarmMode();
         final String containerOrServiceId = swarmMode ? containerOrService.serviceId() : containerOrService.containerId();
-        try (final DockerClient client = getClient(server)) {
+        // imageNameForSwarmAuth only needed bc authForSwarm not implemented in Spotify client for config.json auth
+        final String imageNameForSwarmAuth = swarmMode ? containerOrService.dockerImage() : null;
+        try (final DockerClient client = getClient(server, imageNameForSwarmAuth)) {
             if (swarmMode) {
-                log.debug("Inspecting service " + containerOrServiceId);
+                log.debug("Inspecting service {}", containerOrServiceId);
                 final com.spotify.docker.client.messages.swarm.Service service = client.inspectService(containerOrServiceId);
                 if (service == null || service.spec() == null) {
                     throw new DockerServerException("Could not start service " + containerOrServiceId + ". Could not inspect service spec.");
@@ -752,7 +747,7 @@ public class DockerControlApi implements ContainerControlApi {
                 log.info("Setting service replication to 1.");
                 client.updateService(containerOrServiceId, version, updatedSpec);
             } else {
-                log.info("Starting container: id " + containerOrServiceId);
+                log.info("Starting container: id {}", containerOrServiceId);
                 client.startContainer(containerOrServiceId);
             }
         } catch (DockerException | InterruptedException e) {
@@ -1022,6 +1017,12 @@ public class DockerControlApi implements ContainerControlApi {
 
     @Nonnull
     private DockerClient getClient(final @Nonnull DockerServer server) throws DockerServerException {
+        return getClient(server, null);
+    }
+
+    @Nonnull
+    private DockerClient getClient(final @Nonnull DockerServer server, final @Nullable String imageName)
+            throws DockerServerException {
 
         DefaultDockerClient.Builder clientBuilder =
             DefaultDockerClient.builder()
@@ -1033,16 +1034,27 @@ public class DockerControlApi implements ContainerControlApi {
                     new DockerCertificates(Paths.get(server.certPath()));
                 clientBuilder = clientBuilder.dockerCertificates(certificates);
             } catch (DockerCertificateException e) {
-                log.error("Could not find docker certificates at " + server.certPath(), e);
+                log.error("Could not find docker certificates at {}", server.certPath(), e);
+            }
+        }
+
+        if (StringUtils.isNotBlank(imageName)) {
+            //TODO This is a workaround because Spotify client doesn't implement
+            // ConfigFileRegistryAuthSupplier.authForSwarm(). Once that's added, we can get rid of this.
+            try {
+                final RegistryAuth auth = new ConfigFileRegistryAuthSupplier().authFor(imageName);
+                clientBuilder.registryAuthSupplier(new FixedRegistryAuthSupplier(auth, RegistryConfigs.empty()));
+            } catch (DockerException e) {
+                log.error("Could not find auth for {}", imageName, e);
             }
         }
 
         try {
-            log.trace("DOCKER CLIENT URI IS: " + clientBuilder.uri().toString());
+            log.trace("DOCKER CLIENT URI IS: {}", clientBuilder.uri().toString());
 
         	return clientBuilder.build();
         } catch (Throwable e) {
-            log.error("Could not create DockerClient instance. Reason: " + e.getMessage());
+            log.error("Could not create DockerClient instance. Reason: {}", e.getMessage(), e);
             throw new DockerServerException(e);
         }
     }
@@ -1078,7 +1090,7 @@ public class DockerControlApi implements ContainerControlApi {
 
         for (final DockerContainerEvent event : events) {
             if (log.isDebugEnabled()) {
-                log.debug("Throwing docker container event: " + event);
+                log.debug("Throwing docker container event: {}", event);
             }
             eventService.triggerEvent(event);
         }
@@ -1114,7 +1126,7 @@ public class DockerControlApi implements ContainerControlApi {
     @Override
     public void killContainer(final String id) throws NoDockerServerException, DockerServerException, NotFoundException {
         try(final DockerClient client = getClient()) {
-            log.info("Killing container " + id);
+            log.info("Killing container {}", id);
             client.killContainer(id);
         } catch (ContainerNotFoundException e) {
             log.error(e.getMessage(), e);
@@ -1131,7 +1143,7 @@ public class DockerControlApi implements ContainerControlApi {
     @Override
     public void killService(final String id) throws NoDockerServerException, DockerServerException, NotFoundException {
         try(final DockerClient client = getClient()) {
-            log.info("Killing service " + id);
+            log.info("Killing service {}", id);
             client.removeService(id);
         } catch (ContainerNotFoundException e) {
             log.error(e.getMessage(), e);

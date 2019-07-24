@@ -27,6 +27,7 @@ Not yet released
 * Allow removal of inputs, outputs, wrappers, external inputs, derived inputs, and output handlers from command.json via API
 * [CS-54][]: For writable directory mount with existing contents in archive space, copy all files out of the root (archive) directory to a build directory. NOTE: case of a mount being both input and output not addressed
 * [CS-575][]: Fix resolution of derived inputs to always set value to URI. This allows outputs to be uploaded to derived inputs. This "undoes" some of the fix CS-409, but the issue with URIs in the UI/launcher seems to have been resolved, and we still can derive an inupt by URI, label, or name. *This may be a breaking change for some command.json files. The replacement value, a.k.a., the thing that gets put into #inputName#, will now always be the URI (previously it varied: id for scan, name for file, label for project, label for subject derived from project, URI for subject derived from session and session derived from assessor or scan)*
+* [CS-576][]: Correctly construct authentication header for Docker Swarm, required because Spotify client does not implement authForSwarm() for ConfigFileRegistryAuthSupplier, which is the only type of private repo authentication XNAT currently supports and because Swarm does not default to using a local config.json if this header is not passed
 
 
 ### Other
@@ -34,6 +35,7 @@ Not yet released
 [CS-440]: https://issues.xnat.org/browse/CS-440
 [CS-54]: https://issues.xnat.org/browse/CS-54
 [CS-575]: https://issues.xnat.org/browse/CS-575
+[CS-576]: https://issues.xnat.org/browse/CS-576
 
 
 
