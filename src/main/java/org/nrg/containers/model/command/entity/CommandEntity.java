@@ -45,13 +45,13 @@ public abstract class CommandEntity extends AbstractHibernateEntity {
         final CommandEntity commandEntity;
         switch (command.type()) {
             case "docker":
-                commandEntity = DockerCommandEntity.fromPojo(command);
+                commandEntity = new DockerCommandEntity();
                 break;
             case "docker-setup":
-                commandEntity = DockerSetupCommandEntity.fromPojo(command);
+                commandEntity = new DockerSetupCommandEntity();
                 break;
             case "docker-wrapup":
-                commandEntity = DockerWrapupCommandEntity.fromPojo(command);
+                commandEntity = new DockerWrapupCommandEntity();
                 break;
             default:
                 // This should have been caught already, but still...

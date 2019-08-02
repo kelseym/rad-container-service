@@ -57,7 +57,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     private Boolean overrideEntrypoint;
     private String workingDirectory;
     private Map<String, String> environmentVariables = Maps.newHashMap();
-    private Map<String, String> ports = new HashMap<>();
+    private Map<String, String> ports = Maps.newHashMap();
     private List<ContainerEntityMount> mounts = Lists.newArrayList();
     private String containerId;
     private String workflowId;
@@ -248,7 +248,9 @@ public class ContainerEntity extends AbstractHibernateEntity {
     }
 
     public void setPorts(final Map<String, String> ports) {
-        this.ports = ports == null ? new HashMap<String, String>() : ports;
+        this.ports = ports == null ?
+                Maps.<String, String>newHashMap() :
+                ports;
     }
 
     public String getSubtype() {

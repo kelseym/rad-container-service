@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.hamcrest.collection.IsMapContaining;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,6 +32,7 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -862,5 +864,65 @@ public class CommandEntityTest {
                                 "to more than one value)."
                 )
         );
+    }
+
+
+    @Test
+    @DirtiesContext
+    public void testChangeAndRemovePorts() throws Exception {
+        final CommandEntity created = commandEntityService.create(COMMAND_ENTITY);
+        assertThat(((DockerCommandEntity) created).getPorts().size(), is(1));
+
+        Command commandNewPorts = COMMAND.toBuilder()
+                .addPort("80", "8080")
+                .build();
+        final CommandEntity updatedNewPorts = created.update(commandNewPorts);
+        assertThat(((DockerCommandEntity) updatedNewPorts).getPorts().size(), is(2));
+        assertThat(((DockerCommandEntity) updatedNewPorts).getPorts(), IsMapContaining.hasEntry("80", "8080"));
+        final CommandEntity retrievedNewPorts = commandEntityService.get(COMMAND_ENTITY.getId());
+        assertThat(((DockerCommandEntity) retrievedNewPorts).getPorts().size(), is(2));
+        assertThat(((DockerCommandEntity) retrievedNewPorts).getPorts(), IsMapContaining.hasEntry("80", "8080"));
+
+        Command commandNoPorts = COMMAND.toBuilder()
+                .ports(new HashMap<>())
+                .build();
+        final CommandEntity updated = retrievedNewPorts.update(commandNoPorts);
+        assertThat(((DockerCommandEntity) updated).getPorts().size(), is(0));
+        final CommandEntity retrieved = commandEntityService.get(COMMAND_ENTITY.getId());
+        assertThat(((DockerCommandEntity) retrieved).getPorts().size(), is(0));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testChangeIndex() throws Exception {
+        String val1 = "val1";
+        String val2 = "val2";
+
+        Command cmd = COMMAND.toBuilder().index(val1).build();
+        final CommandEntity createdInd = commandEntityService.create(CommandEntity.fromPojo(cmd));
+        assertThat(((DockerCommandEntity) createdInd).getIndex(), is(val1));
+
+        cmd = cmd.toBuilder().index(val2).build();
+        final CommandEntity updatedInd = createdInd.update(cmd);
+        assertThat(((DockerCommandEntity) updatedInd).getIndex(), is(val2));
+        final CommandEntity retrievedInd = commandEntityService.get(createdInd.getId());
+        assertThat(((DockerCommandEntity) retrievedInd).getIndex(), is(val2));
+    }
+
+    @Test
+    @DirtiesContext
+    public void testChangeHash() throws Exception {
+        String val1 = "val1";
+        String val2 = "val2";
+
+        Command cmd = COMMAND.toBuilder().hash(val1).build();
+        final CommandEntity created = commandEntityService.create(CommandEntity.fromPojo(cmd));
+        assertThat(((DockerCommandEntity) created).getHash(), is(val1));
+
+        cmd = cmd.toBuilder().hash(val2).build();
+        final CommandEntity updated = created.update(cmd);
+        assertThat(((DockerCommandEntity) updated).getHash(), is(val2));
+        final CommandEntity retrieved = commandEntityService.get(created.getId());
+        assertThat(((DockerCommandEntity) retrieved).getHash(), is(val2));
     }
 }
