@@ -333,7 +333,7 @@ public class SwarmConstraintsIntegrationTest {
 
         DockerServerBase.DockerServerSwarmConstraint constraintSettable = DockerServerBase.DockerServerSwarmConstraint.builder()
                 .id(0L)
-                .attribute("node.labels.type")
+                .attribute("node.labels.cstesttype")
                 .comparator("==")
                 .values(Arrays.asList("Fun","Boring"))
                 .userSettable(true)
