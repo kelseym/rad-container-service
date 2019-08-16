@@ -1388,7 +1388,6 @@ public class ContainerServiceImpl implements ContainerService {
             ArchivableItem item = resourceData.getItem();
             xnatId = item.getId();
             xsiType = item.getXSIType();
-
         } catch (ClientException e) {
             // Fall back on id as string, determine xsiType from container input type
             xnatId = xnatIdOrUri;
@@ -1411,7 +1410,7 @@ public class ContainerServiceImpl implements ContainerService {
                         xsiType = XnatResource.SCHEMA_ELEMENT_NAME;
                         break;
                     case ASSESSOR:
-                        xsiType = XnatSubjectassessordata.SCHEMA_ELEMENT_NAME;
+                        xsiType = XnatImageassessordata.SCHEMA_ELEMENT_NAME;
                         break;
                 }
             } catch (IllegalArgumentException | NullPointerException ex) {

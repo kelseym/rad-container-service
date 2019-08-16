@@ -63,7 +63,7 @@ public class Assessor extends XnatModelObject {
         if (parentUri == null) {
             final String parentId = xnatImageassessordataI.getImagesessionId();
             if (StringUtils.isNotBlank(parentId)) {
-                this.uri = "/experiments/" + parentId + "/assessors/" + xnatImageassessordataI.getId();
+                this.uri = "/archive/experiments/" + parentId + "/assessors/" + xnatImageassessordataI.getId();
             } else {
                 this.uri = UriParserUtils.getArchiveUri(xnatImageassessordataI);
             }
