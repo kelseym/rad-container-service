@@ -358,7 +358,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
 
             final List<ContainerOutput> outputs = Lists.newArrayList();
             final List<Exception> exceptions = Lists.newArrayList();
-            for (final ContainerOutput nonUploadedOuput: toFinalize.outputs()) {
+            for (final ContainerOutput nonUploadedOuput: toFinalize.getOrderedOutputs()) {
                 try {
                     outputs.add(uploadOutput(nonUploadedOuput, uploadEventId));
                 } catch (UnauthorizedException | ContainerException | RuntimeException e) {

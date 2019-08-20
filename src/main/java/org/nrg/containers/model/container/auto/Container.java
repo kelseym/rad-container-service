@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
@@ -30,12 +31,9 @@ import org.nrg.xnat.utils.WorkflowUtils;
 
 import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+@Slf4j
 @AutoValue
 public abstract class Container {
     @JsonIgnore private String exitCode;
@@ -164,6 +162,50 @@ public abstract class Container {
     public String getWorkflowStatus(UserI user) {
         final PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(user, workflowId());
         return workflow == null ? null : workflow.getStatus();
+    }
+
+    /**
+     * Get outputs in order such that an output that creates a data type (say an assessor or scan xml) will be earlier
+     * in the list than an output that uploads to that data type. Put differently, an output with
+     * "as-a-child-of": "some-other-output-handler" will be placed after the output handled by
+     * "some-other-output-handler" in this list.
+     *
+     * @return the ordered list of outputs
+     */
+    @JsonIgnore
+    public List<ContainerOutput> getOrderedOutputs() {
+        Map<String, ContainerOutput> outputsByHandler = new HashMap<>();
+        for (ContainerOutput out : this.outputs()) {
+            outputsByHandler.put(out.fromOutputHandler(), out);
+        }
+
+        List<ContainerOutput> orderedOutputs = new ArrayList<>();
+        for (ContainerOutput output : this.outputs()) {
+            addOutputAndDependencies(output, outputsByHandler, orderedOutputs);
+        }
+        return orderedOutputs;
+    }
+
+    /**
+     * Add any dependencies for an output and then the output itself to the ordered list of container outputs
+     * @param output            the output
+     * @param outputsByHandler  a map of handler names to outputs
+     * @param orderedOutputs    the ordered list of outputs
+     */
+    @JsonIgnore
+    private void addOutputAndDependencies(ContainerOutput output, Map<String, ContainerOutput> outputsByHandler,
+                                          List<ContainerOutput> orderedOutputs) {
+        ContainerOutput dependency;
+        // if output is handled by another output, then it has a dependency. If we haven't already added this dependency,
+        // we need to add it and any of its dependencies (hence the recursion)
+        if (outputsByHandler.containsKey(output.handledBy()) &&
+                !orderedOutputs.contains(dependency = outputsByHandler.get(output.handledBy()))) {
+            addOutputAndDependencies(dependency, outputsByHandler, orderedOutputs);
+        }
+        // if we haven't added the output itself to the list, do it now
+        if (!orderedOutputs.contains(output)) {
+            orderedOutputs.add(output);
+        }
     }
 
     @JsonCreator

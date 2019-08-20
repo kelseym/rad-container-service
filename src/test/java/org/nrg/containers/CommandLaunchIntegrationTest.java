@@ -1097,9 +1097,16 @@ public class CommandLaunchIntegrationTest {
         final String curDir = Paths.get(dir, "testAssessorUpload").toString();
         final String fakeDataDir = Paths.get(curDir, "fakeDirForCopy").toString();
 
-        final String commandJsonFile = curDir + "/cmd.json";
+        // Get the outputs out of order by creating one command, then updating it to upload to an assessor
+        // (since such a scenario is possible to create via webapp, we need to be sure CS handles it, see CS-578
+        final String commandJsonFile = curDir + "/cmdTmp.json";
         final Command tempCommand = mapper.readValue(new File(commandJsonFile), Command.class);
         Command cmd = commandService.create(tempCommand);
+
+        final String commandJsonFileNew = curDir + "/cmd.json";
+        final Command tempCommandNew = mapper.readValue(new File(commandJsonFileNew), Command.class)
+                .toBuilder().id(cmd.id()).build();
+        cmd = commandService.update(tempCommandNew);
         CommandWrapper wrapper = cmd.xnatCommandWrappers().get(0);
 
         final String sessionJsonFile = Paths.get(dir, "/session.json").toString();
