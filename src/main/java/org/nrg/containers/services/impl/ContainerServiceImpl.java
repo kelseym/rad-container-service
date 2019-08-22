@@ -914,28 +914,25 @@ public class ContainerServiceImpl implements ContainerService {
 	
     @Override
 	public void consumeFinalize(final String exitCodeString, final boolean isSuccessfulStatus,
-                                final Container containerOrService, final UserI userI) {
-        addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(FINALIZING,
-                "Processing finished. Uploading files." ), userI);
-        log.debug("Finalizing service {}", containerOrService);
-        final Container containerOrServiceWithAddedEvent = retrieve(containerOrService.databaseId());
+                                final Container containerOrService, final UserI userI) throws
+            NoDockerServerException, ContainerException, NotFoundException, DockerServerException {
         try {
-            if (containerOrServiceWithAddedEvent == null) {
-                // Shouldn't ever happen
-                log.error("Could not retrieve updated containerOrService {}", containerOrService);
-                return;
-            }
-            ContainerServiceImpl.this.finalize(containerOrServiceWithAddedEvent, userI, exitCodeString, isSuccessfulStatus);
-        } catch (ContainerException | NoDockerServerException | DockerServerException e) {
-            //Dont want to deal with RejectionHandler just yet
-            log.error("Finalization failed on service {}", containerOrService, e);
-        }
+            addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(FINALIZING,
+                    "Processing finished. Uploading files."), userI);
+            log.debug("Finalizing containerOrService {}", containerOrService);
+            final Container containerOrServiceWithAddedEvent = get(containerOrService.databaseId());
+                ContainerServiceImpl.this.finalize(containerOrServiceWithAddedEvent, userI, exitCodeString,
+                        isSuccessfulStatus);
 
-        if (log.isDebugEnabled()) {
-        	int countOfContainersWaiting = containerEntityService.howManyContainersAreWaiting();
-        	int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
-    		log.debug("There are {} being finalized at present with {} waiting", countOfContainersBeingFinalized,
-                    countOfContainersWaiting);
+            if (log.isDebugEnabled()) {
+                int countOfContainersWaiting = containerEntityService.howManyContainersAreWaiting();
+                int countOfContainersBeingFinalized = containerEntityService.howManyContainersAreBeingFinalized();
+                log.debug("There are {} being finalized at present with {} waiting", countOfContainersBeingFinalized,
+                        countOfContainersWaiting);
+            }
+        } catch (Exception e) {
+            log.error("Finalization failed on containerOrService {}", containerOrService, e);
+            throw e;
         }
 	}
 

@@ -93,7 +93,8 @@ public interface ContainerService {
 	boolean isFinalizing(Container service);
     boolean isFailedOrComplete(Container service, UserI user);
 	void queueFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
-    void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
+    void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI)
+            throws NoDockerServerException, ContainerException, NotFoundException, DockerServerException;
 
     /**
      * Restart a service through swarm
