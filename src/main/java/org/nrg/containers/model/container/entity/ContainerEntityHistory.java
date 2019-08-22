@@ -10,11 +10,7 @@ import org.nrg.containers.events.model.ContainerEvent;
 import org.nrg.containers.events.model.DockerContainerEvent;
 import org.nrg.containers.model.container.auto.Container;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
+import javax.persistence.*;
 import java.util.Date;
 import java.util.Objects;
 
@@ -109,7 +105,8 @@ public class ContainerEntityHistory {
     public void setContainerEntity(final ContainerEntity containerEntity) {
         this.containerEntity = containerEntity;
     }
-
+    
+    @Column(columnDefinition = "TEXT")
     public String getMessage() {
         return message;
     }
