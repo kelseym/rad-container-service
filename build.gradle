@@ -47,7 +47,7 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 def vXnat = '1.7.5'
-def vXnatDev = '1.7.5.RAD9'
+def vXnatDev = '1.7.5.RAD10'
 def vMockito = '1.10.19'
 def vJavassist = '3.21.0-GA'
 def vAwaitility = '2.0.0'
