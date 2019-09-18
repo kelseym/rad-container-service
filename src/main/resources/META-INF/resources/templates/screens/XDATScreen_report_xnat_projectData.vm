@@ -34,6 +34,7 @@
 
 
     #if($data.getSession().getAttribute("userHelper").canRead("xnat:subjectData/project","$project.getId()"))
+		#addGlobalCustomScreens("search/plugins/pre")
         <script type="text/javascript" src="$content.getURI("scripts/yui/build/resize/resize-beta-min.js")"></script>
         <script type="text/javascript" src="$content.getURI("scripts/yui/build/layout/layout-beta-min.js")"></script>
         <script type="text/javascript" src="$content.getURI("scripts/generated/xdat_stored_search.js")"></script>
@@ -63,6 +64,7 @@
         #parse($turbineUtils.getTemplateName("_bundle_tabs","xnat:projectData",$project.getId()))
 
         #addCustomScreens($om.getXSIType() "report/postData")
+    	#addGlobalCustomScreens("search/plugins/post")
     #else
         <!--can't read data-->
 
