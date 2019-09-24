@@ -9,7 +9,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
 import org.nrg.containers.model.command.entity.CommandWrapperInputType;
-import org.nrg.xdat.model.XnatAbstractresourceI;
 import org.nrg.xdat.model.XnatImageassessordataI;
 import org.nrg.xdat.om.XnatExperimentdata;
 import org.nrg.xdat.om.XnatImageassessordata;
@@ -29,6 +28,8 @@ import java.io.File;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @JsonInclude(Include.NON_NULL)
 public class Assessor extends XnatModelObject {
@@ -96,12 +97,15 @@ public class Assessor extends XnatModelObject {
 
         this.resources = Lists.newArrayList();
         if (loadFiles || loadTypes.contains(CommandWrapperInputType.RESOURCE.getName())) {
-            for (final XnatAbstractresourceI xnatAbstractresourceI : xnatImageassessordataI.getResources_resource()) {
-                if (xnatAbstractresourceI instanceof XnatResourcecatalog) {
-                    resources.add(new Resource((XnatResourcecatalog) xnatAbstractresourceI, loadFiles, loadTypes,
-                            this.uri, rootArchivePath));
-                }
-            }
+            // Image assessor resources are stored as out files rather that generic resources by default
+            // Query both to be safe & consistent with legacy code
+            resources = Stream.concat(
+                        xnatImageassessordataI.getResources_resource().stream(),
+                        xnatImageassessordataI.getOut_file().stream()
+                    )
+                    .filter(r -> r instanceof XnatResourcecatalog)
+                    .map(r -> new Resource((XnatResourcecatalog) r, loadFiles, loadTypes, this.uri, rootArchivePath))
+                    .collect(Collectors.toList());
         }
     }
 
