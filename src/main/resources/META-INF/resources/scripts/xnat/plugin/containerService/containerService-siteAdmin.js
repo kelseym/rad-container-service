@@ -344,6 +344,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             }
                         });
                         $('div#swarm-constraint-'+i).prop('id', 'swarm-constraint-'+(i-1));
+                        $('a#close-'+i).prop('id', 'close-'+(i-1));
                     }
                     containerHostManager.nconstraints--;
                     return false;
