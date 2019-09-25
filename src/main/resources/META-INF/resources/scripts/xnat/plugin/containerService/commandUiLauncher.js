@@ -596,11 +596,6 @@ var XNAT = getObject(XNAT || {});
                         // if no values can be set, render the input without a value selected
                         selectedVal = '';
                         selectedLabel = '';
-                        // if this is a required input, we might have a problem
-                        if (configInput.required) {
-                            launcher.errorMessages.push('Error: <strong>' + configInput.label + '</strong> is a ' +
-                                'required field and has no available values. You may not be able to submit this container.');
-                        }
                     } else {
                         if (input['input-type'] === "select-one") {
                             var options = {'default': {label: 'Select one', selected: true}};
@@ -854,20 +849,28 @@ var XNAT = getObject(XNAT || {});
                         isDefault: true,
                         close: false,
                         action: function(obj){
+                            function getLabel($element) {
+                                return $element.parents('.panel-input').children('.element-label').text();
+                            }
                             var $form = obj.$modal.find('.panel form');
 
                             // check all inputs for invalid characters
                             var $inputs = $form.find('input'),
-                                runContainer = true;
+                                errors = [];
+                            $form.find('.required:not(div)').each(function(){
+                                if (!XNAT.validate(this).is('required').check()) {
+                                    errors.push('Required input "' + getLabel($(this)) + '" is missing');
+                                }
+                            });
                             $inputs.each(function(){
                                 var input = $(this)[0];
                                 if (!launcher.noIllegalChars(input)) {
-                                    runContainer = false;
+                                    errors.push('Illegal characters were found in input "' + getLabel($(this)) + '"');
                                     $(this).addClass('invalid');
                                 }
                             });
 
-                            if (runContainer) {
+                            if (errors.length === 0) {
                                 if (!bulkLaunch) xmodal.loading.open({ title: 'Launching Container...' });
 
                                 // gather form input values
@@ -1004,7 +1007,8 @@ var XNAT = getObject(XNAT || {});
                                 // don't run container if invalid characters are found
                                 XNAT.dialog.open({
                                     title: 'Cannot Launch Container',
-                                    content: 'Illegal characters were found in your inputs. Please correct this and try again.',
+                                    content: 'Please correct the errors, below, and try again:' +
+                                        '<ul>' + $.map(errors, function(e) { return '<li>' + e + '</li>';}) + '</ul>',
                                     width: 400,
                                     buttons: [
                                         {

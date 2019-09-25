@@ -30,7 +30,7 @@ Not yet released
 * [CS-576][]: Correctly construct authentication header for Docker Swarm, required because Spotify client does not implement authForSwarm() for ConfigFileRegistryAuthSupplier, which is the only type of private repo authentication XNAT currently supports and because Swarm does not default to using a local config.json if this header is not passed
 * [CS-577][]: Ports, hash, and index fields of command.json can now be updated
 * [CS-578][]: Enforce ordering on uploading outputs so that we never try to upload to an object that has yet to be inserted
-
+* [CS-580][]: Add client-side validation for required inputs
 
 ### Other
 
@@ -40,6 +40,7 @@ Not yet released
 [CS-576]: https://issues.xnat.org/browse/CS-576
 [CS-577]: https://issues.xnat.org/browse/CS-577
 [CS-578]: https://issues.xnat.org/browse/CS-578
+[CS-580]: https://issues.xnat.org/browse/CS-580
 
 
 
