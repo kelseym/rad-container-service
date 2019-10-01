@@ -1214,6 +1214,11 @@ var XNAT = getObject(XNAT || {});
 
     launcher.init = function() {
         // populate or hide the command launcher based on what's in context
+        if (!projectId || !xsiType) {
+            // Not on an xnat object's page (likely being used in a plugin page), skip this
+            return;
+        }
+
         XNAT.xhr.getJSON({
             url: rootUrl('/xapi/commands/available?project=' + projectId + '&xsiType=' + xsiType),
             success: function (data) {
