@@ -405,7 +405,7 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
-    public void queueResolveCommandAndLaunchContainer(@Nullable final String project,
+    public void queueResolveCommandAndLaunchContainer(@Nullable String project,
                                                       final long wrapperId,
                                                       final long commandId,
                                                       @Nullable final String wrapperName,
@@ -416,14 +416,17 @@ public class ContainerServiceImpl implements ContainerService {
 
         // Workflow shouldn't be null unless container launched without a root element
         // (I think the only way to do so would be through the REST API)
-        String workflowid = workflow != null ? workflow.getWorkflowId().toString() : null;
-
-        //String workflowid = null;
+        String workflowid = null;
         //String status = null;
-        //if (workflow != null) {
-        //    workflowid = workflow.getWorkflowId().toString();
-        //    status = workflow.getStatus();
-        //}
+        if (workflow != null) {
+            workflowid = workflow.getWorkflowId().toString();
+            //status = workflow.getStatus();
+            if (project == null) {
+                project = XnatProjectdata.SCHEMA_ELEMENT_NAME.equals(workflow.getDataType())
+                        ? workflow.getId()
+                        : workflow.getExternalid();
+            }
+        }
 
         ContainerStagingRequest request = new ContainerStagingRequest(project, wrapperId, commandId, wrapperName,
                 inputValues, userI.getLogin(), workflowid);
@@ -1385,6 +1388,7 @@ public class ContainerServiceImpl implements ContainerService {
             ArchivableItem item = resourceData.getItem();
             xnatId = item.getId();
             xsiType = item.getXSIType();
+            projectId = StringUtils.defaultIfBlank(projectId, item.getProject());
         } catch (ClientException e) {
             // Fall back on id as string, determine xsiType from container input type
             xnatId = xnatIdOrUri;
