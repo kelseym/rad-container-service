@@ -7,6 +7,7 @@ import io.swagger.models.License
 buildscript {
     ext {
         vXnat = '1.7.6-SNAPSHOT'
+        vXnatDev = '1.7.6.RAD-SNAPSHOT'
     }
     repositories {
         mavenLocal()
@@ -36,7 +37,7 @@ buildscript {
         classpath "gradle.plugin.com.github.zhurlik:gradle-swagger-plugin:0.2"
         classpath group: 'io.swagger', name: 'swagger-core', version: '1.5.+'
         classpath group: 'com.github.kongchen', name: 'swagger-maven-plugin', version: '3.1.+'
-        classpath "org.nrg.xdat:core:${vXnat}"
+        classpath "org.nrg.xdat:core:${vXnatDev}"
     }
 }
 
@@ -54,8 +55,6 @@ apply plugin: "com.github.zhurlik.swagger"
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
-def vXnat = '1.7.6-SNAPSHOT'
-def vXnatDev = '1.7.6.RAD-SNAPSHOT'
 def vMockito = '1.10.19'
 def vJavassist = '3.21.0-GA'
 def vAwaitility = '2.0.0'
@@ -90,7 +89,7 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom("org.nrg:parent:${vXnat}") {
+        mavenBom("org.nrg:parent:${vXnatDev}") {
             bomProperties([
                     'mockito.version': vMockito,
                     'javassist.version': vJavassist
@@ -140,14 +139,14 @@ dependencies {
     }
     compileAndInclude "com.jayway.jsonpath:json-path:${vJsonPath}"
 
-    compile ("org.nrg.xnat:web:${vXnatDev}") {
+    compile ("org.nrg.xnat:web") {
         transitive = false
     }
     compile "org.nrg:framework"
-    compile ("org.nrg.xdat:core:${vXnatDev}") {
+    compile ("org.nrg.xdat:core") {
         transitive = false
     }
-    compile ("org.nrg.xnat:xnat-data-models:${vXnatDev}") {
+    compile ("org.nrg.xnat:xnat-data-models") {
         transitive = false
     }
     compile "org.nrg:prefs"
