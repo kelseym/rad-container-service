@@ -36,7 +36,6 @@ buildscript {
         classpath "gradle.plugin.com.github.zhurlik:gradle-swagger-plugin:0.2"
         classpath group: 'io.swagger', name: 'swagger-core', version: '1.5.+'
         classpath group: 'com.github.kongchen', name: 'swagger-maven-plugin', version: '3.1.+'
-        classpath "org.nrg.xdat:core:${vXnatDev}"
     }
 }
 
@@ -186,14 +185,14 @@ dependencies {
     compile "org.slf4j:slf4j-api"
     compile "org.slf4j:slf4j-log4j12"
     annotationProcessor "org.projectlombok:lombok"
-    compileOnly "org.projectlombok:lombok"
+    compile "org.projectlombok:lombok"
 
     compile "commons-lang:commons-lang"
 
     compile "javax.inject:javax.inject"
     compile "javax.servlet:javax.servlet-api"
 
-    compileOnly "com.google.auto.value:auto-value:${vAutoValue}"
+    compile "com.google.auto.value:auto-value:${vAutoValue}"
     annotationProcessor "com.google.auto.value:auto-value:${vAutoValue}"
 
     compile ("turbine:turbine") {
@@ -226,7 +225,8 @@ dependencies {
     testCompile "org.powermock:powermock-api-mockito:${vPowerMock}"
     testCompile "org.awaitility:awaitility:${vAwaitility}"
     testCompile group: 'org.apache.axis', name: 'axis', version: '1.4'
-
+    testCompileOnly "org.projectlombok:lombok"
+    testAnnotationProcessor "org.projectlombok:lombok"
 }
 
 task unitTest( type: Test ) {
