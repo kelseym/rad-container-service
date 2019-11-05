@@ -617,6 +617,10 @@ public class DockerControlApi implements ContainerControlApi {
             }
         }
 
+        //TODO make this configurable from UI
+        //add docker socket for 'docker in docker containers'
+        mounts.add(Mount.builder().source("/var/run/docker.sock").target("/var/run/docker.sock").readOnly(false).build());
+
         // We get the bind mounts strings here not to use for creating the service,
         // but simply for the debug log
         // The Mount objects are what we need for the service
