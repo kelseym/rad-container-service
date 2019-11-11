@@ -623,6 +623,7 @@ public class ContainerServiceImpl implements ContainerService {
                 .workflowId(workflowid)
                 .subtype(DOCKER_WRAPUP.getName())
                 .project(parent != null ? parent.project() : null)
+                .swarmConstraints(parent != null ? parent.swarmConstraints() : resolvedCommand.swarmConstraints())
                 .status(CREATED) //Needs non-empty status to be picked up by containerService.retrieveNonfinalizedServices()
                 .build();
         return toPojo(containerEntityService.create(fromPojo(toCreate)));
@@ -661,10 +662,20 @@ public class ContainerServiceImpl implements ContainerService {
     private ResolvedCommand prepareToLaunch(final ResolvedCommand resolvedCommand,
                                             final Container parent,
                                             final UserI userI) {
-        return resolvedCommand.toBuilder()
-                .addEnvironmentVariables(getDefaultEnvironmentVariablesForLaunch(userI))
-                .project(resolvedCommand.project() == null && parent != null ? parent.project() : resolvedCommand.project())
-                .build();
+
+        ResolvedCommand.Builder builder = resolvedCommand.toBuilder()
+                .addEnvironmentVariables(getDefaultEnvironmentVariablesForLaunch(userI));
+
+        if (parent != null) {
+            if (resolvedCommand.project() == null) {
+                builder.project(parent.project());
+            }
+            if (resolvedCommand.swarmConstraints() == null || resolvedCommand.swarmConstraints().isEmpty()) {
+                builder.swarmConstraints(parent.swarmConstraints());
+            }
+        }
+
+        return builder.build();
     }
 
     @Nonnull
