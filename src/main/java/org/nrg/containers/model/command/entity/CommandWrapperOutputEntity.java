@@ -3,14 +3,13 @@ package org.nrg.containers.model.command.entity;
 import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
-import org.hibernate.envers.Audited;
 import org.nrg.containers.model.command.auto.Command;
 import org.nrg.xft.security.UserI;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.*;
-import java.io.InputStream;
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +43,7 @@ public class CommandWrapperOutputEntity {
         this.setWrapperInputName(commandWrapperOutput.targetName());
         this.setViaWrapupCommand(commandWrapperOutput.viaWrapupCommand());
         this.setLabel(commandWrapperOutput.label());
+        this.setFormat(commandWrapperOutput.format());
 
         switch (commandWrapperOutput.type()) {
             case "Resource":
