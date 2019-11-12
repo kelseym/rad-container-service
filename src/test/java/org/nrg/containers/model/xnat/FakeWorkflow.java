@@ -23,7 +23,8 @@ public class FakeWorkflow implements PersistentWorkflowI {
      */
 
     private int wfid = 123456;
-    public static int eventId = 1;
+    public static int defaultEventId = 1;
+    private int eventId = defaultEventId;
     private String details;
     private String comments;
     private String justification;
@@ -290,6 +291,14 @@ public class FakeWorkflow implements PersistentWorkflowI {
 
     public String getUsername() {
         return "admin";
+    }
+
+    public void setEventId(int eventId) {
+        this.eventId = eventId;
+    }
+
+    public void setWfid(int wfid) {
+        this.wfid = wfid;
     }
 
     public Integer getWorkflowId() {

@@ -200,8 +200,9 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 // Check if failure already recorded (perhaps with more detail so we don't want to overwrite)
                 String containerStatus = toFinalize.status();
                 status = containerStatus != null ?
-                        containerStatus.replaceAll("^" + ContainerRequest.inQueueStatusPrefix, "") :
-                        "";
+                        containerStatus.replaceAll("^" + ContainerRequest.inQueueStatusPrefix, "")
+                                .replaceFirst("Waiting \\(([^)]*)\\)", "$1")
+                        : "";
                 if (!status.startsWith(PersistentWorkflowUtils.FAILED)) {
                     // If it's not a failure status, we need to make it so
                     status = PersistentWorkflowUtils.FAILED;

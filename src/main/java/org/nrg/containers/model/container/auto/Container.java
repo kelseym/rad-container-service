@@ -962,6 +962,12 @@ public abstract class Container {
 
         public static ContainerHistory fromSystem(final String status,
                                                   final String message) {
+            return fromSystem(status, message, null);
+        }
+
+        public static ContainerHistory fromSystem(final String status,
+                                                  final String message,
+                                                  final String exitCode) {
             Date now = new Date();
             return builder()
                     .status(status)
@@ -970,6 +976,7 @@ public abstract class Container {
                     .timeRecorded(now)
                     .externalTimestamp(String.valueOf(now.getTime()))
                     .message(message)
+                    .exitCode(exitCode)
                     .build();
         }
 

@@ -9,14 +9,12 @@ import com.jayway.jsonpath.spi.json.JsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.messages.swarm.ManagerStatus;
 import com.spotify.docker.client.messages.swarm.Node;
 import com.spotify.docker.client.messages.swarm.NodeInfo;
 import com.spotify.docker.client.messages.swarm.NodeSpec;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -30,12 +28,9 @@ import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandWrapper;
 import org.nrg.containers.model.command.auto.LaunchUi;
 import org.nrg.containers.model.container.auto.Container;
-import org.nrg.containers.model.container.auto.ServiceTask;
 import org.nrg.containers.model.server.docker.DockerServerBase;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
-import org.nrg.containers.model.server.docker.DockerServerEntitySwarmConstraint;
 import org.nrg.containers.model.xnat.FakeWorkflow;
-import org.nrg.containers.services.CommandResolutionService;
 import org.nrg.containers.services.CommandService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
@@ -67,7 +62,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -192,7 +186,7 @@ public class SwarmConstraintsIntegrationTest {
                 .thenReturn(fakeWorkflow);
         doNothing().when(WorkflowUtils.class, "save", Mockito.any(PersistentWorkflowI.class), isNull(EventMetaI.class));
         PowerMockito.spy(PersistentWorkflowUtils.class);
-        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
+        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.defaultEventId),
                 eq(mockUser), Mockito.any(XFTItem.class), Mockito.any(EventDetails.class));
 
         // Setup docker server
@@ -285,7 +279,8 @@ public class SwarmConstraintsIntegrationTest {
     @DirtiesContext
     public void testThatServicesRunWithoutConstraints() throws Exception {
         DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, null);
+                swarmMode, null, null, null,
+                false, null, true, null);
         dockerServerService.setServer(server);
         setClient();
 
@@ -301,7 +296,9 @@ public class SwarmConstraintsIntegrationTest {
     @DirtiesContext
     public void testThatServicesRunWithoutConstraintsAlt() throws Exception {
         DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList());
+                swarmMode, null, null, null,
+                false, null, true,
+                Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList());
         dockerServerService.setServer(server);
         setClient();
 
@@ -318,7 +315,8 @@ public class SwarmConstraintsIntegrationTest {
     public void testThatServicesRunWithCorrectConstraintsAndNotOtherwise() throws Exception {
         // We need a client so we have to create a server, we'll update it shortly
         DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, null);
+                swarmMode, null, null, null,
+                false, null, true, null);
         DockerServerBase.DockerServer curServer = dockerServerService.setServer(server);
         setClient();
 
@@ -434,7 +432,8 @@ public class SwarmConstraintsIntegrationTest {
         List<DockerServerBase.DockerServerSwarmConstraint> constraints = Arrays.asList(constraintNotSettable, constraintSettable);
 
         DockerServer server = DockerServer.create(0L, "Test server", containerHost, certPath,
-                false, null, null, null, false, null, constraints);
+                false, null, null, null,
+                false, null, true, constraints);
         dockerServerService.setServer(server);
         setClient();
 

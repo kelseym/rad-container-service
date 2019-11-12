@@ -952,7 +952,8 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public boolean isWaiting(Container containerOrService){
-    	return WAITING.equals(containerOrService.status());
+        String status = containerOrService.status();
+    	return status != null && status.startsWith(WAITING);
     }
     @Override
     public boolean isFinalizing(Container containerOrService){
@@ -966,7 +967,7 @@ public class ContainerServiceImpl implements ContainerService {
         }
         final String status = containerOrService.getWorkflowStatus(user);
         return status != null &&
-                (status.contains(PersistentWorkflowUtils.FAILED) || status.contains(PersistentWorkflowUtils.COMPLETE));
+                (status.startsWith(PersistentWorkflowUtils.FAILED) || status.startsWith(PersistentWorkflowUtils.COMPLETE));
     }
 
     @Override
@@ -1014,8 +1015,18 @@ public class ContainerServiceImpl implements ContainerService {
                     } else {
                         log.debug("Launching wrapup container {}.", wrapupContainer.databaseId());
                         // This wrapup container has not been launched yet. Launch it now.
-                        launchedWrapupContainers = true;
-                        launchContainerFromDbObject(wrapupContainer, userI);
+                        try {
+                            launchContainerFromDbObject(wrapupContainer, userI);
+                            launchedWrapupContainers = true;
+                        } catch (DockerServerException | NoDockerServerException | ContainerException e) {
+                            log.error("Launching wrapup container {} failed", wrapupContainer, e);
+                            //finalize to kill any other wrapup containers, set parent status to failed, and email user
+                            ContainerHistory failureHist = ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED,
+                                    "Unable to launch: " + e.getMessage(), "1");
+                            addContainerHistoryItem(wrapupContainer, failureHist, userI);
+                            finalize(wrapupContainer, userI, "1", false);
+                            return;
+                        }
                     }
                 }
             }
@@ -1036,7 +1047,7 @@ public class ContainerServiceImpl implements ContainerService {
         final Container finalized = containerFinalizeService.finalizeContainer(notFinalized, userI,
                 failed, wrapupContainers);
 
-        log.debug("Done uploading files for container {}. Now saving information about outputs.", databaseId);
+        log.debug("Done uploading files for container {}. Now saving information about outputs.", finalized);
 
         containerEntityService.update(fromPojo(finalized));
 
@@ -1048,6 +1059,7 @@ public class ContainerServiceImpl implements ContainerService {
         if (parent == null) {
             // Nothing left to do. This container is done.
             log.debug("Done finalizing container {}, {} id {}.", databaseId, containerOrService, containerOrServiceId);
+            cleanupContainers(finalized);
             return;
         }
         final long parentDatabaseId = parent.databaseId();
@@ -1111,11 +1123,24 @@ public class ContainerServiceImpl implements ContainerService {
         }
     }
 
+    private void cleanupContainers(Container finalized)
+            throws DockerServerException, NoDockerServerException {
+        long databaseId = finalized.databaseId();
+        List<Container> toCleanup = new ArrayList<>();
+        toCleanup.add(finalized);
+        toCleanup.addAll(retrieveSetupContainersForParent(databaseId));
+        toCleanup.addAll(retrieveWrapupContainersForParent(databaseId));
+        for (Container container : toCleanup) {
+            containerControlApi.removeContainerOrService(container);
+        }
+    }
+
     private void checkIfSpecialContainersFailed(final List<Container> specialContainers,
                                                 final Container parent,
                                                 final Runnable successAction,
                                                 final String setupOrWrapup,
-                                                final UserI userI) {
+                                                final UserI userI)
+            throws NoDockerServerException, DockerServerException {
         final long parentDatabaseId = parent.databaseId();
         final String parentContainerId = parent.containerId();
 
@@ -1133,6 +1158,7 @@ public class ContainerServiceImpl implements ContainerService {
         final int numFailed = failedExitCode.size();
         final int numNull = nullExitCode.size();
 
+        final String failedContainerStatus = PersistentWorkflowUtils.FAILED + " (" + setupOrWrapup + ")";
         if (numFailed > 0) {
             // If any of the special containers failed, we must kill the rest and fail the main container.
             log.debug("One or more {} containers have failed. Killing the rest and failing the parent.", setupOrWrapup);
@@ -1174,7 +1200,7 @@ public class ContainerServiceImpl implements ContainerService {
             }
 
             log.info("Setting status to \"Failed {}\" for parent container {} with container id {}.", setupOrWrapup, parentDatabaseId, parentContainerId);
-            ContainerHistory failureHist = ContainerHistory.fromSystem("Failed " + setupOrWrapup, failedContainerMessage);
+            ContainerHistory failureHist = ContainerHistory.fromSystem(failedContainerStatus, failedContainerMessage);
             addContainerHistoryItem(parent, failureHist, userI);
 
             // If specialContainers are setup containers and there are also wrapup containers, we need to update their
@@ -1185,14 +1211,15 @@ public class ContainerServiceImpl implements ContainerService {
                     addContainerHistoryItem(wrapupContainer, failureHist, userI);
                 }
             }
-
+            cleanupContainers(parent);
         } else if (numNull == numSpecial) {
             // This is an error. We know at least one setup container has finished because we have reached this "finalize" method.
             // At least one of the setup containers should have a non-null exit status.
             final String message = "All " + setupOrWrapup + " containers have null statuses, but one of them should be finished.";
             log.error(message);
             log.info("Setting status to \"Failed {}\" for parent container {} with container id {}.", setupOrWrapup, parentDatabaseId, parentContainerId);
-            addContainerHistoryItem(parent, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED + " " + setupOrWrapup, message), userI);
+            addContainerHistoryItem(parent, ContainerHistory.fromSystem(failedContainerStatus, message), userI);
+            cleanupContainers(parent);
         } else if (numNull > 0) {
             final int numLeft = numSpecial - numNull;
             log.debug("Not changing parent status. {} {} containers left to finish.", numLeft, setupOrWrapup);
@@ -1322,7 +1349,7 @@ public class ContainerServiceImpl implements ContainerService {
 
     private String getWorkflowStatus(UserI userI, final Container container) {
      	   String workFlowId = container.workflowId();
-     	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI,workFlowId);
+     	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI, workFlowId);
      	   return workflow.getStatus();
     }
 

@@ -104,7 +104,7 @@ public class CommandLaunchIntegrationTest {
     //@ClassRule public static final SpringClassRule SPRING_CLASS_RULE = new SpringClassRule();
     //@Rule public final SpringMethodRule springMethodRule = new SpringMethodRule();
 
-    @Parameterized.Parameters
+    @Parameterized.Parameters(name = "swarmMode={0}")
     public static Collection<Boolean> swarmModes() {
         return Arrays.asList(true, false);
     }
@@ -210,7 +210,7 @@ public class CommandLaunchIntegrationTest {
                 .thenReturn(fakeWorkflow);
         doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
         PowerMockito.spy(PersistentWorkflowUtils.class);
-        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
+        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.defaultEventId),
                 eq(mockUser), any(XFTItem.class), any(EventDetails.class));
 
         // mock external FS check
@@ -247,7 +247,8 @@ public class CommandLaunchIntegrationTest {
             }
         }
         dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, null));
+                swarmMode, null, null, null,
+                false, null, true, null));
 
         CLIENT = controlApi.getClient();
         CLIENT.pull("busybox:latest");
@@ -625,6 +626,9 @@ public class CommandLaunchIntegrationTest {
         //     put the files where they needed to go, and that all the mounts were hooked up correctly.
         assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("test.txt")));
         assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("another-file")));
+
+        // NOTE: this doesn't finalize due to NPEs from missing workflows, see ContainerCleanupIntegrationTest#setupMocksForSetupWrapupWorkflow
+        // if you need to set this up to work properly
     }
 
     @Test
@@ -754,6 +758,9 @@ public class CommandLaunchIntegrationTest {
         final File foundFilesDotTxt = contentsOfWrapupContainerOutputMountDir[0];
         final String[] foundFilesDotTxtContentByLine = TestingUtils.readFile(foundFilesDotTxt);
         assertThat(foundFilesDotTxtContentByLine, arrayContainingInAnyOrder(expectedFileContentsByLine));
+
+        // NOTE: this doesn't finalize due to NPEs from missing workflows, see ContainerCleanupIntegrationTest#setupMocksForSetupWrapupWorkflow
+        // if you need to set this up to work properly
     }
 
     @Test
@@ -793,7 +800,7 @@ public class CommandLaunchIntegrationTest {
         //log.debug("Waiting until status updater has picked up finished task and added item to history");
         //await().until(containerHistoryHasItemFromSystem(container.databaseId()), is(true));
         log.debug("Waiting until container is finalized");
-        await().until(TestingUtils.containerIsFinalized(mockUser, container), is(true));
+        await().until(TestingUtils.containerIsFinalized(containerService, container), is(true));
 
         final Container exited = containerService.get(container.databaseId());
         printContainerLogs(exited);
@@ -1077,7 +1084,7 @@ public class CommandLaunchIntegrationTest {
         TestingUtils.commitTransaction();
 
         log.debug("Waiting until container is done finalizing");
-        await().until(TestingUtils.containerIsFinalized(mockUser, execution));
+        await().until(TestingUtils.containerIsFinalized(containerService, execution));
 
         // Assert that upload doesn't fail, this means that the proper files and params were passed to our mock methods
         assertThat(fakeWorkflow.getStatus(), not(startsWith(PersistentWorkflowUtils.FAILED)));
@@ -1199,7 +1206,7 @@ public class CommandLaunchIntegrationTest {
         TestingUtils.commitTransaction();
 
         log.debug("Waiting until container is done finalizing");
-        await().until(TestingUtils.containerIsFinalized(mockUser, execution));
+        await().until(TestingUtils.containerIsFinalized(containerService, execution));
 
         // Assert that upload doesn't fail, this means that the proper files and params were passed to our mock methods
         assertThat(fakeWorkflow.getStatus(),  not(startsWith(PersistentWorkflowUtils.FAILED)));

@@ -141,8 +141,9 @@ public class CommandResolutionTest {
 
         when(mockCatalogService.hasRemoteFiles(eq(mockUser), any(String.class))).thenReturn(false);
 
-        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock", null,
-                false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix, false, null, null));
+        dockerService.setServer(DockerServerBase.DockerServer.create(0L, "test", "unix:///var/run/docker.sock",
+                null, false, pathTranslationXnatPrefix, pathTranslationContainerHostPrefix,
+                false, null, true, null));
     }
 
     @Test

@@ -32,16 +32,16 @@ public class ContainerEntity extends AbstractHibernateEntity {
     public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
             .put("complete", "Waiting") // Docker swarm "complete" maps to waiting to be finalized
             .put("created", "Created")
-            .put("rejected", "Failed (Rejected)")
-            .put("failed", "Failed")
+            .put("rejected", "Waiting (Failed (Rejected))")
+            .put("failed", "Waiting (Failed)")
             .put("start", "Running")
             .put("started", "Running")
             .put("running", "Running")
-            .put("remove", "Failed (Remove)")
-            .put("orphaned", "Failed (Orphaned)")
-            .put(KILL_STATUS, "Failed (Killed)")
-            .put("oom", "Failed (Memory)")
-            .put("shutdown", "Failed (Shutdown)")
+            .put("remove", "Waiting (Failed (Remove))")
+            .put("orphaned", "Waiting (Failed (Orphaned))")
+            .put(KILL_STATUS, "Waiting (Failed (Killed))")
+            .put("oom", "Waiting (Failed (Memory))")
+            .put("shutdown", "Waiting (Failed (Shutdown))")
             .put("starting", "Starting")
             .build();
     private static final Set<String> TERMINAL_STATI = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -182,7 +182,7 @@ public class ContainerEntity extends AbstractHibernateEntity {
     public boolean statusIsTerminal() {
         if (status != null) {
             for (final String terminalStatus : TERMINAL_STATI) {
-                if (status.contains(terminalStatus)) {
+                if (status.startsWith(terminalStatus)) {
                     return true;
                 }
             }

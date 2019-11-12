@@ -93,6 +93,7 @@ public class DockerServerEntityTest {
                 .certPath(certPath)
                 .name("TestStandalone")
                 .pullImagesOnXnatInit(false)
+                .autoCleanup(true)
                 .swarmConstraints(Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList())
                 .build();
         dockerServerStandaloneEntity = DockerServerEntity.create(dockerServerStandalone);
@@ -105,6 +106,7 @@ public class DockerServerEntityTest {
                 .certPath(certPath)
                 .name("TestSwarmNoConstraints")
                 .pullImagesOnXnatInit(false)
+                .autoCleanup(true)
                 .swarmConstraints(Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList())
                 .build();
         dockerServerSwarmNoConstraintsEntity = DockerServerEntity.create(dockerServerSwarmNoConstraints);
@@ -117,6 +119,7 @@ public class DockerServerEntityTest {
                 .certPath(certPath)
                 .name("TestSwarmEmptyConstraints")
                 .pullImagesOnXnatInit(false)
+                .autoCleanup(true)
                 .swarmConstraints(Collections.<DockerServerBase.DockerServerSwarmConstraint>emptyList())
                 .build();
         dockerServerSwarmEmptyConstraintsEntity = DockerServerEntity.create(dockerServerSwarmEmptyConstraints);
@@ -147,6 +150,7 @@ public class DockerServerEntityTest {
                 .certPath(certPath)
                 .name("TestSwarmConstraints")
                 .pullImagesOnXnatInit(false)
+                .autoCleanup(true)
                 .swarmConstraints(Arrays.asList(constraintNotSettable, constraintSettable))
                 .build();
         dockerServerSwarmConstraintsEntity = DockerServerEntity.create(dockerServerSwarmConstraints);

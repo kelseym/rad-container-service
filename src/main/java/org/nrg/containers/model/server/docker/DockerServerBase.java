@@ -50,6 +50,9 @@ public abstract class DockerServerBase {
     @JsonProperty("container-user")
     public abstract String containerUser();
 
+    @JsonProperty("auto-cleanup")
+    public abstract boolean autoCleanup();
+
     @Nullable
     @JsonProperty("swarm-constraints")
     public abstract ImmutableList<DockerServerSwarmConstraint> swarmConstraints();
@@ -68,14 +71,15 @@ public abstract class DockerServerBase {
                                           @JsonProperty("path-translation-docker-prefix") final String pathTranslationDockerPrefix,
                                           @JsonProperty("pull-images-on-xnat-init") final Boolean pullImagesOnXnatInit,
                                           @JsonProperty("container-user") final String containerUser,
+                                          @JsonProperty("auto-cleanup") final boolean autoCleanup,
                                           @Nullable @JsonProperty("swarm-constraints") final List<DockerServerSwarmConstraint> swarmConstraints) {
             return create(id, name, host, certPath, swarmMode, null, pathTranslationXnatPrefix,
-                    pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, swarmConstraints);
+                    pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, autoCleanup, swarmConstraints);
         }
 
         public static DockerServer create(final String name,
                                           final String host) {
-            return create(0L, name, host, null, false, null, null, null, null, null);
+            return create(0L, name, host, null, false, null, null, null, null, true, null);
         }
 
         public static DockerServer create(final Long id,
@@ -88,6 +92,7 @@ public abstract class DockerServerBase {
                                           final String pathTranslationDockerPrefix,
                                           final Boolean pullImagesOnXnatInit,
                                           final String containerUser,
+                                          final Boolean autoCleanup,
                                           final List<DockerServerSwarmConstraint> swarmConstraints) {
             return builder()
                     .id(id == null ? 0L : id)
@@ -100,6 +105,7 @@ public abstract class DockerServerBase {
                     .pathTranslationDockerPrefix(pathTranslationDockerPrefix)
                     .pullImagesOnXnatInit(pullImagesOnXnatInit != null && pullImagesOnXnatInit)
                     .containerUser(containerUser)
+                    .autoCleanup(autoCleanup != null && autoCleanup)
                     .swarmConstraints(swarmConstraints)
                     .build();
         }
@@ -125,6 +131,7 @@ public abstract class DockerServerBase {
                     dockerServerEntity.getPathTranslationDockerPrefix(),
                     pullImagesOnXnatInit == null ? false : pullImagesOnXnatInit,
                     dockerServerEntity.getContainerUser(),
+                    dockerServerEntity.isAutoCleanup(),
                     swarmConstraints);
         }
 
@@ -141,6 +148,7 @@ public abstract class DockerServerBase {
                     null,
                     false,
                     dockerServerPrefsBean.getContainerUser(),
+                    true,
                     null);
         }
 
@@ -158,6 +166,7 @@ public abstract class DockerServerBase {
                             this.pathTranslationDockerPrefix(),
                             this.pullImagesOnXnatInit(),
                             this.containerUser(),
+                            this.autoCleanup(),
                             this.swarmConstraints());
         }
 
@@ -179,6 +188,7 @@ public abstract class DockerServerBase {
             public abstract Builder pathTranslationDockerPrefix(String pathTranslationDockerPrefix);
             public abstract Builder pullImagesOnXnatInit(Boolean pullImagesOnXnatInit);
             public abstract Builder containerUser(String containerUser);
+            public abstract Builder autoCleanup(boolean autoCleanup);
             public abstract Builder swarmConstraints(List<DockerServerSwarmConstraint> swarmConstraints);
 
             public abstract DockerServer build();
@@ -201,10 +211,12 @@ public abstract class DockerServerBase {
                                                   @JsonProperty("path-translation-docker-prefix") final String pathTranslationDockerPrefix,
                                                   @JsonProperty("pull-images-on-xnat-init") final Boolean pullImagesOnXnatInit,
                                                   @JsonProperty("container-user") final String user,
+                                                  @JsonProperty("auto-cleanup") final boolean autoCleanup,
                                                   @Nullable @JsonProperty("swarm-constraints") final List<DockerServerSwarmConstraint> swarmConstraints,
                                                   @JsonProperty("ping") final Boolean ping) {
             return create(id == null ? 0L : id, name, host, certPath, swarmMode, new Date(0),
-                    pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit, user, swarmConstraints, ping);
+                    pathTranslationXnatPrefix, pathTranslationDockerPrefix, pullImagesOnXnatInit,
+                    user, autoCleanup, swarmConstraints, ping);
         }
 
         public static DockerServerWithPing create(final Long id,
@@ -217,6 +229,7 @@ public abstract class DockerServerBase {
                                                   final String pathTranslationDockerPrefix,
                                                   final Boolean pullImagesOnXnatInit,
                                                   final String user,
+                                                  final Boolean autoCleanup,
                                                   final List<DockerServerSwarmConstraint> swarmConstraints,
                                                   final Boolean ping) {
             return builder()
@@ -230,6 +243,7 @@ public abstract class DockerServerBase {
                     .pathTranslationDockerPrefix(pathTranslationDockerPrefix)
                     .pullImagesOnXnatInit(pullImagesOnXnatInit != null && pullImagesOnXnatInit)
                     .containerUser(user)
+                    .autoCleanup(autoCleanup != null && autoCleanup)
                     .swarmConstraints(swarmConstraints)
                     .ping(ping != null && ping)
                     .build();
@@ -248,6 +262,7 @@ public abstract class DockerServerBase {
                     dockerServer.pathTranslationDockerPrefix(),
                     dockerServer.pullImagesOnXnatInit(),
                     dockerServer.containerUser(),
+                    dockerServer.autoCleanup(),
                     dockerServer.swarmConstraints(),
                     ping
             );
@@ -271,6 +286,7 @@ public abstract class DockerServerBase {
             public abstract Builder pathTranslationDockerPrefix(String pathTranslationDockerPrefix);
             public abstract Builder pullImagesOnXnatInit(Boolean pullImagesOnXnatInit);
             public abstract Builder containerUser(String containerUser);
+            public abstract Builder autoCleanup(boolean autoCleanup);
             public abstract Builder swarmConstraints(List<DockerServerSwarmConstraint> swarmConstraints);
             public abstract Builder ping(Boolean ping);
 
@@ -358,13 +374,15 @@ public abstract class DockerServerBase {
                 Objects.equals(this.pathTranslationDockerPrefix(), that.pathTranslationDockerPrefix()) &&
                 Objects.equals(this.pullImagesOnXnatInit(), that.pullImagesOnXnatInit()) &&
                 Objects.equals(this.containerUser(), that.containerUser()) &&
+                Objects.equals(this.autoCleanup(), that.autoCleanup()) &&
                 Objects.equals(this.swarmConstraints(), that.swarmConstraints());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name(), host(), certPath(), swarmMode(),
-                pathTranslationXnatPrefix(), pathTranslationDockerPrefix(), pullImagesOnXnatInit(), containerUser(), swarmConstraints());
+                pathTranslationXnatPrefix(), pathTranslationDockerPrefix(), pullImagesOnXnatInit(),
+                containerUser(), autoCleanup(), swarmConstraints());
     }
 
 }

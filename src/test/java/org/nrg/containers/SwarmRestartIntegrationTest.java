@@ -179,7 +179,7 @@ public class SwarmRestartIntegrationTest {
                 .thenReturn(fakeWorkflow);
         doNothing().when(WorkflowUtils.class, "save", any(PersistentWorkflowI.class), isNull(EventMetaI.class));
         PowerMockito.spy(PersistentWorkflowUtils.class);
-        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.eventId),
+        doReturn(fakeWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(FakeWorkflow.defaultEventId),
                 eq(mockUser), any(XFTItem.class), any(EventDetails.class));
 
         // Setup docker server
@@ -213,7 +213,8 @@ public class SwarmRestartIntegrationTest {
             }
         }
         dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
-                swarmMode, null, null, null, false, null, null));
+                swarmMode, null, null, null,
+                false, null, true, null));
 
         CLIENT = controlApi.getClient();
         CLIENT.pull("busybox:latest");

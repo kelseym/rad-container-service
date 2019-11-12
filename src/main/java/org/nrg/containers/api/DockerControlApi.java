@@ -1162,6 +1162,34 @@ public class DockerControlApi implements ContainerControlApi {
     }
 
     @Override
+    public void removeContainerOrService(final Container container)
+            throws NoDockerServerException, DockerServerException {
+        final DockerServer server = getServer();
+        if (!server.autoCleanup()) {
+            return;
+        }
+        try (final DockerClient client = getClient()) {
+            String id;
+            if (container.isSwarmService()) {
+                id = container.serviceId();
+                log.debug("Removing service {}", id);
+                client.removeService(id);
+            } else {
+                id = container.containerId();
+                log.debug("Removing container {}", id);
+                client.removeContainer(id);
+            }
+            log.debug("Successfully removed container or service {}", id);
+        } catch (DockerException | InterruptedException e) {
+            log.error(e.getMessage(), e);
+            throw new DockerServerException(e);
+        } catch (DockerServerException e) {
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
     @Nullable
     public ServiceTask getTaskForService(final Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException {
         return getTaskForService(getServer(), service);

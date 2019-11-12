@@ -146,7 +146,9 @@ public class QueueConsumerTest {
             }
         }
 
-        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath, false, null, null, null, false, null, null));
+        dockerServerService.setServer(DockerServer.create(0L, "Test server", containerHost, certPath,
+                false, null, null, null,
+                false, null, true,null));
 
         // Mock the userI
         mockUser = mock(UserI.class);

@@ -72,6 +72,8 @@ public interface ContainerControlApi {
     void killContainer(final String id) throws NoDockerServerException, DockerServerException, NotFoundException;
     void killService(String id) throws NoDockerServerException, DockerServerException, NotFoundException;
 
+    void removeContainerOrService(final Container container) throws NoDockerServerException, DockerServerException;
+
     ServiceTask getTaskForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;
     ServiceTask getTaskForService(DockerServer dockerServer, Container service) throws DockerServerException, ServiceNotFoundException;
     void throwTaskEventForService(Container service) throws NoDockerServerException, DockerServerException, ServiceNotFoundException;

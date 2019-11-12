@@ -18,6 +18,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
     private Boolean pullImagesOnXnatInit;
     private String containerUser;
     private List<DockerServerEntitySwarmConstraint> swarmConstraints = new ArrayList<>();
+    private boolean autoCleanup = true;
 
     public static DockerServerEntity create(final DockerServer dockerServer) {
         return new DockerServerEntity().update(dockerServer);
@@ -33,6 +34,7 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         this.pathTranslationDockerPrefix = dockerServer.pathTranslationDockerPrefix();
         this.pullImagesOnXnatInit = dockerServer.pullImagesOnXnatInit();
         this.containerUser = dockerServer.containerUser();
+        this.autoCleanup = dockerServer.autoCleanup();
 
         final Map<String, DockerServerBase.DockerServerSwarmConstraint> pojoConstraintsToAdd = new HashMap<>();
         List<DockerServerBase.DockerServerSwarmConstraint> pojoConstraints = dockerServer.swarmConstraints();
@@ -163,6 +165,15 @@ public class DockerServerEntity extends AbstractHibernateEntity {
         swarmConstraint.setDockerServerEntity(null);
     }
 
+    @Column(columnDefinition = "boolean default true")
+    public boolean isAutoCleanup() {
+        return autoCleanup;
+    }
+
+    public void setAutoCleanup(Boolean autoCleanup) {
+        this.autoCleanup = autoCleanup == null ? true : autoCleanup;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -201,13 +212,14 @@ public class DockerServerEntity extends AbstractHibernateEntity {
                 Objects.equals(this.pathTranslationDockerPrefix, that.pathTranslationDockerPrefix) &&
                 Objects.equals(this.pullImagesOnXnatInit, that.pullImagesOnXnatInit) &&
                 Objects.equals(this.containerUser, that.containerUser) &&
+                Objects.equals(this.autoCleanup, that.autoCleanup) &&
                 constrEqual;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, host, certPath, lastEventCheckTime, swarmMode, pathTranslationXnatPrefix,
-                pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, swarmConstraints);
+                pathTranslationDockerPrefix, pullImagesOnXnatInit, containerUser, autoCleanup, swarmConstraints);
     }
 
 }

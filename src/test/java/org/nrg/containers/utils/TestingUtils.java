@@ -14,14 +14,11 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
 import org.nrg.containers.model.container.auto.Container;
 import org.nrg.containers.model.container.auto.ServiceTask;
-import org.nrg.containers.model.xnat.FakeWorkflow;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.event.persist.PersistentWorkflowUtils;
-import org.nrg.xft.security.UserI;
-import org.nrg.xnat.utils.WorkflowUtils;
 import org.springframework.test.context.transaction.TestTransaction;
 
 import java.io.File;
@@ -101,13 +98,17 @@ public class TestingUtils {
             public Boolean call() throws Exception {
                 try {
                     if (swarmMode) {
-                        final Service serviceResponse = CLIENT.inspectService(container.serviceId());
+                        String id = container.serviceId();
+                        if (id == null) {
+                            return false;
+                        }
+                        final Service serviceResponse = CLIENT.inspectService(id);
                         final List<Task> tasks = CLIENT.listTasks(Task.Criteria.builder().serviceName(serviceResponse.spec().name()).build());
                         if (tasks.size() == 0) {
                             return false;
                         }
                         for (final Task task : tasks) {
-                            final ServiceTask serviceTask = ServiceTask.create(task, container.serviceId());
+                            final ServiceTask serviceTask = ServiceTask.create(task, id);
                             if (!serviceTask.hasNotStarted()) {
                                 // if it's not a "before running" status (aka running or some exit status)
                                 return true;
@@ -115,8 +116,13 @@ public class TestingUtils {
                         }
                         return false;
                     } else {
-                        final ContainerInfo containerInfo = CLIENT.inspectContainer(container.containerId());
-                        return (!containerInfo.state().status().equals("CREATED"));
+                        String id = container.containerId();
+                        if (id == null) {
+                            return false;
+                        }
+                        final ContainerInfo containerInfo = CLIENT.inspectContainer(id);
+                        String status = containerInfo.state().status();
+                        return !"CREATED".equals(status);
                     }
                 } catch (ContainerNotFoundException ignored) {
                     // Ignore exception. If container is not found, it is not running.
@@ -242,18 +248,21 @@ public class TestingUtils {
         return new Callable<Boolean>() {
             public Boolean call() throws Exception {
                 String status = containerService.get(container.databaseId()).status();
-                return status.equals(ContainerServiceImpl.FINALIZING) || status.contains(PersistentWorkflowUtils.FAILED);
+                return status != null &&
+                        (status.equals(ContainerServiceImpl.FINALIZING) ||
+                                status.startsWith(PersistentWorkflowUtils.FAILED));
             }
         };
     }
 
-    public static Callable<Boolean> containerIsFinalized(final UserI user, final Container container) {
+    public static Callable<Boolean> containerIsFinalized(final ContainerService containerService,
+                                                         final Container container) {
         return new Callable<Boolean>() {
             public Boolean call() throws Exception {
-                PersistentWorkflowI wrk = WorkflowUtils.getUniqueWorkflow(user, container.workflowId());
-                return wrk != null &&
-                        (wrk.getStatus().equals(PersistentWorkflowUtils.COMPLETE) ||
-                        wrk.getStatus().contains(PersistentWorkflowUtils.FAILED));
+                String status = containerService.get(container.databaseId()).status();
+                return status != null &&
+                        (status.equals(PersistentWorkflowUtils.COMPLETE) ||
+                                status.startsWith(PersistentWorkflowUtils.FAILED));
             }
         };
     }

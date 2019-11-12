@@ -18,6 +18,7 @@ Not yet released
 * Support scan output type (via scan xml) and resource uploads to it
 * Make use of "derived-from-xnat-object-property" for XNAT object type derived inputs (previously, this was only used when derived input was type="string")
 * Allow an input with type="File" to provide files for command mount
+* [CS-583][]: Add option to automatically remove containers/services after they've been finalized
 
 ### Bugfixes
 
@@ -44,6 +45,7 @@ Not yet released
 [CS-578]: https://issues.xnat.org/browse/CS-578
 [CS-580]: https://issues.xnat.org/browse/CS-580
 [CS-572]: https://issues.xnat.org/browse/CS-572
+[CS-583]: https://issues.xnat.org/browse/CS-583
 
 
 
