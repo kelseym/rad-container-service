@@ -50,11 +50,9 @@ import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.event.persist.PersistentWorkflowUtils;
 import org.nrg.xft.schema.XFTManager;
 import org.nrg.xft.security.UserI;
+import org.nrg.xnat.archive.ResourceData;
 import org.nrg.xnat.helpers.uri.UriParserUtils;
-import org.nrg.xnat.helpers.uri.archive.impl.ExptAssessorURI;
-import org.nrg.xnat.helpers.uri.archive.impl.ExptScanURI;
-import org.nrg.xnat.helpers.uri.archive.impl.ExptURI;
-import org.nrg.xnat.helpers.uri.archive.impl.ProjURI;
+import org.nrg.xnat.helpers.uri.archive.impl.*;
 import org.nrg.xnat.services.archive.CatalogService;
 import org.nrg.xnat.turbine.utils.ArchivableItem;
 import org.nrg.xnat.utils.WorkflowUtils;
@@ -75,6 +73,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
@@ -583,11 +582,34 @@ public class CommandLaunchIntegrationTest {
         final String testFileContents = "contents of the file";
         Files.write(Paths.get(resourceDir, "test.txt"), testFileContents.getBytes());
 
-        // I don't know if I need this, but I copied it from another test
-        final ArchivableItem mockProjectItem = mock(ArchivableItem.class);
-        final ProjURI mockUriObject = mock(ProjURI.class);
-        when(UriParserUtils.parseURI("/archive" + resourceInput.getUri())).thenReturn(mockUriObject);
-        when(mockUriObject.getSecurityItem()).thenReturn(mockProjectItem);
+        final ArchivableItem mockItem = mock(ArchivableItem.class);
+        final ResourcesExptURI mockUriObject = mock(ResourcesExptURI.class);
+        String uri = "/archive" + resourceInput.getUri();
+        when(UriParserUtils.parseURI(uri)).thenReturn(mockUriObject);
+        when(mockUriObject.getSecurityItem()).thenReturn(mockItem);
+        fakeWorkflow.setId(uri);
+        ResourceData mockRD = mock(ResourceData.class);
+        when(mockRD.getItem()).thenReturn(mockItem);
+        when(mockCatalogService.getResourceDataFromUri(uri)).thenReturn(mockRD);
+
+        String id = "id";
+        String xsiType = "type";
+        String project = "project";
+        when(mockItem.getId()).thenReturn(id);
+        when(mockItem.getXSIType()).thenReturn(xsiType);
+        when(mockItem.getProject()).thenReturn(project);
+
+        // Setup workflow
+        FakeWorkflow setupWrapupWorkflow = new FakeWorkflow();
+        setupWrapupWorkflow.setWfid(111);
+        setupWrapupWorkflow.setEventId(2);
+        doReturn(setupWrapupWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(2),
+                eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+        when(WorkflowUtils.buildOpenWorkflow(eq(mockUser), eq(xsiType), eq(id), eq(project), any(EventDetails.class)))
+                .thenReturn(setupWrapupWorkflow);
+
+        when(WorkflowUtils.getUniqueWorkflow(mockUser, setupWrapupWorkflow.getWorkflowId().toString()))
+                .thenReturn(setupWrapupWorkflow);
 
         // Time to launch this thing
         containerService.queueResolveCommandAndLaunchContainer(null, commandWithSetupCommandWrapper.id(),
@@ -595,7 +617,9 @@ public class CommandLaunchIntegrationTest {
         final Container mainContainerRightAfterLaunch = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? mainContainerRightAfterLaunch.serviceId() : mainContainerRightAfterLaunch.containerId());
         TestingUtils.commitTransaction();
-        Thread.sleep(5000); // Wait for container to finish
+        log.debug("Waiting until container is finalized or has failed");
+        await().atMost(20L, TimeUnit.SECONDS)
+                .until(TestingUtils.containerIsFinalized(containerService, mainContainerRightAfterLaunch), is(true));
 
         final Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId());
         final List<Container> setupContainers = containerService.retrieveSetupContainersForParent(mainContainerAWhileAfterLaunch.databaseId());
@@ -626,9 +650,6 @@ public class CommandLaunchIntegrationTest {
         //     put the files where they needed to go, and that all the mounts were hooked up correctly.
         assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("test.txt")));
         assertThat(contentsOfMainContainerMountDir, hasItemInArray(TestingUtils.pathEndsWith("another-file")));
-
-        // NOTE: this doesn't finalize due to NPEs from missing workflows, see ContainerCleanupIntegrationTest#setupMocksForSetupWrapupWorkflow
-        // if you need to set this up to work properly
     }
 
     @Test
@@ -699,8 +720,30 @@ public class CommandLaunchIntegrationTest {
         // Ensure the session XNAT object will be returned by the call to UriParserUtils.parseURI
         final ArchivableItem mockSessionItem = mock(ArchivableItem.class);
         final ExptURI mockUriObject = mock(ExptURI.class);
-        when(UriParserUtils.parseURI("/archive" + sessionInput.getUri())).thenReturn(mockUriObject);
+        String uri = "/archive" + sessionInput.getUri();
+        when(UriParserUtils.parseURI(uri)).thenReturn(mockUriObject);
         when(mockUriObject.getSecurityItem()).thenReturn(mockSessionItem);
+        String id = "id";
+        String xsiType = "type";
+        String project = "project";
+        when(mockSessionItem.getId()).thenReturn(id);
+        when(mockSessionItem.getXSIType()).thenReturn(xsiType);
+        when(mockSessionItem.getProject()).thenReturn(project);
+        fakeWorkflow.setId(uri);
+        ResourceData mockRD = mock(ResourceData.class);
+        when(mockRD.getItem()).thenReturn(mockSessionItem);
+        when(mockCatalogService.getResourceDataFromUri(uri)).thenReturn(mockRD);
+
+        FakeWorkflow setupWrapupWorkflow = new FakeWorkflow();
+        setupWrapupWorkflow.setWfid(111);
+        setupWrapupWorkflow.setEventId(2);
+        doReturn(setupWrapupWorkflow).when(PersistentWorkflowUtils.class, "getOrCreateWorkflowData", eq(2),
+                eq(mockUser), any(XFTItem.class), any(EventDetails.class));
+        when(WorkflowUtils.buildOpenWorkflow(eq(mockUser), eq(xsiType), eq(id), eq(project), any(EventDetails.class)))
+                .thenReturn(setupWrapupWorkflow);
+
+        when(WorkflowUtils.getUniqueWorkflow(mockUser, setupWrapupWorkflow.getWorkflowId().toString()))
+                .thenReturn(setupWrapupWorkflow);
 
         // Time to launch this thing
         containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(),
@@ -710,11 +753,9 @@ public class CommandLaunchIntegrationTest {
 
         TestingUtils.commitTransaction();
 
-        log.debug("Waiting for ten seconds. Peace!");
-        Thread.sleep(10000); // Wait for container to finish
-
         log.debug("Waiting until container is finalized or has failed");
-        await().until(TestingUtils.containerIsFinalizingOrFailed(containerService, mainContainerRightAfterLaunch), is(true));
+        await().atMost(20L, TimeUnit.SECONDS)
+                .until(TestingUtils.containerIsFinalized(containerService, mainContainerRightAfterLaunch), is(true));
         Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId()); //refresh it
         assertThat(mainContainerAWhileAfterLaunch.status(), not(containsString("Failed")));
         assertThat(fakeWorkflow.getStatus(), not(startsWith(PersistentWorkflowUtils.FAILED)));
@@ -758,9 +799,6 @@ public class CommandLaunchIntegrationTest {
         final File foundFilesDotTxt = contentsOfWrapupContainerOutputMountDir[0];
         final String[] foundFilesDotTxtContentByLine = TestingUtils.readFile(foundFilesDotTxt);
         assertThat(foundFilesDotTxtContentByLine, arrayContainingInAnyOrder(expectedFileContentsByLine));
-
-        // NOTE: this doesn't finalize due to NPEs from missing workflows, see ContainerCleanupIntegrationTest#setupMocksForSetupWrapupWorkflow
-        // if you need to set this up to work properly
     }
 
     @Test
