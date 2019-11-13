@@ -228,7 +228,7 @@ XNAT.plugin.containerService = getObject(XNAT.plugin.containerService || {});
                             name: 'container-user',
                             label: 'Container User'
                         }),
-                        spawn('p.divider', '<strong>Automatically cleanup completed containers</strong><br> Use this setting to automatically remove completed containers after saving outputs and logs (Note that any non-primary nodes will need to be restarted to pick up changes to this setting.)'),
+                        spawn('p.divider', '<strong>Automatically cleanup completed containers</strong><br> Use this setting to automatically remove completed containers after saving outputs and logs. If you do not use this setting, you will need to run some sort of cleanup script on your server to remove old containers so as not to run out of system resources.'),
                         XNAT.ui.panel.input.switchbox({
                             name: 'auto-cleanup',
                             label: 'Automatically cleanup containers?',
