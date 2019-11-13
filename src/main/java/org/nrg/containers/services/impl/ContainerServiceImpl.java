@@ -411,16 +411,13 @@ public class ContainerServiceImpl implements ContainerService {
                                                       @Nullable final String wrapperName,
                                                       final Map<String, String> inputValues,
                                                       final UserI userI,
-                                                      @Nullable PersistentWorkflowI workflow)
-            throws Exception {
+                                                      @Nullable PersistentWorkflowI workflow) {
 
         // Workflow shouldn't be null unless container launched without a root element
         // (I think the only way to do so would be through the REST API)
         String workflowid = null;
-        //String status = null;
         if (workflow != null) {
             workflowid = workflow.getWorkflowId().toString();
-            //status = workflow.getStatus();
             if (project == null) {
                 project = XnatProjectdata.SCHEMA_ELEMENT_NAME.equals(workflow.getDataType())
                         ? workflow.getId()
@@ -440,25 +437,20 @@ public class ContainerServiceImpl implements ContainerService {
                 request.getWrapperId(), request.getCommandId(), request.getWrapperName(),
                 request.getInputValues(), request.getUsername(), request.getWorkflowid());
 
-        // Update: don't use JMS indicator for staging queue since staging tasks are added to the JMS queue manually
-        //
-        // Workflow will only retain the JMS indicator for command resolution, once launching process begins, status is
-        // updated without JMS indicator. This is probably okay since staging tasks are added to the JMS queue manually
-        // upon launch, rather than automatically by an event.
-        //if (status != null && request.inJMSQueue(status)) {
-        //    log.debug("{} appears to already be in JMS queue", workflowid);
-        //    // Throw exception?
-        //    return;
-        //}
-        //
-        //if (workflow != null) {
-        //    workflow.setStatus(request.makeJMSQueuedStatus(status));
-        //    WorkflowUtils.save(workflow, workflow.buildEvent());
-        //}
+        // Update: don't use JMS indicator for staging queue since staging tasks are added to the JMS queue manually (here)
+        // rather than automatically by status as in finalizing
 
-        XDAT.sendJmsRequest(request);
+        try {
+            XDAT.sendJmsRequest(request);
+        } catch (Exception e) {
+            handleFailure(workflow, e, "JMS");
+            String pipelineName = workflow != null ? workflow.getPipelineName() : "Unknown";
+            String xnatId = workflow != null ? workflow.getId() : "Unknown";
+            String wfProject = workflow != null ? workflow.getExternalid() : "Unknown";
+            containerFinalizeService.sendContainerStatusUpdateEmail(userI, false, pipelineName,
+                    xnatId, null, StringUtils.defaultIfBlank(project, wfProject), null);
+        }
     }
-
 
     @Override
     public void consumeResolveCommandAndLaunchContainer(@Nullable final String project,
@@ -897,6 +889,7 @@ public class ContainerServiceImpl implements ContainerService {
     @Override
 	public void queueFinalize(final String exitCodeString, final boolean isSuccessfulStatus,
                               final Container containerOrService, final UserI userI) {
+
 		ContainerFinalizingRequest request = new ContainerFinalizingRequest(exitCodeString, isSuccessfulStatus,
                 containerOrService.containerOrServiceId(), userI.getLogin());
 
@@ -905,7 +898,7 @@ public class ContainerServiceImpl implements ContainerService {
             count = QueueUtils.count(request.getDestination());
         }
 
-		if (!request.inJMSQueue(this.getWorkflowStatus(userI, containerOrService))) {
+		if (!request.inJMSQueue(getWorkflowStatus(userI, containerOrService))) {
 			log.debug("Adding to finalizing queue: count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",
                     count, request.getExitCodeString(), request.isSuccessful(), request.getId(), request.getUsername(),
                     containerOrService.status());
@@ -913,18 +906,52 @@ public class ContainerServiceImpl implements ContainerService {
 			        request.makeJMSQueuedStatus(containerOrService.status()), "Queued for finalizing"),
                     userI);
 			try {
-				XDAT.sendJmsRequest(request);
-			} catch (Exception e) {
-			    String msg = "Finalizing message queue failed. Throw back into waiting and try again later.";
-				addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(WAITING, msg), userI);
-				log.error(msg, e);
-			}
+                XDAT.sendJmsRequest(request);
+            } catch (Exception e) {
+                recoverFromQueueingFailureFinalizing(e, containerOrService, userI);
+            }
 		} else {
 			log.debug("Already in finalizing queue: count {}, exitcode {}, issuccessfull {}, id {}, username {}, status {}",
                     count, request.getExitCodeString(), request.isSuccessful(), request.getId(), request.getUsername(),
                     containerOrService.status());
 		}
 	}
+
+    private void recoverFromQueueingFailureFinalizing(Exception e,
+                                                      final Container containerOrService,
+                                                      final UserI userI) {
+
+        try {
+            final Container.ContainerHistory failedHistoryItem = Container.ContainerHistory
+                    .fromSystem(PersistentWorkflowUtils.FAILED + " (JMS)", e.getMessage());
+            addContainerHistoryItem(containerOrService, failedHistoryItem, userI);
+            cleanupContainers(containerOrService);
+        } catch (DockerServerException | NoDockerServerException ex) {
+            log.error("Unable to cleanup container {}", containerOrService, ex);
+        }
+
+        // email user
+        PersistentWorkflowI workflow = getContainerWorkflow(userI, containerOrService);
+        String pipelineName;
+        String xnatId;
+        String project;
+        if (workflow != null) {
+            pipelineName = workflow.getPipelineName();
+            xnatId = workflow.getId();
+            project = workflow.getExternalid();
+        } else {
+            xnatId = "Unknown";
+            project = "Unknown";
+            try {
+                pipelineName = commandService.get(containerOrService.wrapperId()).name();
+            } catch (Exception x) {
+                pipelineName = "Unknown";
+            }
+        }
+
+        containerFinalizeService.sendContainerStatusUpdateEmail(userI, false, pipelineName,
+                xnatId, null, project, null);
+    }
 	
     @Override
 	public void consumeFinalize(final String exitCodeString, final boolean isSuccessfulStatus,
@@ -1347,10 +1374,13 @@ public class ContainerServiceImpl implements ContainerService {
         return null;
     }
 
+    private PersistentWorkflowI getContainerWorkflow(UserI userI, final Container container) {
+        String workFlowId = container.workflowId();
+        return WorkflowUtils.getUniqueWorkflow(userI, workFlowId);
+    }
+
     private String getWorkflowStatus(UserI userI, final Container container) {
-     	   String workFlowId = container.workflowId();
-     	   PersistentWorkflowI workflow = WorkflowUtils.getUniqueWorkflow(userI, workFlowId);
-     	   return workflow.getStatus();
+     	   return getContainerWorkflow(userI, container).getStatus();
     }
 
 	private void handleFailure(UserI userI, final Container container) {
@@ -1378,7 +1408,8 @@ public class ContainerServiceImpl implements ContainerService {
      * @param source the exception source
      * @param statusSuffix optional suffix (will try to determine from exception class if not provided)
      */
-    private void handleFailure(@Nullable PersistentWorkflowI workflow, @Nullable final Exception source,
+    private void handleFailure(@Nullable PersistentWorkflowI workflow,
+                               @Nullable final Exception source,
                                @Nullable String statusSuffix) {
         if (workflow == null) return;
 
@@ -1400,7 +1431,6 @@ public class ContainerServiceImpl implements ContainerService {
         	log.error("Unable to update workflow {} and set it to {} status", workflow.getWorkflowId(), status, e);
         }
     }
-
 
     /**
      * Creates a workflow object to be used with container service

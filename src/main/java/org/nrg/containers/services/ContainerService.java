@@ -13,7 +13,6 @@ import org.nrg.xft.event.persist.PersistentWorkflowI;
 import org.nrg.xft.security.UserI;
 
 import java.io.InputStream;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +56,7 @@ public interface ContainerService {
                                                 String wrapperName, String projectId, UserI user)
             throws Exception;
 
+
     void queueResolveCommandAndLaunchContainer(String project,
                                                long wrapperId,
                                                long commandId,
@@ -92,8 +92,16 @@ public interface ContainerService {
 	boolean isWaiting(Container service);
 	boolean isFinalizing(Container service);
     boolean isFailedOrComplete(Container service, UserI user);
-	void queueFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI);
-    void consumeFinalize(final String exitCodeString, final boolean isSuccessful, final Container service, final UserI userI)
+
+    void queueFinalize(final String exitCodeString,
+                       final boolean isSuccessful,
+                       final Container service,
+                       final UserI userI);
+
+    void consumeFinalize(final String exitCodeString,
+                         final boolean isSuccessful,
+                         final Container service,
+                         final UserI userI)
             throws NoDockerServerException, ContainerException, NotFoundException, DockerServerException;
 
     /**

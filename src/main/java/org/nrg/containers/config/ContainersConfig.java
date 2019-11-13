@@ -9,9 +9,12 @@ import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.nrg.containers.events.DockerStatusUpdater;
+import org.nrg.containers.jms.errors.ContainerJmsErrorHandler;
 import org.nrg.containers.jms.preferences.QueuePrefsBean;
 import org.nrg.containers.jms.tasks.QueueManager;
 import org.nrg.framework.annotations.XnatPlugin;
+import org.nrg.mail.services.MailService;
+import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xnat.initialization.RootConfig;
 import org.nrg.xnat.services.XnatAppInfo;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,23 +49,30 @@ public class ContainersConfig {
     public static final String QUEUE_MIN_CONCURRENCY_DFLT = "10";
     public static final String QUEUE_MAX_CONCURRENCY_DFLT = "20";
 
-    private DefaultJmsListenerContainerFactory defaultFactory(ConnectionFactory connectionFactory) {
+    private DefaultJmsListenerContainerFactory defaultFactory(ConnectionFactory connectionFactory,
+                                                              final SiteConfigPreferences siteConfigPreferences,
+                                                              final MailService mailService) {
         DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setConcurrency(QUEUE_MIN_CONCURRENCY_DFLT + "-" + QUEUE_MAX_CONCURRENCY_DFLT);
+        factory.setErrorHandler(new ContainerJmsErrorHandler(siteConfigPreferences, mailService));
         return factory;
     }
 
     @Bean(name = {"finalizingQueueListenerFactory", "jmsListenerContainerFactory"})
-    public DefaultJmsListenerContainerFactory finalizingQueueListenerFactory(@Qualifier("springConnectionFactory")
+    public DefaultJmsListenerContainerFactory finalizingQueueListenerFactory(final SiteConfigPreferences siteConfigPreferences,
+                                                                             final MailService mailService,
+                                                                             @Qualifier("springConnectionFactory")
                                                                                            ConnectionFactory connectionFactory) {
-        return defaultFactory(connectionFactory);
+        return defaultFactory(connectionFactory, siteConfigPreferences, mailService);
     }
 
     @Bean(name = "stagingQueueListenerFactory")
-    public DefaultJmsListenerContainerFactory stagingQueueListenerFactory(@Qualifier("springConnectionFactory")
+    public DefaultJmsListenerContainerFactory stagingQueueListenerFactory(final SiteConfigPreferences siteConfigPreferences,
+                                                                          final MailService mailService,
+                                                                          @Qualifier("springConnectionFactory")
                                                                                        ConnectionFactory connectionFactory) {
-        return defaultFactory(connectionFactory);
+        return defaultFactory(connectionFactory, siteConfigPreferences, mailService);
     }
 
     @Bean

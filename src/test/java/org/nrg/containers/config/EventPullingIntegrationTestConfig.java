@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 @EnableScheduling
 @EnableTransactionManagement
-@Import({IntegrationTestConfig.class, JmsConfig.class})
+@Import({IntegrationTestConfig.class, MockJmsConfig.class})
 public class EventPullingIntegrationTestConfig implements SchedulingConfigurer {
     @Bean
     public DockerStatusUpdater dockerStatusUpdater(final DockerControlApi dockerControlApi,

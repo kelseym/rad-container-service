@@ -34,7 +34,6 @@ import org.nrg.containers.services.impl.*;
 import org.nrg.framework.services.ContextService;
 import org.nrg.framework.services.NrgEventService;
 import org.nrg.mail.services.MailService;
-import org.nrg.mail.services.impl.SpringBasedMailServiceImpl;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.services.PermissionsServiceI;
 import org.nrg.xdat.security.user.XnatUserProvider;
@@ -48,7 +47,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.orm.hibernate4.HibernateTransactionManager;
 import org.springframework.orm.hibernate4.LocalSessionFactoryBean;
-import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.ResourceTransactionManager;
 import reactor.Environment;
@@ -58,8 +56,6 @@ import reactor.core.dispatch.RingBufferDispatcher;
 
 import javax.sql.DataSource;
 import java.util.Properties;
-
-import static org.mockito.Mockito.when;
 
 @Configuration
 @EnableTransactionManagement
@@ -129,8 +125,9 @@ public class IntegrationTestConfig {
     Container launch Service and dependencies
      */
     @Bean
-    public MailService mailService() {
-        return new SpringBasedMailServiceImpl(null);
+    public MailService mockMailService() {
+        //return new SpringBasedMailServiceImpl(null);
+        return Mockito.mock(MailService.class);
     }
 
     @Bean

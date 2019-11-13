@@ -265,8 +265,8 @@ public class SwarmRestartIntegrationTest {
     @Test
     @DirtiesContext
     public void testRestartShutdown() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         String serviceId = service.serviceId();
         containersToCleanUp.add(serviceId);
@@ -308,8 +308,8 @@ public class SwarmRestartIntegrationTest {
     @Test
     @DirtiesContext
     public void testRestartClearedTask() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         String serviceId = service.serviceId();
         containersToCleanUp.add(serviceId);
@@ -334,8 +334,8 @@ public class SwarmRestartIntegrationTest {
     @Test
     @DirtiesContext
     public void testRestartClearedBeforeRunTask() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(service.serviceId());
         TestingUtils.commitTransaction();
@@ -356,8 +356,8 @@ public class SwarmRestartIntegrationTest {
     @Test
     @DirtiesContext
     public void testRestartFailure() throws Exception {
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
 
         // Restart

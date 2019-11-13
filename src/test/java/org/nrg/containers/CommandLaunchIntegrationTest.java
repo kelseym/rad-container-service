@@ -324,8 +324,8 @@ public class CommandLaunchIntegrationTest {
         runtimeValues.put("session", sessionJson);
         runtimeValues.put("T1-scantype", t1Scantype);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
         await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, execution), is(false));
@@ -441,8 +441,8 @@ public class CommandLaunchIntegrationTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("project", projectJson);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
         await().until(TestingUtils.containerIsRunning(CLIENT, swarmMode, execution), is(false));
@@ -590,8 +590,8 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockProjectItem);
 
         // Time to launch this thing
-        containerService.queueResolveCommandAndLaunchContainer(null, commandWithSetupCommandWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithSetupCommandWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container mainContainerRightAfterLaunch = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? mainContainerRightAfterLaunch.serviceId() : mainContainerRightAfterLaunch.containerId());
         TestingUtils.commitTransaction();
@@ -703,8 +703,8 @@ public class CommandLaunchIntegrationTest {
         when(mockUriObject.getSecurityItem()).thenReturn(mockSessionItem);
 
         // Time to launch this thing
-        containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, commandWithWrapupCommandWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container mainContainerRightAfterLaunch = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? mainContainerRightAfterLaunch.serviceId() : mainContainerRightAfterLaunch.containerId());
 
@@ -869,8 +869,8 @@ public class CommandLaunchIntegrationTest {
         TestingUtils.commitTransaction();
 
 
-        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
@@ -910,8 +910,8 @@ public class CommandLaunchIntegrationTest {
         TestingUtils.commitTransaction();
 
 
-        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
@@ -943,8 +943,8 @@ public class CommandLaunchIntegrationTest {
         final CommandWrapper wrapper = command.xnatCommandWrappers().get(0);
 
 
-        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
@@ -1076,8 +1076,8 @@ public class CommandLaunchIntegrationTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("session", sessionJson);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
 
@@ -1198,8 +1198,8 @@ public class CommandLaunchIntegrationTest {
         final Map<String, String> runtimeValues = Maps.newHashMap();
         runtimeValues.put("session", sessionJson);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, wrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container execution = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? execution.serviceId() : execution.containerId());
 

@@ -1093,9 +1093,12 @@ public class DockerControlApi implements ContainerControlApi {
         final List<DockerContainerEvent> events = getContainerEvents(since, until);
 
         for (final DockerContainerEvent event : events) {
-            if (log.isDebugEnabled()) {
-                log.debug("Throwing docker container event: {}", event);
+            if (event.isDestroyStatus()) {
+                // This occurs on container cleanup, ignore it, we've already finalized at this point
+                log.debug("Skipping docker container event: {}", event);
+                continue;
             }
+            log.debug("Throwing docker container event: {}", event);
             eventService.triggerEvent(event);
         }
     }

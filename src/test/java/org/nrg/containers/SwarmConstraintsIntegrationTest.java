@@ -284,8 +284,8 @@ public class SwarmConstraintsIntegrationTest {
         dockerServerService.setServer(server);
         setClient();
 
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(service.serviceId());
@@ -302,8 +302,8 @@ public class SwarmConstraintsIntegrationTest {
         dockerServerService.setServer(server);
         setClient();
 
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(service.serviceId());
@@ -384,8 +384,8 @@ public class SwarmConstraintsIntegrationTest {
         // Update manager node to match constraints
         CLIENT.updateNode(managerNode.id(), managerNode.version().index(), runSpec);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, userInputs, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(service.serviceId());
@@ -399,8 +399,8 @@ public class SwarmConstraintsIntegrationTest {
                 .build();
         CLIENT.updateNode(managerNode.id(), nodeInfo.version().index(), noRunSpec);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, userInputs, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container service2 = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(service2.serviceId());
@@ -445,8 +445,8 @@ public class SwarmConstraintsIntegrationTest {
         userInputs.put(CommandResolutionServiceImpl.swarmConstraintsTag,
                 mapper.writeValueAsString(Collections.singletonList(selConstr)));
 
-        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(), 0L,
-                null, userInputs, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, sleeperWrapper.id(),
+                0L, null, userInputs, mockUser, fakeWorkflow);
         TestingUtils.commitTransaction();
         Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(container.containerId());

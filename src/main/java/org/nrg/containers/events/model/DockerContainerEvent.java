@@ -19,6 +19,11 @@ public abstract class DockerContainerEvent implements ContainerEvent {
     @Nullable public abstract Long timeNano();
     public abstract ImmutableMap<String, String> attributes();
 
+    public boolean isDestroyStatus() {
+        final String status = status();
+        return status != null && status.equals("destroy");
+    }
+
     public boolean isExitStatus() {
         final String status = status();
         return status != null && exitStatusPattern.matcher(status).matches();

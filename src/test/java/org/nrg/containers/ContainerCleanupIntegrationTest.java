@@ -74,7 +74,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.awaitility.Awaitility.await;
-import static org.awaitility.Awaitility.reset;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
@@ -368,7 +367,7 @@ public class ContainerCleanupIntegrationTest {
 
     private void testSuccess() throws Exception {
         setupServer();
-        final Command willFail = commandService.create(Command.builder()
+        final Command willSucceed = commandService.create(Command.builder()
                 .name("will-succeed")
                 .image("busybox:latest")
                 .version("0")
@@ -377,12 +376,12 @@ public class ContainerCleanupIntegrationTest {
                         .name("placeholder")
                         .build())
                 .build());
-        final CommandWrapper willFailWrapper = willFail.xnatCommandWrappers().get(0);
+        final CommandWrapper willSucceedWrapper = willSucceed.xnatCommandWrappers().get(0);
 
         TestingUtils.commitTransaction();
 
-        containerService.queueResolveCommandAndLaunchContainer(null, willFailWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, willSucceedWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
@@ -418,8 +417,8 @@ public class ContainerCleanupIntegrationTest {
         TestingUtils.commitTransaction();
 
 
-        containerService.queueResolveCommandAndLaunchContainer(null, willFailWrapper.id(), 0L,
-                null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, willFailWrapper.id(),
+                0L, null, Collections.<String, String>emptyMap(), mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         containersToCleanUp.add(swarmMode ? container.serviceId() : container.containerId());
 
@@ -447,8 +446,8 @@ public class ContainerCleanupIntegrationTest {
         String uri = setupSessionMock(runtimeValues);
         setupMocksForSetupWrapupWorkflow("/archive" + uri);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         TestingUtils.commitTransaction();
 
@@ -479,8 +478,8 @@ public class ContainerCleanupIntegrationTest {
         String uri = setupSessionMock(runtimeValues);
         setupMocksForSetupWrapupWorkflow("/archive" + uri);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         TestingUtils.commitTransaction();
 
@@ -511,8 +510,8 @@ public class ContainerCleanupIntegrationTest {
         String uri = setupSessionMock(runtimeValues);
         setupMocksForSetupWrapupWorkflow("/archive" + uri);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         TestingUtils.commitTransaction();
 
@@ -546,8 +545,8 @@ public class ContainerCleanupIntegrationTest {
         String uri = setupSessionMock(runtimeValues);
         setupMocksForSetupWrapupWorkflow("/archive" + uri);
 
-        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(), 0L,
-                null, runtimeValues, mockUser, fakeWorkflow);
+        containerService.queueResolveCommandAndLaunchContainer(null, mainWrapper.id(),
+                0L, null, runtimeValues, mockUser, fakeWorkflow);
         final Container container = TestingUtils.getContainerFromWorkflow(containerService, fakeWorkflow);
         TestingUtils.commitTransaction();
 
