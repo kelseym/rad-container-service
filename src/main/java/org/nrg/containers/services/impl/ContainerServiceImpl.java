@@ -304,12 +304,14 @@ public class ContainerServiceImpl implements ContainerService {
                 wrk.setStatus(PersistentWorkflowUtils.FAILED + " (Queue)");
                 wrk.setDetails("Workflow queued for more than 5 hours, needs relaunch");
                 WorkflowUtils.save(wrk, wrk.buildEvent());
-
             } catch (XFTInitException | ElementNotFoundException| FieldNotFoundException | ParseException e) {
                 log.error("Unable to determine mod time for wfid {}", wrk.getWorkflowId());
             } catch (Exception e) {
                 log.error("Unable to save updated workflow {}", wrk.getWorkflowId());
             }
+
+            containerFinalizeService.sendContainerStatusUpdateEmail(user, false, wrk.getPipelineName(),
+                    wrk.getId(), null, wrk.getExternalid(), null);
         }
 
     }
@@ -341,7 +343,7 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Override
     public void resetFinalizingStatusToWaitingOrFailed() {
-    	List<ContainerEntity> finalizingContainerEntities =  containerEntityService.retrieveServicesInFinalizingState();
+    	List<ContainerEntity> finalizingContainerEntities = containerEntityService.retrieveContainersInFinalizingState();
     	if (finalizingContainerEntities == null || finalizingContainerEntities.size() == 0) {
     		log.info("Appears that no containers are in orphaned {} state", FINALIZING);
     		return;
@@ -349,30 +351,34 @@ public class ContainerServiceImpl implements ContainerService {
         List<Container> finalizingContainers  = toPojo(finalizingContainerEntities);
         //Now update the finalizing state to Waiting or Failed
         for (final Container s : finalizingContainers) {
-            Container service = retrieve(s.databaseId());
-            if (service == null) {
+            Container containerOrService = retrieve(s.databaseId());
+            if (containerOrService == null) {
                 continue;
             }
-            log.info("Found service {} task {} workflow {} in possibly abandoned {} state", service.serviceId(),
-                    service.taskId(), service.workflowId(), FINALIZING);
-            final String userLogin = service.userId();
+            log.info("Found container {} workflow {} in possibly abandoned {} state",
+                    containerOrService.containerOrServiceId(), containerOrService.workflowId(), FINALIZING);
+            final String userLogin = containerOrService.userId();
             try {
                 final UserI userI = Users.getUser(userLogin);
                 Date now = new Date();
-                Date lastStatusTime = service.statusTime();
+                Date lastStatusTime = containerOrService.statusTime();
                 Long diffHours = lastStatusTime == null ? null :
                         (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
                 if (diffHours != null && diffHours < 72) {
-                    addContainerHistoryItem(service, ContainerHistory.fromSystem(WAITING,
+                    //TODO containers can be finalized on non-primary node and this method inappropriately restarts them
+                    addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(WAITING,
                             "Reset status from Finalizing to Waiting." ), userI);
-                    log.info("Updated service {} to Waiting state", service);
+                    log.info("Updated container {} to {} state", containerOrService, WAITING);
                 } else {
-                    addContainerHistoryItem(service, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED +
-                            "("+FINALIZING+")", FINALIZING + " for more than 72 Hours"), userI);
-                    log.info("Updated service {} to FAILED state", service);
+                    addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(PersistentWorkflowUtils.FAILED +
+                            " ("+FINALIZING+")", FINALIZING + " for more than 72 Hours"), userI);
+                    log.info("Updated container {} to {} state", containerOrService, PersistentWorkflowUtils.FAILED);
+                    PersistentWorkflowI wrk = getContainerWorkflow(userI, containerOrService);
+                    containerFinalizeService.sendContainerStatusUpdateEmail(userI, false,
+                            wrk.getPipelineName(), wrk.getId(), null, wrk.getExternalid(), null);
                 }
-            } catch(UserNotFoundException | UserInitException e) {
-                log.error("Could not update container status. Could not get user details for user " + userLogin, e);
+            } catch (UserNotFoundException | UserInitException e) {
+                log.error("Could not update container status. Could not get user details for user {}", userLogin, e);
             }
         }
     }

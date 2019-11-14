@@ -1,6 +1,7 @@
 package org.nrg.containers.daos;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.hibernate.Hibernate;
 import org.hibernate.criterion.Criterion;
 import org.hibernate.criterion.MatchMode;
@@ -140,10 +141,10 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
         }
         return ces;
     }
-    @Nonnull
+
     public int howManyContainersAreBeingFinalized() {
         int countOfContainersBeingFinalized = 0;
-        List<ContainerEntity> ces = retrieveServicesInFinalizingState();
+        List<ContainerEntity> ces = retrieveContainersInFinalizingState();
         if (ces != null) {
         	countOfContainersBeingFinalized = ces.size();
         }
@@ -152,17 +153,18 @@ public class ContainerEntityRepository extends AbstractHibernateDAO<ContainerEnt
     }
 
     @Nonnull
-    public List<ContainerEntity> retrieveServicesInFinalizingState() {
+    public List<ContainerEntity> retrieveContainersInFinalizingState() {
     	final List finalizingResult = getSession()
                 .createCriteria(ContainerEntity.class)
-                .add(Restrictions.conjunction()
-                        .add(Restrictions.isNotNull("serviceId"))
-                        .add(Restrictions.like("status", ContainerServiceImpl.FINALIZING))
-                )
+                .add(Restrictions.like("status", ContainerServiceImpl.FINALIZING))
                 .list();
         List<ContainerEntity> ces = initializeAndReturnList(finalizingResult);
-        for (ContainerEntity ce:ces) {
-        	log.trace("FINALIZING STATE: " + ce.getServiceId() + " STATUS: " + ce.getStatus() + " " + " TASK: " + ce.getTaskId() + " WORKFLOW: " + ce.getWorkflowId() );
+        if (log.isTraceEnabled()) {
+            for (ContainerEntity ce : ces) {
+                String id = StringUtils.defaultIfBlank(ce.getServiceId(), ce.getContainerId());
+                log.trace("FINALIZING STATE: " + id + " STATUS: " + ce.getStatus() + "  TASK: " + ce.getTaskId() +
+                        " WORKFLOW: " + ce.getWorkflowId());
+            }
         }
         return ces;
     }

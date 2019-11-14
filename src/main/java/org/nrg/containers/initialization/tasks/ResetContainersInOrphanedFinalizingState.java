@@ -38,16 +38,13 @@ public class ResetContainersInOrphanedFinalizingState extends AbstractInitializi
         //TODO containers can be finalized on non-primary node and this method inappropriately restarts them
         log.debug("This is the primary node on restart. Checking if any containers exist in orphaned Finalizing " +
                 "state in database. If they do, resetting them to Waiting/Failed");
-        //MR: 10/30/2018 - If this is the first time the DockerStatusUpdater is running
+        //MR: 10/30/2018 - We are restarting the primary node:
         //Look for all containers which are in Finalizing state
-        //These are probably in "hung" state
+        //These are probably in "hung" state (*unless they are running on a non-primary node*)
         //Change the state of these to Waiting
         containerService.resetFinalizingStatusToWaitingOrFailed();
         log.debug("Reset Complete Orphaned Finalizing states to Waiting/Failed State");
-
     }
 
     private final XnatAppInfo _appInfo;
-
-
 }

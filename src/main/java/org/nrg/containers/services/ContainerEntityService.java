@@ -24,7 +24,7 @@ public interface ContainerEntityService extends BaseHibernateService<ContainerEn
 
     List<ContainerEntity> retrieveServices();
     List<ContainerEntity> retrieveNonfinalizedServices();
-    List<ContainerEntity> retrieveServicesInFinalizingState();
+    List<ContainerEntity> retrieveContainersInFinalizingState();
     List<ContainerEntity> retrieveServicesInWaitingState();
 
     int howManyContainersAreBeingFinalized();
