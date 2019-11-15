@@ -365,7 +365,6 @@ public class ContainerServiceImpl implements ContainerService {
                 Long diffHours = lastStatusTime == null ? null :
                         (now.getTime() - lastStatusTime.getTime()) / (60 * 60 * 1000) % 24;
                 if (diffHours != null && diffHours < 72) {
-                    //TODO containers can be finalized on non-primary node and this method inappropriately restarts them
                     addContainerHistoryItem(containerOrService, ContainerHistory.fromSystem(WAITING,
                             "Reset status from Finalizing to Waiting." ), userI);
                     log.info("Updated container {} to {} state", containerOrService, WAITING);
