@@ -13,7 +13,6 @@ import com.spotify.docker.client.EventStream;
 import com.spotify.docker.client.LogStream;
 import com.spotify.docker.client.auth.ConfigFileRegistryAuthSupplier;
 import com.spotify.docker.client.auth.FixedRegistryAuthSupplier;
-import com.spotify.docker.client.auth.RegistryAuthSupplier;
 import com.spotify.docker.client.exceptions.ContainerNotFoundException;
 import com.spotify.docker.client.exceptions.DockerCertificateException;
 import com.spotify.docker.client.exceptions.DockerException;
@@ -1093,7 +1092,7 @@ public class DockerControlApi implements ContainerControlApi {
         final List<DockerContainerEvent> events = getContainerEvents(since, until);
 
         for (final DockerContainerEvent event : events) {
-            if (event.isDestroyStatus()) {
+            if (event.isIgnoreStatus()) {
                 // This occurs on container cleanup, ignore it, we've already finalized at this point
                 log.debug("Skipping docker container event: {}", event);
                 continue;

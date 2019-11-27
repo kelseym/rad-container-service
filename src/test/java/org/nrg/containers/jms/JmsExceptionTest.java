@@ -256,11 +256,13 @@ public class JmsExceptionTest {
         await().until(TestingUtils.containerHasStarted(CLIENT, false, container), is(true));
         log.debug("Waiting until task has finished");
         await().until(TestingUtils.containerIsRunning(CLIENT, false, container), is(false));
-        log.debug("Waiting until container is finalized");
+        log.debug("Waiting until container has failed");
         await().until(TestingUtils.containerIsFinalized(containerService, container), is(true));
 
         assertThat(fakeWorkflow.getStatus(), is(PersistentWorkflowUtils.FAILED + " (JMS)"));
         assertThat(fakeWorkflow.getDetails(), is(exceptionMsg));
+
+        Thread.sleep(200L); // Pause a sec for email to be attempted
 
         Mockito.verify(mockMailService, times(1)).sendHtmlMessage(eq(FAKE_EMAIL),
                 aryEq(new String[]{FAKE_EMAIL}), aryEq(new String[]{FAKE_EMAIL}), Matchers.<String[]>eq(null),

@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
 
 @AutoValue
 public abstract class DockerContainerEvent implements ContainerEvent {
-    private static final Pattern exitStatusPattern = Pattern.compile("kill|die|oom");
-    private static final Pattern successStatusPattern = Pattern.compile("die");
+    private static final Pattern ignoreStatusPattern = Pattern.compile("kill|destroy");
+    private static final Pattern exitStatusPattern = Pattern.compile("die");
 
     public abstract String status();
     public abstract String containerId();
@@ -19,9 +19,10 @@ public abstract class DockerContainerEvent implements ContainerEvent {
     @Nullable public abstract Long timeNano();
     public abstract ImmutableMap<String, String> attributes();
 
-    public boolean isDestroyStatus() {
+    public boolean isIgnoreStatus() {
+        // These statuses come after "die" and thus we want to ignore them
         final String status = status();
-        return status != null && status.equals("destroy");
+        return status != null && ignoreStatusPattern.matcher(status).matches();
     }
 
     public boolean isExitStatus() {
@@ -30,12 +31,8 @@ public abstract class DockerContainerEvent implements ContainerEvent {
     }
 
     public static boolean isSuccessfulStatus(String status){
-        return status != null && successStatusPattern.matcher(status).matches();
-    }
-
-    public boolean isSuccessfulStatus(){
-        final String status = status();
-        return isSuccessfulStatus(status);
+        // No way to determine - always exits with "die", have to use exit code
+        return true;
     }
 
     public String exitCode() {

@@ -144,9 +144,7 @@ public class HibernateContainerEntityService
     public ContainerEntity addContainerEventToHistory(final ContainerEvent containerEvent, final UserI userI) {
         final ContainerEntity containerEntity = retrieve(containerEvent.containerId());
         if (containerEntity == null) {
-            if (log.isDebugEnabled()) {
-                log.debug("This event is not about a container we are interested in.");
-            }
+            log.debug("This event is not about a container we are interested in.");
             return null;
         }
 
@@ -165,8 +163,8 @@ public class HibernateContainerEntityService
             return null;
         }
 
-        log.info("Adding new history item to container entity " + containerEntity.getId() + ".");
-        log.debug("" + history);
+        log.info("Adding new history item to container entity {}", containerEntity.getId());
+        log.debug("Adding new history item to container entity {}: {}", containerEntity.getId(), history);
         getDao().addHistoryItem(containerEntity, history);
 
         ContainerUtils.updateWorkflowStatus(containerEntity.getWorkflowId(), containerEntity.getStatus(),

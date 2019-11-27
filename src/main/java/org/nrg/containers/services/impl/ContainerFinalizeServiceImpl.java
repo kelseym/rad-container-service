@@ -70,7 +70,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
     private final ContainerControlApi containerControlApi;
     private final SiteConfigPreferences siteConfigPreferences;
     private final CatalogService catalogService;
-    private final MailService      mailService;
+    private final MailService mailService;
 
     private final Pattern experimentUri = Pattern.compile("^(/archive)?/experiments/([^/]+)$");
 
@@ -233,7 +233,7 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                 }
             }
 
-            String status;
+            String status = null;
             String details = "";
             boolean processingCompleted = !isFailed;
 
@@ -266,29 +266,27 @@ public class ContainerFinalizeServiceImpl implements ContainerFinalizeService {
                         .statusTime(statusTime);
             } else {
                 // Check if failure already recorded (perhaps with more detail so we don't want to overwrite)
-                String containerStatus = toFinalize.status();
-                status = containerStatus != null ?
-                        containerStatus.replaceAll("^" + ContainerRequest.inQueueStatusPrefix, "")
-                                .replaceFirst("Waiting \\(([^)]*)\\)", "$1")
-                        : "";
-                if (!status.startsWith(PersistentWorkflowUtils.FAILED)) {
-                    // If it's not a failure status, we need to make it so
-                    status = PersistentWorkflowUtils.FAILED;
-                    finalizedContainerBuilder.addHistoryItem(Container.ContainerHistory.fromSystem(status, details));
+                for (Container.ContainerHistory history : toFinalize.history()) {
+                    String containerStatus = history.status();
+                    containerStatus = containerStatus != null ?
+                            containerStatus.replaceAll("^" + ContainerRequest.inQueueStatusPrefix, "")
+                                    .replaceFirst(ContainerServiceImpl.WAITING + " \\(([^)]*)\\)", "$1")
+                            : "";
+                    if (containerStatus.startsWith(PersistentWorkflowUtils.FAILED)) {
+                        status = containerStatus;
+                    } else if ((containerStatus.equals(TaskStatus.TASK_STATE_FAILED) || containerStatus.equals("die")) &&
+                            StringUtils.isNotBlank(history.message())) {
+                        details = history.message();
+                    }
                 }
+                if (status == null || !status.startsWith(PersistentWorkflowUtils.FAILED)) {
+                    // If it's not an XNAT failure status, we need to make it so
+                    status = PersistentWorkflowUtils.FAILED;
+                }
+                finalizedContainerBuilder.addHistoryItem(Container.ContainerHistory.fromSystem(status, details));
                 finalizedContainerBuilder.status(status)
                         .statusTime(new Date());
 
-                // To my knowledge, only swarm has these special failure messages
-                if (toFinalize.isSwarmService()) {
-                    for (Container.ContainerHistory history : toFinalize.history().reverse()) {
-                        if (history.status().equals(TaskStatus.TASK_STATE_FAILED) &&
-                                StringUtils.isNotBlank(history.message())) {
-                            details = history.message();
-                            break;
-                        }
-                    }
-                }
                 if (StringUtils.isBlank(details)) {
                     details = "Non-zero exit code and/or failure status from container";
                 }

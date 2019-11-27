@@ -704,6 +704,11 @@ public class ContainerServiceImpl implements ContainerService {
         // container will be null if either we aren't tracking the container
         // that this event is about, or if we have already recorded the event
         if (container != null) {
+            if (isFinalizing(container)) {
+                log.debug("Container {} finalizing, skipping addl event {}", container.containerOrServiceId(), event);
+                return;
+            }
+
             final String userLogin = container.userId();
             try {
                 final UserI userI = Users.getUser(userLogin);
@@ -989,7 +994,8 @@ public class ContainerServiceImpl implements ContainerService {
     }
     @Override
     public boolean isFinalizing(Container containerOrService){
-    	return FINALIZING.equals(containerOrService.status());
+        String status = containerOrService.status();
+    	return status != null && (status.startsWith(ContainerRequest.inQueueStatusPrefix) || status.equals(FINALIZING));
     }
     @Override
     public boolean isFailedOrComplete(Container containerOrService, UserI user){

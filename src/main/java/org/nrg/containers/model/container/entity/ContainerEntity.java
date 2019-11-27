@@ -6,8 +6,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.model.container.auto.Container;
+import org.nrg.containers.services.impl.ContainerServiceImpl;
 import org.nrg.framework.orm.hibernate.AbstractHibernateEntity;
+import org.nrg.xft.event.persist.PersistentWorkflowUtils;
+
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
@@ -28,22 +32,7 @@ import java.util.Set;
 @Entity
 @Slf4j
 public class ContainerEntity extends AbstractHibernateEntity {
-    public static String KILL_STATUS = "kill";
-    public static Map<String, String> STANDARD_STATUS_MAP = ImmutableMap.<String, String>builder()
-            .put("complete", "Waiting") // Docker swarm "complete" maps to waiting to be finalized
-            .put("created", "Created")
-            .put("rejected", "Waiting (Failed (Rejected))")
-            .put("failed", "Waiting (Failed)")
-            .put("start", "Running")
-            .put("started", "Running")
-            .put("running", "Running")
-            .put("remove", "Waiting (Failed (Remove))")
-            .put("orphaned", "Waiting (Failed (Orphaned))")
-            .put(KILL_STATUS, "Waiting (Failed (Killed))")
-            .put("oom", "Waiting (Failed (Memory))")
-            .put("shutdown", "Waiting (Failed (Shutdown))")
-            .put("starting", "Starting")
-            .build();
+    public static final String KILL_STATUS = "kill";
     private static final Set<String> TERMINAL_STATI = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "Complete", "Failed", "Killed"
     )));
@@ -175,7 +164,43 @@ public class ContainerEntity extends AbstractHibernateEntity {
     }
 
     public void setStatus(final String status) {
-        this.status = STANDARD_STATUS_MAP.containsKey(status) ? STANDARD_STATUS_MAP.get(status) : status;
+        this.status = mapStatus(status);
+    }
+
+    @Transient
+    public String mapStatus(String inStatus) {
+        if (inStatus == null) {
+            return null;
+        }
+        switch (inStatus) {
+            case "complete":
+                return ContainerServiceImpl.WAITING;
+            case "created":
+                return StringUtils.capitalize(inStatus);
+            case "create":
+            case "start":
+            case "started":
+            case "starting":
+            case "running":
+                return PersistentWorkflowUtils.RUNNING;
+            case "remove":
+            case "orphaned":
+            case "oom":
+            case "rejected":
+            case "shutdown":
+                return prefixForService(PersistentWorkflowUtils.FAILED + " (" +
+                        StringUtils.capitalize(inStatus) + ")");
+            case KILL_STATUS:
+                return prefixForService(PersistentWorkflowUtils.FAILED + " (Killed)");
+            case "failed":
+                return PersistentWorkflowUtils.FAILED;
+            default:
+                return inStatus;
+        }
+    }
+
+    private String prefixForService(String inStatus) {
+        return swarm ? ContainerServiceImpl.WAITING + " (" +inStatus+ ")" : inStatus;
     }
 
     @Transient

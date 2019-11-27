@@ -29,6 +29,7 @@ import org.nrg.containers.model.container.entity.ContainerEntity;
 import org.nrg.containers.model.server.docker.DockerServerBase.DockerServer;
 import org.nrg.containers.model.xnat.*;
 import org.nrg.containers.services.CommandService;
+import org.nrg.containers.services.ContainerEntityService;
 import org.nrg.containers.services.ContainerService;
 import org.nrg.containers.services.DockerServerService;
 import org.nrg.containers.utils.TestingUtils;
@@ -108,6 +109,7 @@ public class SwarmRestartIntegrationTest {
     @Autowired private SiteConfigPreferences mockSiteConfigPreferences;
     @Autowired private UserManagementServiceI mockUserManagementServiceI;
     @Autowired private PermissionsServiceI mockPermissionsServiceI;
+    @Autowired private ContainerEntityService containerEntityService;
     @Autowired private XnatAppInfo mockAppInfo;
 
     private CommandWrapper sleeperWrapper;
@@ -406,10 +408,12 @@ public class SwarmRestartIntegrationTest {
             log.error(e.getMessage());
         }
 
-        String failureStatus = ContainerEntity.STANDARD_STATUS_MAP.get(ContainerEntity.KILL_STATUS);
+        ContainerEntity entity = containerEntityService.get(service.databaseId());
+        String failureStatus = entity.mapStatus(ContainerEntity.KILL_STATUS);
+        assertThat(entity.getStatus(), is(failureStatus));
         assertThat(fakeWorkflow.getStatus(), is(failureStatus));
-        assertThat(containerService.get(service.databaseId()).status(), is(failureStatus));
-        // The below doesn't work, perhaps because of the NonUniqueObjectException
+        // The below doesn't work because of the NonUniqueObjectException...
+        // does this mean the whole test is pointless? Probably :(
         //await().until(TestingUtils.containerHasStatus(containerService, service.databaseId(), failureStatus));
 
         // ensure that container did NOT restart

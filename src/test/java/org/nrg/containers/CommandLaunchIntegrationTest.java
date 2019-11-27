@@ -618,7 +618,7 @@ public class CommandLaunchIntegrationTest {
         containersToCleanUp.add(swarmMode ? mainContainerRightAfterLaunch.serviceId() : mainContainerRightAfterLaunch.containerId());
         TestingUtils.commitTransaction();
         log.debug("Waiting until container is finalized or has failed");
-        await().atMost(20L, TimeUnit.SECONDS)
+        await().atMost(30L, TimeUnit.SECONDS)
                 .until(TestingUtils.containerIsFinalized(containerService, mainContainerRightAfterLaunch), is(true));
 
         final Container mainContainerAWhileAfterLaunch = containerService.get(mainContainerRightAfterLaunch.databaseId());
