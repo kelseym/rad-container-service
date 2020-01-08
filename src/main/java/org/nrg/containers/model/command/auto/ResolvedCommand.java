@@ -11,12 +11,13 @@ import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.model.command.entity.CommandEntity;
-import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.container.ContainerInputType;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @AutoValue
@@ -246,6 +247,57 @@ public abstract class ResolvedCommand {
     /**
      * Creates ResolvedCommands for setup and wrapup commands.
      * @param command The Command definition for the setup or wrapup command
+     * @param inputMounts Parent container mounts to be mounted on setup container
+     * @param outputMountXnatHostPath Path on the XNAT host to the output mount
+     * @param outputMountContainerHostPath Path on the container host to the output mount
+     * @param parentSourceObjectName Name of the Resolved Command Mount / Container Mount (for setup commands) or
+     *                               Resolved Command Output / Container Output (for wrapup commands) from which this
+     *                               special Resolved Command is being created.
+     * @return A Resolved Setup Command or Resolved Wrapup Command
+     */
+    public static ResolvedCommand fromSpecialCommandType(final Command command,
+                                                         final List<ResolvedCommandMount> inputMounts,
+                                                         final String outputMountXnatHostPath,
+                                                         final String outputMountContainerHostPath,
+                                                         final String parentSourceObjectName) {
+        Builder builder = builder();
+        for(ResolvedCommandMount inputMount : inputMounts){
+            builder.addMount(ResolvedCommandMount.builder()
+                                                 .name(inputMount.name())
+                                                 .containerPath(inputMount.containerPath())
+                                                 .xnatHostPath(inputMount.xnatHostPath())
+                                                 .containerHostPath(inputMount.containerHostPath())
+                                                 .writable(false)
+                                                 .build());
+        }
+
+        return builder
+                .wrapperId(0L)
+                .wrapperName("")
+                .type(command.type())
+                .commandId(command.id())
+                .commandName(command.name())
+                .image(command.image())
+                .commandLine(command.commandLine())
+                .workingDirectory(command.workingDirectory())
+                .reserveMemory(command.reserveMemory())
+                .limitMemory(command.limitMemory())
+                .limitCpu(command.limitCpu())
+                .parentSourceObjectName(parentSourceObjectName)
+
+                .addMount(ResolvedCommandMount.builder()
+                                              .name("output")
+                                              .containerPath("/output")
+                                              .xnatHostPath(outputMountXnatHostPath)
+                                              .containerHostPath(outputMountContainerHostPath)
+                                              .writable(true)
+                                              .build())
+                .build();
+    }
+
+    /**
+     * Creates ResolvedCommands for setup and wrapup commands.
+     * @param command The Command definition for the setup or wrapup command
      * @param inputMountXnatHostPath Path on the XNAT host to the input mount
      * @param inputMountContainerHostPath Path on the container host to the input mount
      * @param outputMountXnatHostPath Path on the XNAT host to the output mount
@@ -275,21 +327,22 @@ public abstract class ResolvedCommand {
                 .limitCpu(command.limitCpu())
                 .parentSourceObjectName(parentSourceObjectName)
                 .addMount(ResolvedCommandMount.builder()
-                        .name("input")
-                        .containerPath("/input")
-                        .xnatHostPath(inputMountXnatHostPath)
-                        .containerHostPath(inputMountContainerHostPath)
-                        .writable(false)
-                        .build())
+                                              .name("input")
+                                              .containerPath("/input")
+                                              .xnatHostPath(inputMountXnatHostPath)
+                                              .containerHostPath(inputMountContainerHostPath)
+                                              .writable(false)
+                                              .build())
                 .addMount(ResolvedCommandMount.builder()
-                        .name("output")
-                        .containerPath("/output")
-                        .xnatHostPath(outputMountXnatHostPath)
-                        .containerHostPath(outputMountContainerHostPath)
-                        .writable(true)
-                        .build())
+                                              .name("output")
+                                              .containerPath("/output")
+                                              .xnatHostPath(outputMountXnatHostPath)
+                                              .containerHostPath(outputMountContainerHostPath)
+                                              .writable(true)
+                                              .build())
                 .build();
     }
+
 
     public abstract Builder toBuilder();
 

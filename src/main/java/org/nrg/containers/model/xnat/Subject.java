@@ -24,7 +24,6 @@ import org.nrg.xnat.helpers.uri.archive.SubjectURII;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -75,7 +74,7 @@ public class Subject extends XnatModelObject {
         this.projectId = xnatSubjectdataI.getProject();
 
         this.sessions = Lists.newArrayList();
-        if (loadTypes.contains(CommandWrapperInputType.SESSION.getName())) {
+        if (loadTypes.contains(CommandWrapperInputType.SUBJECT.getName())) {
             for (final XnatExperimentdataI xnatExperimentdataI : xnatSubjectdataI.getExperiments_experiment()) {
                 if (xnatExperimentdataI instanceof XnatImagesessiondataI) {
                     sessions.add(new Session((XnatImagesessiondataI) xnatExperimentdataI, loadFiles,

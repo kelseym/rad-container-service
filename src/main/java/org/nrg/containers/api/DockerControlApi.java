@@ -287,6 +287,9 @@ public class DockerControlApi implements ContainerControlApi {
         for (final ResolvedCommandMount mount : resolvedCommand.mounts()) {
             final File mountFile = Paths.get(mount.xnatHostPath()).toFile();
             if (!mountFile.exists()) {
+                if(mountFile.getParentFile() == null){
+                    log.error("Command mount: {} is invalid because it has not parent directory", mountFile.toString());
+                }
                 if (!mountFile.getParentFile().exists()){
                     mountFile.getParentFile().mkdirs();
                 }

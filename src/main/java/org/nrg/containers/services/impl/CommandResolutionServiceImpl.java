@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.jayway.jsonpath.Configuration;
@@ -15,11 +16,8 @@ import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.TypeRef;
 import com.jayway.jsonpath.spi.mapper.MappingException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.nrg.action.ClientException;
-import org.nrg.action.ServerException;
 import org.nrg.config.services.ConfigService;
 import org.nrg.containers.exceptions.CommandInputResolutionException;
 import org.nrg.containers.exceptions.CommandMountResolutionException;
@@ -27,7 +25,7 @@ import org.nrg.containers.exceptions.CommandResolutionException;
 import org.nrg.containers.exceptions.ContainerMountResolutionException;
 import org.nrg.containers.exceptions.IllegalInputException;
 import org.nrg.containers.exceptions.UnauthorizedException;
-import org.nrg.containers.model.command.auto.*;
+import org.nrg.containers.model.command.auto.Command;
 import org.nrg.containers.model.command.auto.Command.CommandInput;
 import org.nrg.containers.model.command.auto.Command.CommandMount;
 import org.nrg.containers.model.command.auto.Command.CommandOutput;
@@ -38,10 +36,16 @@ import org.nrg.containers.model.command.auto.Command.CommandWrapperInput;
 import org.nrg.containers.model.command.auto.Command.CommandWrapperOutput;
 import org.nrg.containers.model.command.auto.Command.ConfiguredCommand;
 import org.nrg.containers.model.command.auto.Command.Input;
+import org.nrg.containers.model.command.auto.LaunchUi;
+import org.nrg.containers.model.command.auto.PreresolvedInputTreeNode;
+import org.nrg.containers.model.command.auto.ResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommand;
 import org.nrg.containers.model.command.auto.ResolvedCommand.PartiallyResolvedCommandMount;
 import org.nrg.containers.model.command.auto.ResolvedCommand.ResolvedCommandOutput;
+import org.nrg.containers.model.command.auto.ResolvedCommandMount;
+import org.nrg.containers.model.command.auto.ResolvedInputTreeNode;
 import org.nrg.containers.model.command.auto.ResolvedInputTreeNode.ResolvedInputTreeValueAndChildren;
+import org.nrg.containers.model.command.auto.ResolvedInputValue;
 import org.nrg.containers.model.command.entity.CommandInputEntity;
 import org.nrg.containers.model.command.entity.CommandType;
 import org.nrg.containers.model.command.entity.CommandWrapperInputType;
@@ -63,7 +67,6 @@ import org.nrg.framework.constants.Scope;
 import org.nrg.framework.exceptions.NotFoundException;
 import org.nrg.xdat.preferences.SiteConfigPreferences;
 import org.nrg.xdat.security.helpers.Permissions;
-import org.nrg.xdat.security.helpers.Users;
 import org.nrg.xft.security.UserI;
 import org.nrg.xnat.helpers.uri.URIManager;
 import org.nrg.xnat.helpers.uri.URIManager.ArchiveItemURI;
@@ -81,8 +84,15 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -420,7 +430,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
         private ResolvedCommand resolveSpecialCommandType(final CommandType type,
                                                           final String image,
-                                                          final String inputMountXnatHostPath,
+                                                          final List<ResolvedCommandMount> inputCommandMounts,
                                                           final String outputMountXnatHostPath,
                                                           final String parentSourceObjectName)
                 throws CommandResolutionException {
@@ -451,13 +461,13 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
             log.debug("Done resolving {} command {} from image {}.", typeStringForLog, command.name(), image);
 
-            return ResolvedCommand.fromSpecialCommandType(command, inputMountXnatHostPath, getMountContainerHostPath(inputMountXnatHostPath),
+            return ResolvedCommand.fromSpecialCommandType(command, inputCommandMounts,
                     outputMountXnatHostPath, getMountContainerHostPath(outputMountXnatHostPath), parentSourceObjectName);
         }
 
         private String getMountContainerHostPath(final String mountXnatHostPath) {
             return (pathTranslationXnatPrefix != null && pathTranslationContainerHostPrefix != null) ?
-                    mountXnatHostPath.replace(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
+                    mountXnatHostPath.replaceAll(pathTranslationXnatPrefix, pathTranslationContainerHostPrefix) :
                     mountXnatHostPath;
         }
 
@@ -2197,7 +2207,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
 
             final List<ResolvedCommandMount> resolvedMounts = Lists.newArrayList();
             for (final CommandMount commandMount : commandMounts) {
-                resolvedMounts.add(
+                resolvedMounts.addAll(
                         resolveCommandMount(
                                 commandMount,
                                 mountSourceInputs.get(commandMount.name()),
@@ -2241,7 +2251,10 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                         throw new CommandResolutionException("Could not create build directory.", e);
                     }
 
-                    resolvedWrapupCommands.add(resolveSpecialCommandType(CommandType.DOCKER_WRAPUP, resolvedCommandOutput.viaWrapupCommand(), resolvedCommandMount.xnatHostPath(), writableMountPath, resolvedCommandOutput.name()));
+                    // Re-label resolvedCommandMounts as inputs for wrapup container
+                    final ResolvedCommandMount resolvedWrapupInputCommandMount = resolvedCommandMount.toBuilder().name("input").containerPath("/input").build();
+
+                    resolvedWrapupCommands.add(resolveSpecialCommandType(CommandType.DOCKER_WRAPUP, resolvedCommandOutput.viaWrapupCommand(), Arrays.asList(resolvedWrapupInputCommandMount), writableMountPath, resolvedCommandOutput.name()));
                 }
             }
 
@@ -2283,7 +2296,7 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
         }
 
         @Nonnull
-        private ResolvedCommandMount resolveCommandMount(final @Nonnull CommandMount commandMount,
+        private List<ResolvedCommandMount> resolveCommandMount(final @Nonnull CommandMount commandMount,
                                                          final @Nullable ResolvedInputTreeNode<? extends Input> resolvedSourceInput,
                                                          final @Nonnull Map<String, String> resolvedInputValuesByReplacementKey)
                 throws CommandResolutionException {
@@ -2321,7 +2334,8 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 String uri = null;
                 if (inputType.equals(PROJECT.getName()) || inputType.equals(SESSION.getName()) ||
                         inputType.equals(SCAN.getName()) || inputType.equals(ASSESSOR.getName()) ||
-                        inputType.equals(RESOURCE.getName()) || inputType.equals(FILE.getName())) {
+                        inputType.equals(RESOURCE.getName()) || inputType.equals(FILE.getName()) ||
+                        inputType.equals(SUBJECT.getName())) {
                     log.debug("Looking for directory on source input.");
                     final XnatModelObject xnatModelObject = resolvedInputValue.xnatModelObject();
                     if (xnatModelObject == null) {
@@ -2336,6 +2350,26 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                     } else {
                         rootDirectory = JsonPath.parse(resolvedInputValue.jsonValue()).read("directory", String.class);
                     }
+
+                    // If this is a subject, create a list of session directories to mount
+                    if(Strings.isNullOrEmpty(rootDirectory) && inputType.equals(SUBJECT.getName()) && xnatModelObject.getClass().isAssignableFrom(Subject.class)){
+                        try {
+                            Subject subject = (Subject) xnatModelObject;
+                            List<String> sessionDirectories = new ArrayList<String>();
+                            for(Session session : subject.getSessions()){
+                                if(!Strings.isNullOrEmpty(session.getDirectory())) {
+                                    sessionDirectories.add(session.getDirectory());
+                                } else {
+                                    log.error("No session directory defined for " +  session.getId() + ". Cannot add to subject input mount.");
+                                }
+                            }
+                            rootDirectory = StringUtils.join(sessionDirectories, ";");
+                            rootDirectory = sessionDirectories.size() > 1 ? rootDirectory : rootDirectory + ";";
+                        }catch (Throwable e) {
+                            log.error("Could not build Subject mount from child sessions.");
+                        }
+                    }
+
                 } else if (inputType.equals(DIRECTORY.getName()) || inputType.equals(FILES.getName())) {
                     // TODO add support for these
                     exceptionMsg = "Unsupported input mount source type \"" + inputType + "\" (though coming soon).";
@@ -2371,15 +2405,14 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 throw new ContainerMountResolutionException(exceptionMsg, partiallyResolvedCommandMount);
             }
 
-            final ResolvedCommandMount resolvedCommandMount = transportMount(partiallyResolvedCommandMount);
+            final List<ResolvedCommandMount> resolvedCommandMounts = transportMount(partiallyResolvedCommandMountBuilder.build());
 
             log.debug("Done resolving command mount \"{}\".", commandMount.name());
-            return resolvedCommandMount;
+            return resolvedCommandMounts;
         }
 
-        private ResolvedCommandMount transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount)
+        private List<ResolvedCommandMount> transportMount(final PartiallyResolvedCommandMount partiallyResolvedCommandMount)
                 throws CommandResolutionException {
-
             final String resolvedCommandMountName = partiallyResolvedCommandMount.name();
             final ResolvedCommandMount.Builder resolvedCommandMountBuilder = partiallyResolvedCommandMount.toResolvedCommandMountBuilder();
 
@@ -2387,98 +2420,77 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
             // Do we have source files? A source directory?
             // Can we mount a directory directly, or should we copy the contents to a build directory?
             // We may need to copy, or may be able to mount directly.
-            String localPath;
-            if (StringUtils.isNotBlank(partiallyResolvedCommandMount.fromWrapperInput())) {
-                String srcPath = partiallyResolvedCommandMount.fromRootDirectory();
-                boolean srcIsFile = false;
-                if (StringUtils.isBlank(srcPath)) {
-                    // maybe it's a file
-                    srcPath = partiallyResolvedCommandMount.fromFilePath();
-                    srcIsFile = StringUtils.isNotBlank(srcPath);
-                }
+            final String localDirectory;
+            boolean hasMultiRootInput = false;
+            List<String> mulitRoot = null;
+            if (partiallyResolvedCommandMount.fromWrapperInput() != null && StringUtils.isNotBlank(partiallyResolvedCommandMount.fromWrapperInput())) {
+                final String directory = partiallyResolvedCommandMount.fromRootDirectory();
+                final boolean hasDirectory = StringUtils.isNotBlank(directory);
+                final boolean writable = partiallyResolvedCommandMount.writable();
+                hasMultiRootInput = directory.contains(";");
+                mulitRoot = hasMultiRootInput ? Arrays.asList(StringUtils.split(directory, ";")) : null;
 
-                if (StringUtils.isBlank(srcPath)) {
-                    final String message = String.format("Mount \"%s\" should have a root path but does not.",
-                            resolvedCommandMountName);
+                if(hasMultiRootInput){
+                    if(writable){
+                        final String message = String.format("Multi-root input mounts cannot be writable.", resolvedCommandMountName);
+                        log.error(message);
+                        throw new ContainerMountResolutionException(message, partiallyResolvedCommandMount);
+                    }
+                    localDirectory = directory;
+
+                } else if (hasDirectory && writable) {
+                    // The mount has a directory and is set to "writable". We must copy files from the root directory into a writable build directory.
+                    try {
+                        localDirectory = getBuildDirectory();
+                    } catch (IOException e) {
+                        throw new ContainerMountResolutionException("Could not create build directory.", partiallyResolvedCommandMount, e);
+                    }
+                    log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files from the root directory to build directory.", resolvedCommandMountName);
+
+                    // TODO CS-54 We must copy all files out of the root directory to a build directory.
+                    log.debug("TODO");
+                } else if (hasDirectory) {
+                    // The source of files can be directly mounted
+                    log.debug("Mount \"{}\" has a root directory and is not set to \"writable\". The root directory can be mounted directly into the container.", resolvedCommandMountName);
+                    localDirectory = directory;
+                } else {
+                    final String message = String.format("Mount \"%s\" should have a directory but it does not.", resolvedCommandMountName);
                     log.error(message);
                     throw new ContainerMountResolutionException(message, partiallyResolvedCommandMount);
                 }
-
-                // Determine if this particular URI has remote files
-                boolean hasRemoteFiles = false;
-                if (srcIsFile) {
-                    // If the file isn't local, assume it's remote (attempting to pull with throw an exception if it isn't)
-                    hasRemoteFiles = !(new File(srcPath).exists());
-                } else {
-                    final String uri = partiallyResolvedCommandMount.fromUri();
-                    if (StringUtils.isNotBlank(uri)) {
-                        try {
-                            hasRemoteFiles = catalogService.hasRemoteFiles(userI, uri);
-                        } catch (ClientException | ServerException e) {
-                            throw new CommandResolutionException(e.getMessage());
-                        }
-                    }
-                }
-
-                final boolean writable = partiallyResolvedCommandMount.writable();
-                if (writable || hasRemoteFiles) {
-                    // The mount has a source path and is set to "writable" or may have remote files. We must copy files
-                    // from the root path into a writable build location.
-                    try {
-                        localPath = getBuildDirectory();
-                    } catch (IOException e) {
-                        throw new ContainerMountResolutionException("Could not create build directory.",
-                                partiallyResolvedCommandMount, e);
-                    }
-                    if (srcIsFile) {
-                        localPath = Paths.get(localPath).resolve(Paths.get(srcPath).getFileName()).toString();
-                    }
-
-                    try {
-                        if (hasRemoteFiles) {
-                            log.debug("Pulling any remote files into mount \"{}\".", resolvedCommandMountName);
-                            catalogService.pullResourceCatalogsToDestination(Users.getAdminUser(),
-                                    partiallyResolvedCommandMount.fromUri(), srcPath, localPath);
-                        } else {
-                            // CS-54 Copy all files out of the root directory to a build directory.
-                            log.debug("Mount \"{}\" has a root directory and is set to \"writable\". Copying all files " +
-                                    "from the root directory to build directory.", resolvedCommandMountName);
-                            if (srcIsFile) {
-                                Files.copy(Paths.get(srcPath), Paths.get(localPath), StandardCopyOption.REPLACE_EXISTING);
-                            } else {
-                                FileUtils.copyDirectory(new File(srcPath), new File(localPath));
-                            }
-                        }
-                    } catch (IOException e) {
-                        throw new ContainerMountResolutionException("Could not copy archive path " + srcPath +
-                                " into writable build path " + localPath, partiallyResolvedCommandMount, e);
-                    } catch (ServerException | ClientException e) {
-                        throw new ContainerMountResolutionException("Could not pull remote files into build " +
-                                "path " + localPath + ": " + e.getMessage(), partiallyResolvedCommandMount, e);
-                    }
-                } else {
-                    // The source can be directly mounted
-                    log.debug("Mount \"{}\" has a root path and is not set to \"writable\". The root path can be " +
-                            "mounted directly into the container.", resolvedCommandMountName);
-                    localPath = srcPath;
-                }
             } else {
-                log.debug("Mount \"{}\" has no input files. Ensuring mount is set to \"writable\" and creating new " +
-                        "build directory.", resolvedCommandMountName);
+                log.debug("Mount \"{}\" has no input files. Ensuring mount is set to \"writable\" and creating new build directory.", resolvedCommandMountName);
                 try {
-                    localPath = getBuildDirectory();
+                    localDirectory = getBuildDirectory();
                 } catch (IOException e) {
                     throw new ContainerMountResolutionException("Could not create build directory.", partiallyResolvedCommandMount, e);
                 }
                 resolvedCommandMountBuilder.writable(true);
             }
 
-            final String pathToMount;
+            List<ResolvedCommandMount> innerCommandMounts = new ArrayList<>();
+            if(hasMultiRootInput && mulitRoot != null && mulitRoot.size() > 0){
+                for(String singleCommandRoot : mulitRoot){
+                    File f = new File(singleCommandRoot);
+                    String folderName = f != null ? f.getName() : UUID.randomUUID().toString();
+                    innerCommandMounts.add(
+                            resolvedCommandMountBuilder
+                                    .containerHostPath(getMountContainerHostPath(singleCommandRoot))
+                                    .containerPath(
+                                            FilenameUtils.concat(partiallyResolvedCommandMount.containerPath(), folderName))
+                                    .xnatHostPath(singleCommandRoot)
+                                    .build());
+                }
+            } else {
+                innerCommandMounts = Arrays.asList(resolvedCommandMountBuilder.xnatHostPath(localDirectory).containerHostPath(getMountContainerHostPath(localDirectory)).build());
+            }
 
+
+            List<ResolvedCommandMount> resolvedCommandMounts = new ArrayList<>();
             if (StringUtils.isNotBlank(partiallyResolvedCommandMount.viaSetupCommand())) {
                 log.debug("Command mount will be set up with setup command {}.", partiallyResolvedCommandMount.viaSetupCommand());
                 // If there is a setup command, we do a switcheroo.
-                // Normally, we would mount localDirectory into this mount. Instead, we mount localDirectory
+                // Normally, we would mount localDirectories into this mount. Instead, we mount localDirectories
                 // into the setup command as its input, along with another writable build directory as its output.
                 // Then we mount the output build directory into this mount.
                 // In that way, the setup command will write to the mount whatever files we need to find.
@@ -2488,28 +2500,22 @@ public class CommandResolutionServiceImpl implements CommandResolutionService {
                 } catch (IOException e) {
                     throw new ContainerMountResolutionException("Could not create build directory.", partiallyResolvedCommandMount, e);
                 }
-                resolvedSetupCommands.add(resolveSpecialCommandType(CommandType.DOCKER_SETUP,
-                        partiallyResolvedCommandMount.viaSetupCommand(), localPath, writableMountPath,
-                        partiallyResolvedCommandMount.name()));
-                pathToMount = writableMountPath;
+                resolvedSetupCommands.add(resolveSpecialCommandType(CommandType.DOCKER_SETUP, partiallyResolvedCommandMount.viaSetupCommand(), innerCommandMounts, writableMountPath, partiallyResolvedCommandMount.name()));
+                resolvedCommandMounts.add(resolvedCommandMountBuilder
+                        .containerPath(partiallyResolvedCommandMount.containerPath())
+                        .containerHostPath(getMountContainerHostPath(writableMountPath))
+                        .xnatHostPath(writableMountPath)
+                        .fromRootDirectory(null).build());
             } else {
-                pathToMount = localPath;
+                // Otherwise, collect all of the innerCommand mounts and add them to the main container
+                for(ResolvedCommandMount innerCommandMount : innerCommandMounts) {
+                    resolvedCommandMounts.add(innerCommandMount.toBuilder().build());
+                }
             }
 
-            log.debug("Setting mount \"{}\" xnat host path to \"{}\".", resolvedCommandMountName, pathToMount);
-            resolvedCommandMountBuilder.xnatHostPath(pathToMount);
-
-            // log.debug("Transporting mount \"{}\".", resolvedCommandMountName);
-            // final Path pathOnContainerHost = transportService.transport(containerHost, Paths.get(buildDirectory));
-            // TODO transporting is currently a no-op, and the code is simpler if we don't pretend that we are doing something here.
-
-            // Translate paths from XNAT prefix to container host prefix
-            final String containerHostPath = getMountContainerHostPath(pathToMount);
-            log.debug("Setting mount \"{}\" container host path to \"{}\".", resolvedCommandMountName, containerHostPath);
-            resolvedCommandMountBuilder.containerHostPath(containerHostPath);
-
-            return resolvedCommandMountBuilder.build();
+            return resolvedCommandMounts;
         }
+
 
         /**
          * Resolves a templated string by replacing its template substrings.
